@@ -298,6 +298,41 @@ object Love {
     else -> null
   }
 
+  fun giveMeTheServiceIdTypes(schedule: Schedule): ServiceIdTypes? {
+    val serviceIds = schedule.calendarDates?.serviceIds ?: return null
+    // I've selected 108 as the route with only weekday travels
+    val tripsOfRouteWeekdaysOnly = schedule.getTripsOfRoute(108).value?.list ?: return null
+    // I've selected 159 as the route with weekday and saturday travels
+    val tripsOfRouteWeekdaysAndSaturday = schedule.getTripsOfRoute(159).value?.list ?: return null
+
+    return giveMeTheServiceIdTypes(serviceIds, tripsOfRouteWeekdaysOnly, tripsOfRouteWeekdaysAndSaturday)
+  }
+
+  fun giveMeTheServiceIdTypes(
+    serviceIds: Iterator<ServiceId>,
+    tripsOfRouteWeekdaysOnly: TripsList,
+    tripsOfRouteWeekdaysAndSaturday: TripsList,
+  ): ServiceIdTypes {
+    val map = HashMap<ServiceId, ServiceIdType>()
+
+    for (serviceId in serviceIds) {
+      map[serviceId] = if (tripsOfRouteWeekdaysOnly.any { it.serviceId == serviceId })
+        // There exist trips of this route on this service id.
+        // Since this route drives on weekdays only, this must be a weekday.
+        ServiceIdType.WEEKDAY
+      else if (tripsOfRouteWeekdaysAndSaturday.any { it.serviceId == serviceId })
+        // There exist trips of this route on this service id.
+        // Since this route drives on weekdays and saturdays, and it is not a weekday, this must be a saturday.
+        ServiceIdType.SATURDAY
+      else
+        // There are no trips on the route that drives on weekdays and saturdays,
+        // thus this must be a sunday (or a holiday).
+        ServiceIdType.SUNDAY
+    }
+
+    return map
+  }
+
   /*
   TODO display which routes have the ability to carry bikes.
   It would be too much to check each specific trip since it would need

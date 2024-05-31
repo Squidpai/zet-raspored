@@ -9,8 +9,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -19,6 +17,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import hr.squidpai.zetlive.gtfs.Live
 import hr.squidpai.zetlive.gtfs.Schedule
@@ -61,7 +62,12 @@ class MainActivity : ComponentActivity() {
 
             val selectedPage = pagerState.currentPage
 
+            val keyboardController = LocalSoftwareKeyboardController.current
+            val focusManager = LocalFocusManager.current
+
             fun setSelectedPage(page: Int) {
+              keyboardController?.hide()
+              focusManager.clearFocus()
               scope.launch { pagerState.animateScrollToPage(page) }
             }
 
@@ -69,12 +75,12 @@ class MainActivity : ComponentActivity() {
               Tab(
                 selected = selectedPage == 0,
                 onClick = { setSelectedPage(0) },
-                text = { Text("Linije") },
+                text = { Text("Linije", maxLines = 1, overflow = TextOverflow.Ellipsis) },
               )
               Tab(
                 selected = selectedPage == 1,
                 onClick = { setSelectedPage(1) },
-                text = { Text("Postaje") },
+                text = { Text("Postaje", maxLines = 1, overflow = TextOverflow.Ellipsis) },
               )
             }
 
@@ -122,10 +128,9 @@ private fun MyTopAppBar() {
   var showUpdateDialog by remember { mutableStateOf(false) }
 
   TopAppBar(
-    title = { Text("Raspored") },
+    title = { Text("Raspored", maxLines = 1, overflow = TextOverflow.Ellipsis) },
     actions = {
       IconButton(onClick = { showUpdateDialog = true }) {
-        Icon(Icons.Filled.Refresh, "Update")
       }
     }
   )
@@ -173,12 +178,12 @@ private fun PriorityLoadingDialog() {
   val loadingState = Schedule.priorityLoadingState
   if (loadingState != null) AlertDialog(
     onDismissRequest = { },
-    title = {
+    text = {
       Row(verticalAlignment = Alignment.CenterVertically) {
         if (loadingState is Schedule.Companion.TrackableLoadingState)
           CircularProgressIndicator(progress = { loadingState.progress })
         else CircularProgressIndicator()
-        Text(loadingState.text, Modifier.padding(start = 8.dp))
+        Text(loadingState.text, Modifier.padding(start = 16.dp))
       }
     },
     confirmButton = { }

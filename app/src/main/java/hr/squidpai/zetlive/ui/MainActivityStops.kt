@@ -19,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -31,7 +32,7 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun MainActivityStops() = Column {
+fun MainActivityStops() = Column(Modifier.fillMaxSize()) {
   val groupedStops = Schedule.instance.stops?.groupedStops
 
   val inputState = rememberSaveable { mutableStateOf("") }
@@ -56,7 +57,7 @@ fun MainActivityStops() = Column {
     LazyColumn(state = lazyListState) {
       if (inputState.value.isBlank())
         for (pinnedStopId in pinnedStops) {
-          val stop = groupedStops[pinnedStopId.toStopId()] ?: continue
+          val stop = groupedStops[pinnedStopId.toParentStopId()] ?: continue
           item(key = -pinnedStopId) {
             StopContent(
               stop, pinned = true,
@@ -70,7 +71,7 @@ fun MainActivityStops() = Column {
       items(list.size, key = { list[it].parentStop.id.value }) {
         val stop = list[it]
         StopContent(
-          stop, pinned = stop.parentStop.id.value in pinnedStops,
+          stop, pinned = stop.parentStop.id.stationNumber in pinnedStops,
           modifier = Modifier
             .fillParentMaxWidth()
             .animateItemPlacement(),
@@ -93,7 +94,10 @@ private fun StopFilterSearchBar(
 
   val coroutineScope = rememberCoroutineScope()
 
-  val updateInput = { newInput: String ->
+  val updateInput = updateInput@{ newInput: String ->
+    if (newInput.length > 100)
+      return@updateInput
+
     setInput(newInput)
 
     val newInputTrimmed = newInput.trim()
@@ -117,12 +121,11 @@ private fun StopFilterSearchBar(
     value = input,
     onValueChange = updateInput,
     modifier = modifier,
-    label = { Text("Pretraži postaje") },
+    label = { Text("Pretraži postaje", maxLines = 1, overflow = TextOverflow.Ellipsis) },
     leadingIcon = { Icon(Symbols.Search, null) },
     trailingIcon = {
-      if (input.isNotEmpty()) IconButton(onClick = { updateInput("") }) {
-        Icon(Symbols.Close, "Izbriši unos")
-      }
+      if (input.isNotEmpty())
+        IconButton(Symbols.Close, "Izbriši unos") { updateInput("") }
     },
     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
     keyboardActions = KeyboardActions { keyboardController?.hide() },
@@ -135,7 +138,7 @@ private fun StopContent(groupedStop: GroupedStop, pinned: Boolean, modifier: Mod
     rememberSaveable(key = "st${groupedStop.parentStop.id.value}") { mutableStateOf(false) }
 
   Surface(
-    modifier = modifier.padding(4.dp),
+    modifier = modifier.padding(4.dp).animateContentSize(),
     tonalElevation = if (expanded) 2.dp else 0.dp,
   ) {
     Column {
@@ -153,7 +156,12 @@ private fun StopContent(groupedStop: GroupedStop, pinned: Boolean, modifier: Mod
             .weight(1f)
             .padding(4.dp)
         ) {
-          Text(groupedStop.parentStop.name, style = MaterialTheme.typography.bodyLarge)
+          Text(
+            groupedStop.parentStop.name,
+            style = MaterialTheme.typography.bodyLarge,
+            maxLines = if (expanded) Int.MAX_VALUE else 1,
+            overflow = TextOverflow.Ellipsis,
+          )
 
           val iconInfo = when (groupedStop.stopType) {
             StopType.Tram -> Symbols.Tram20 to "Tramvaji"
@@ -177,14 +185,15 @@ private fun StopContent(groupedStop: GroupedStop, pinned: Boolean, modifier: Mod
         }
 
         if (expanded || pinned)
-          IconButton(onClick = {
+          IconButton(
+            if (pinned) Symbols.PushPinFilled else Symbols.PushPin,
+            if (pinned) "Otkvači s vrha popisa" else "Zakvači na vrh popisa"
+          ) {
             Data.updateData {
-              val id = groupedStop.parentStop.id.value
+              val id = groupedStop.parentStop.id.stationNumber
               if (id !in pinnedStops) pinnedStops += id
               else pinnedStops -= id
             }
-          }) {
-            Icon(if (pinned) Symbols.PushPinFilled else Symbols.PushPin, "Pinaj")
           }
       }
 
@@ -215,7 +224,15 @@ private fun StopContent(groupedStop: GroupedStop, pinned: Boolean, modifier: Mod
           .sorted()
 
         val (selectedStopIndex, setSelectedStopIndex) = rememberSaveable {
-          mutableIntStateOf(Data.defaultStopCodes.getOrDefault(groupedStop.parentStop.id.value, 0))
+          val preferredCode = Data.defaultStopCodes.getOrDefault(groupedStop.parentStop.id.stationNumber, 0)
+          mutableIntStateOf(
+            if (preferredCode == 0) 0
+            else {
+              val index = labeledStops.indexOfFirst { it.stop.code == preferredCode }
+              if (index == -1) 0
+              else index
+            }
+          )
         }
         val selectedStop = labeledStops[selectedStopIndex].stop
 
@@ -230,7 +247,7 @@ private fun StopContent(groupedStop: GroupedStop, pinned: Boolean, modifier: Mod
               onClick = {
                 if (selectedStopIndex != it) {
                   setSelectedStopIndex(it)
-                  Data.updateData { defaultStopCodes[groupedStop.parentStop.id.value] = it }
+                  Data.updateData { defaultStopCodes[groupedStop.parentStop.id.stationNumber] = stop.code }
                 }
               },
               label = { Text(label ?: "Smjer") },
@@ -288,14 +305,15 @@ private fun StopLiveTravels(stop: Stop, routesAtStopMap: RoutesAtStopMap) {
         .padding(vertical = 4.dp),
       verticalAlignment = Alignment.CenterVertically
     ) {
+      val routeStyle = MaterialTheme.typography.titleMedium
       Text(
         text = routeNumber.toString(),
-        modifier = Modifier.width(48.dp),
+        modifier = Modifier.width(with(LocalDensity.current) { (routeStyle.fontSize * 3.5f).toDp() }),
         color = MaterialTheme.colorScheme.primary,
         textAlign = TextAlign.Center,
-        style = MaterialTheme.typography.titleMedium,
+        style = routeStyle,
       )
-      Text(headsign, Modifier.weight(1f))
+      Text(headsign, Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
       Text(
         if (useRelative) "${relativeTime / 60} min" else absoluteTime.timeToString(),
         modifier = Modifier.padding(end = 4.dp),

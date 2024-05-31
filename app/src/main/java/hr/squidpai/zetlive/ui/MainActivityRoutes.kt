@@ -4,7 +4,6 @@ import android.content.Intent
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -23,22 +22,23 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import hr.squidpai.zetlive.Data
 import hr.squidpai.zetlive.gtfs.*
 import hr.squidpai.zetlive.orLoading
 import hr.squidpai.zetlive.timeToString
 import kotlinx.coroutines.launch
-import kotlin.math.max
 import kotlin.text.Typography
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun MainActivityRoutes() = Column {
+fun MainActivityRoutes() = Column(Modifier.fillMaxSize()) {
   val routes = Schedule.instance.routes
 
   val inputState = rememberSaveable { mutableStateOf("") }
@@ -100,7 +100,8 @@ private fun RouteFilterSearchBar(
 
   val coroutineScope = rememberCoroutineScope()
 
-  val updateInput = { newInput: String ->
+  val updateInput = updateInput@{ newInput: String ->
+    if (newInput.length > 100) return@updateInput
     setInput(newInput)
 
     val newInputTrimmed = newInput.trim()
@@ -124,12 +125,11 @@ private fun RouteFilterSearchBar(
     value = input,
     onValueChange = updateInput,
     modifier = modifier,
-    label = { Text("Pretraži linije") },
+    label = { Text("Pretraži linije", maxLines = 1, overflow = TextOverflow.Ellipsis) },
     leadingIcon = { Icon(Symbols.Search, null) },
     trailingIcon = {
-      if (input.isNotEmpty()) IconButton(onClick = { updateInput("") }) {
-        Icon(Symbols.Close, "Izbriši unos")
-      }
+      if (input.isNotEmpty())
+        IconButton(Symbols.Close, "Izbriši unos") { updateInput("") }
     },
     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
     keyboardActions = KeyboardActions { keyboardController?.hide() },
@@ -166,23 +166,25 @@ private fun RouteContent(route: Route, pinned: Boolean, modifier: Modifier) {
           ),
         verticalAlignment = Alignment.CenterVertically,
       ) {
+        val shortNameStyle = MaterialTheme.typography.titleMedium
         Text(
           route.shortName,
-          modifier = Modifier.width(48.dp),
+          modifier = Modifier.width(with(LocalDensity.current) { (shortNameStyle.fontSize * 3.5f).toDp() }),
           color = MaterialTheme.colorScheme.primary,
           textAlign = TextAlign.Center,
-          style = MaterialTheme.typography.titleMedium,
+          style = shortNameStyle,
         )
         Text(route.longName, Modifier.weight(1f))
 
         if (expanded || pinned)
-          IconButton(onClick = {
+          IconButton(
+            if (pinned) Symbols.PushPinFilled else Symbols.PushPin,
+            if (pinned) "Otkvači s vrha popisa" else "Zakvači na vrh popisa",
+          ) {
             Data.updateData {
               if (route.id !in pinnedRoutes) pinnedRoutes += route.id
               else pinnedRoutes -= route.id
             }
-          }) {
-            Icon(if (pinned) Symbols.PushPinFilled else Symbols.PushPin, "Pinaj")
           }
       }
 
@@ -223,7 +225,13 @@ private fun ColumnScope.RouteLiveTravels(route: Route, directionState: MutableIn
 
   val (direction, setDirection) = directionState
 
-  DirectionRow(commonHeadsign = routeLiveSchedule?.commonHeadsign, direction, setDirection)
+  DirectionRow(
+    commonHeadsign = routeLiveSchedule?.commonHeadsign,
+    direction, setDirection,
+    isRoundRoute = routeLiveSchedule != null &&
+        (if (routeLiveSchedule.first.isNotEmpty()) routeLiveSchedule.second.isEmpty()
+        else routeLiveSchedule.commonHeadsign.second.isEmpty()),
+  )
 
   if (routeLiveSchedule == null) {
     CircularProgressIndicator(
@@ -245,7 +253,7 @@ private fun ColumnScope.RouteLiveTravels(route: Route, directionState: MutableIn
 
   if (liveTravels.isEmpty()) {
     Text(
-      "Linija danas više nema polazaka.",
+      "Linija danas nema više polazaka.",
       Modifier
         .padding(vertical = 8.dp)
         .align(Alignment.CenterHorizontally)
@@ -262,8 +270,9 @@ private fun ColumnScope.RouteLiveTravels(route: Route, directionState: MutableIn
 private fun LiveTravelSlider(routeScheduleEntry: RouteScheduleEntry) {
   val selectTrip = LocalSelectTrip.current
 
-  val (name, stopSequence, sliderValue, trip, overriddenHeadsign, overriddenFirstStop, departureTime) =
+  val (_, sliderValue, trip, overriddenHeadsign, overriddenFirstStop, departureTime) =
     routeScheduleEntry
+  val currentStopIndex = routeScheduleEntry.nextStopIndex - 1
 
   val specialLabel = Love.giveMeTheSpecialTripLabel(trip)
 
@@ -279,48 +288,57 @@ private fun LiveTravelSlider(routeScheduleEntry: RouteScheduleEntry) {
 
     val stops = Schedule.instance.stops?.list
 
-    val state = rememberSaveable(stopSequence, saver = LazyListState.Saver) {
-      LazyListState(firstVisibleItemIndex = max(stopSequence - 1, 0))
+    val firstVisibleItemIndex = if (currentStopIndex > 0) 1 else 0
+    val state = rememberSaveable(firstVisibleItemIndex, saver = LazyListState.Saver) {
+      LazyListState(firstVisibleItemIndex)
     }
 
     LaunchedEffect(Unit) {
       state.interactionSource.interactions.collect { interaction ->
         if (interaction is DragInteraction.Stop) {
-          if (state.firstVisibleItemIndex == stopSequence - 1 && state.firstVisibleItemScrollOffset < 32) {
-            state.scrollToItem(stopSequence - 1, scrollOffset = 0)
+          if (state.firstVisibleItemIndex == 1 && state.firstVisibleItemScrollOffset < 128) {
+            state.scrollToItem(1, scrollOffset = 0)
           }
         }
       }
     }
 
-    if (stops == null) Text(name, color = tint)
-    else LazyRow(
+    if (stops != null) LazyRow(
       modifier = Modifier.height(40.dp),
       state = state,
       horizontalArrangement = Arrangement.spacedBy(4.dp),
       verticalAlignment = Alignment.CenterVertically,
     ) {
-      items(trip.stops.size) {
-        if (it + 1 == stopSequence) {
-          if (stopSequence != 1) Icon(
-            Icons.AutoMirrored.Filled.ArrowForward,
-            modifier = Modifier.padding(start = 8.dp),
-            contentDescription = null,
-            tint = tint
-          )
-          Text(
-            text = name,
-            modifier = Modifier.padding(horizontal = 8.dp),
-            fontWeight = FontWeight.Medium,
-          )
-        } else {
-          val stopName = stops[trip.stops[it].toStopId()]?.name.orLoading()
-          Text(
-            text = if (it == 0) stopName else "${Typography.bullet} $stopName",
-            color = lerp(MaterialTheme.colorScheme.onSurface, MaterialTheme.colorScheme.surface, .36f),
-            style = MaterialTheme.typography.bodyMedium,
-          )
-        }
+      if (currentStopIndex > 0) item {
+        Text(
+          trip.joinStopsToString(stops, endIndex = currentStopIndex, postfix = " ${Typography.bullet} "),
+          color = lerp(MaterialTheme.colorScheme.onSurface, MaterialTheme.colorScheme.surface, .36f),
+          style = MaterialTheme.typography.bodyMedium,
+        )
+      }
+      item {
+        Text(
+          text = stops[trip.stops[currentStopIndex.coerceAtLeast(0)].toStopId()]?.name.orLoading(),
+          modifier = Modifier.padding(start = 8.dp),
+          fontWeight = FontWeight.Medium,
+        )
+        if (currentStopIndex != -1) Icon(
+          Icons.AutoMirrored.Filled.ArrowForward,
+          modifier = Modifier.padding(horizontal = 8.dp),
+          contentDescription = null,
+          tint = tint
+        )
+      }
+      if (currentStopIndex + 1 < stops.size) item {
+        Text(
+          trip.joinStopsToString(
+            stops,
+            beginIndex = (currentStopIndex + 1).coerceAtLeast(1),
+            prefix = " ${Typography.bullet} ".takeIf { currentStopIndex != 0 },
+          ),
+          color = lerp(MaterialTheme.colorScheme.onSurface, MaterialTheme.colorScheme.surface, .36f),
+          style = MaterialTheme.typography.bodyMedium,
+        )
       }
     }
 
@@ -331,29 +349,33 @@ private fun LiveTravelSlider(routeScheduleEntry: RouteScheduleEntry) {
       passedTrackColor = tint,
     )
 
-    if (stopSequence == 1 ||
+    if (currentStopIndex == -1 ||
       overriddenHeadsign != null ||
       overriddenFirstStop.isValid() ||
-      specialLabel != null)
+      specialLabel != null
+    )
       Row(
         modifier = Modifier
           .fillMaxWidth()
           .padding(horizontal = 8.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
       ) {
-        if (stopSequence == 1)
-          Text(if (departureTime >= 0) departureTime.timeToString() else "za ${(-departureTime - 1) / 60} min")
+        if (currentStopIndex == -1)
+          Text(
+            if (departureTime >= 0) "kreće u ${departureTime.timeToString()}"
+            else "kreće za ${(-departureTime - 1) / 60} min"
+          )
         else if (overriddenFirstStop.isValid())
-          // do not display the first stop if stopSequence == 1 because then it is already highlighted
+        // do not display the first stop if stopSequence == 1 because then it is already highlighted
           Text("polazište ${stops?.get(overriddenFirstStop)?.name.orLoading()}")
         else
-          // blank box take up space
+        // blank box take up space
           Box(Modifier.size(0.dp))
 
         specialLabel?.first?.let { Text(it) }
 
         if (specialLabel?.second != null || overriddenHeadsign != null)
-          Text(specialLabel?.second ?: "smjer $overriddenHeadsign")
+          Text(specialLabel?.second ?: "smjer $overriddenHeadsign", textAlign = TextAlign.End)
       }
   }
 }

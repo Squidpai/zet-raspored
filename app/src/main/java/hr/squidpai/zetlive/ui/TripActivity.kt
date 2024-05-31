@@ -101,9 +101,7 @@ class TripActivity : ComponentActivity() {
       )
     },
     navigationIcon = {
-      IconButton(onClick = { finish() }) {
-        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Natrag")
-      }
+      IconButton(Icons.AutoMirrored.Filled.ArrowBack, "Natrag") { finish() }
     }
   )
 

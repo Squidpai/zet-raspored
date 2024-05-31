@@ -29,6 +29,8 @@ sealed interface Schedule {
 
   val routesAtStopMap: RoutesAtStopMap?
 
+  val serviceIdTypes: ServiceIdTypes?
+
   companion object {
     private const val TAG = "ScheduleInit"
 
@@ -334,6 +336,31 @@ private class ScheduleImpl(
 
   override var routesAtStopMap by mutableStateOf<RoutesAtStopMap?>(null)
 
+  private var _serviceIdTypes by mutableStateOf<ServiceIdTypes?>(null)
+
+  override val serviceIdTypes: ServiceIdTypes?
+    get() {
+      val serviceIdTypes = _serviceIdTypes
+
+      if (serviceIdTypes != null)
+        return serviceIdTypes
+
+      val loaded = TripsLoader.loadServiceIdTypes(stopTimesDirectory)
+
+      if (loaded != null)
+        return loaded.also { _serviceIdTypes = it }
+
+      val given = Love.giveMeTheServiceIdTypes(this)
+
+      if (given != null)
+        return given.also {
+          _serviceIdTypes = it
+          TripsLoader.saveServiceIdTypes(stopTimesDirectory, it)
+        }
+
+      return null
+    }
+
   private val tripsCache = MutableIntObjectMap<State<Trips?>>()
 
   @Synchronized
@@ -394,6 +421,8 @@ private data object EmptySchedule : Schedule {
   override val stops = null
 
   override val calendarDates = null
+
+  override val serviceIdTypes = null
 
   override fun getTripsOfRoute(routeId: RouteId) = nullState<Trips>()
 

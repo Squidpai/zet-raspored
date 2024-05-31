@@ -1,14 +1,11 @@
 package hr.squidpai.zetlive
 
-import android.animation.ArgbEvaluator
 import androidx.collection.*
 import androidx.compose.runtime.State
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.lerp
-import androidx.compose.ui.graphics.toArgb
 import java.io.DataInputStream
 import java.io.DataOutputStream
+import kotlin.enums.enumEntries
 
 /**
  * Returns 1 if `this` is `true`, 0 otherwise.
@@ -45,7 +42,7 @@ inline fun Modifier.alsoIf(condition: Boolean, block: Modifier.() -> Modifier) =
  * Concatenates this modifier with [block] if [condition] is `false`,
  * otherwise, returns just this modifier.
  */
-inline fun Modifier.alsoUnless(condition: Boolean, block: Modifier.() -> Modifier) =
+inline fun Modifier.alsoIfNot(condition: Boolean, block: Modifier.() -> Modifier) =
   if (!condition) this.block() else this
 
 /**
@@ -188,3 +185,10 @@ operator fun <T> Pair<T, T>.get(index: Int) = when (index) {
   1 -> second
   else -> throw IndexOutOfBoundsException("Index out of range: $index")
 }
+
+/**
+ * Returns the enum entry whose ordinal is one more than this, or
+ * whose ordinal is zero, if this is the last entry.
+ */
+@OptIn(ExperimentalStdlibApi::class)
+inline val <reified T : Enum<T>> T.next get() = enumEntries<T>().let { it[(ordinal + 1) % it.size] }

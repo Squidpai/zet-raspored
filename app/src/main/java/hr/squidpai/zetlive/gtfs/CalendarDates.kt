@@ -47,25 +47,19 @@ class CalendarDates : AbstractList<ServiceId> {
     val allEntries = CSVReader(
       zip.getInputStream(zip.getEntry(name)).reader()
     ).use { it.readAll() }
-    val entryIterator = allEntries.iterator()
 
-    if (!entryIterator.hasNext()) {
+    if (allEntries.size < 2) {
       data = emptyArray()
       firstDate = null
       firstDateEpoch = 0L
       return
     }
+
+    val entryIterator = allEntries.iterator()
 
     val header = entryIterator.next()
     val serviceIdOffset = header.indexOf("service_id")
     val dateOffset = header.indexOf("date")
-
-    if (!entryIterator.hasNext()) {
-      data = emptyArray()
-      firstDate = null
-      firstDateEpoch = 0L
-      return
-    }
 
     if (serviceIdOffset == -1) throw MalformedCsvException("no service_id")
     if (dateOffset == -1) throw MalformedCsvException("no date")
@@ -76,6 +70,8 @@ class CalendarDates : AbstractList<ServiceId> {
   }
 
   override val size get() = data.size
+
+  val serviceIds get() = data.iterator()
 
   /**
    * Returns the [ServiceId] directly from the data.

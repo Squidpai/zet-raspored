@@ -1,11 +1,19 @@
 package hr.squidpai.zetlive
 
 import android.util.JsonReader
+import android.util.JsonToken
 import android.util.JsonWriter
 import android.util.Log
 import androidx.collection.MutableIntIntMap
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import hr.squidpai.zetlive.gtfs.RouteId
-import java.io.*
+import hr.squidpai.zetlive.gtfs.StopId
+import hr.squidpai.zetlive.gtfs.toStopId
+import java.io.File
+import java.io.FileNotFoundException
+import java.io.IOException
 
 /**
  * Object containing user data and preferences.
@@ -17,6 +25,7 @@ object Data {
   private const val PINNED_ROUTES = "pinnedRoutes"
   private const val PINNED_STOPS = "pinnedStops"
   private const val PREFERRED_DEFAULT_STOP_CODES = "defaultStopCodes"
+  private const val TRIP_TIME_TYPE = "tripTimeType"
 
   private var file: File? = null
 
@@ -28,20 +37,24 @@ object Data {
 
   /**
    * The set of stops pinned to the top of the stop list
-   * in `MainActivityStops`, specifically, their **parent IDs**.
+   * in `MainActivityStops`, specifically, their **station number**.
    */
   val pinnedStops = mutableStateSetOf<Int>()
 
   /**
-   * A map containing the index of the last selected child stop from
-   * a grouped stop, the key being the **parent stop ID** and the value
-   * being the index.
+   * A map containing the station code of the last selected child stop from
+   * a grouped stop, the key being the **station number**, and the value
+   * being the **station code**.
    *
    * Used in `MainActivityStops` to remember and show the stop which the
    * user previously selected, as the user will probably often check on
    * one specific stop.
    */
   val defaultStopCodes = MutableIntIntMap()
+
+  enum class TripTimeType { Default, Absolute, Relative }
+
+  var tripTimeType by mutableStateOf(TripTimeType.Default)
 
   /**
    * Tries loading the data from [file].
@@ -77,7 +90,7 @@ object Data {
 
               val list = ArrayList<Int>()
               while (reader.hasNext())
-                list += reader.nextInt()
+                list += reader.nextInt().let { if (it >= 65536) it / 65536 else it }
 
               pinnedStops.clear()
               pinnedStops.addAll(list)
@@ -86,17 +99,27 @@ object Data {
             }
 
             PREFERRED_DEFAULT_STOP_CODES -> {
-              reader.beginObject()
-
               defaultStopCodes.clear()
-              while (reader.hasNext()) {
-                val key = reader.nextName().toInt()
-                val value = reader.nextInt()
+              if (reader.peek() == JsonToken.BEGIN_OBJECT) {
+                reader.skipValue()
+              } else {
+                reader.beginArray()
 
-                defaultStopCodes[key] = value
+                defaultStopCodes.clear()
+                while (reader.hasNext()) {
+                  val (number, code) = reader.nextString().toStopId()
+
+                  defaultStopCodes[number] = code
+                }
+
+                reader.endArray()
               }
+            }
 
-              reader.endObject()
+            TRIP_TIME_TYPE -> try {
+              tripTimeType = TripTimeType.valueOf(reader.nextString())
+            } catch (e: IllegalArgumentException) {
+              Log.w(TAG, "load: invalid tripTimeType in loaded file", e)
             }
           }
         }
@@ -141,19 +164,24 @@ object Data {
         if (stops.isNotEmpty()) {
           writer.name(PINNED_STOPS)
             .beginArray()
-          for (route in stops)
-            writer.value(route)
+          for (stop in stops)
+            writer.value(stop)
           writer.endArray()
         }
 
         if (defaultStopCodes.isNotEmpty()) {
           writer.name(PREFERRED_DEFAULT_STOP_CODES)
-            .beginObject()
+            .beginArray()
           defaultStopCodes.forEach { k, v ->
-            writer.name(k.toString()).value(v)
+            writer.value(StopId(k, v).toString())
           }
-          writer.endObject()
+          writer.endArray()
         }
+
+        val tripTimeType = tripTimeType
+        if (tripTimeType != TripTimeType.Default)
+          writer.name(TRIP_TIME_TYPE)
+            .value(tripTimeType.name)
 
         writer.endObject()
       }

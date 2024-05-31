@@ -27,7 +27,11 @@ value class Routes(val list: SortedListMap<RouteId, Route>) {
       if (trimmedInput.matches(asciiDigitsOnlyRegex))
         return list.filter { trimmedInput in it.shortName }
 
-      return list.filter { it.longName.contains(trimmedInput, ignoreCase = true) }
+      val splitInput = trimmedInput.split(' ')
+
+      return list.filter { route ->
+        splitInput.all { route.longName.contains(it, ignoreCase = true) }
+      }
     }
   }
 

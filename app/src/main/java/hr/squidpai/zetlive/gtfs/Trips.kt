@@ -5,6 +5,7 @@ import androidx.collection.*
 import com.opencsv.CSVReader
 import hr.squidpai.zetlive.*
 import java.io.*
+import java.util.Scanner
 import java.util.zip.ZipFile
 import kotlin.math.absoluteValue
 
@@ -43,6 +44,24 @@ data class Trip(
     }
     return stops.size
   }
+
+  fun joinStopsToString(
+    stopsList: SortedListMap<StopId, Stop>,
+    beginIndex: Int = 0,
+    endIndex: Int = stops.size,
+    prefix: CharSequence? = null,
+    separator: CharSequence = " ${Typography.bullet} ",
+    postfix: CharSequence? = null
+  ) =
+    buildString {
+      prefix?.let { append(it) }
+      for (i in beginIndex..<endIndex) {
+        if (i != beginIndex)
+          append(separator)
+        append(stopsList[stops[i].toStopId()]?.name.orLoading())
+      }
+      postfix?.let { append(it) }
+    }
 }
 
 class Trips(
@@ -203,7 +222,7 @@ object TripsLoader {
     val file = File(stopTimesDirectory, STOPS_BY_ROUTE_FILE_NAME)
 
     return try {
-      DataInputStream(BufferedInputStream(FileInputStream(file))).use { input ->
+      DataInputStream(BufferedInputStream(file.inputStream())).use { input ->
         input.readStopsByRoute()
       }
     } catch (e: FileNotFoundException) {
@@ -212,6 +231,57 @@ object TripsLoader {
     } catch (e: EOFException) {
       Log.w(TAG, "getStopsByRoute: failed to load StopsByRoute", e)
       null
+    }
+  }
+
+  private const val SERVICE_ID_TYPES_FILE_NAME = "serviceIdTypes"
+
+  fun loadServiceIdTypes(stopTimesDirectory: File): ServiceIdTypes? {
+    val file = File(stopTimesDirectory, SERVICE_ID_TYPES_FILE_NAME)
+
+    return try {
+      Scanner(file).use { scanner ->
+        val map = HashMap<ServiceId, ServiceIdType>()
+        while (scanner.hasNext()) {
+          val serviceId = scanner.next()
+
+          val serviceIdTypeName = try {
+            scanner.next()
+          } catch (_: NoSuchElementException) {
+            Log.w(TAG, "loadServiceIdTypes: incomplete serviceIdTypes file")
+            break
+          }
+          val serviceIdType = try {
+            ServiceIdType.valueOf(serviceIdTypeName)
+          } catch (_: IllegalArgumentException) {
+            Log.w(TAG, "loadServiceIdTypes: invalid serviceIdType: $serviceIdTypeName")
+            break
+          }
+
+          map[serviceId] = serviceIdType
+        }
+        map
+      }
+    } catch (e: FileNotFoundException) {
+      Log.i(TAG, "loadServiceIdTypes: file \"$SERVICE_ID_TYPES_FILE_NAME\" not found", e)
+      null
+    }
+  }
+
+  fun saveServiceIdTypes(stopTimesDirectory: File, serviceIdTypes: ServiceIdTypes) {
+    val file = File(stopTimesDirectory, SERVICE_ID_TYPES_FILE_NAME)
+
+    try {
+      file.bufferedWriter().use { writer ->
+        for ((serviceId, serviceIdType) in serviceIdTypes) {
+          writer.write(serviceId)
+          writer.write(' '.code)
+          writer.write(serviceIdType.name)
+          writer.write('\n'.code)
+        }
+      }
+    } catch (e: IOException) {
+      Log.w(TAG, "saveServiceIdTypes: failed to write serviceIdTypes", e)
     }
   }
 

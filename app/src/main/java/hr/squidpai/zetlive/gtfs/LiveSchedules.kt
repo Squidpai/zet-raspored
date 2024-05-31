@@ -2,23 +2,16 @@ package hr.squidpai.zetlive.gtfs
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.SaverScope
 import hr.squidpai.zetlive.*
-import java.io.ByteArrayInputStream
-import java.io.ByteArrayOutputStream
-import java.io.DataInputStream
-import java.io.DataOutputStream
 import kotlin.math.absoluteValue
 import kotlin.math.max
-import androidx.compose.runtime.saveable.Saver as ComposeSaver
 
 /**
  * An entry of [RouteLiveSchedule] returned by [getLiveSchedule]. Contains
  * all data required to display to the user where the current trip is.
  */
 data class RouteScheduleEntry(
-  val name: String,
-  val stopSequence: Int,
+  val nextStopIndex: Int,
   val sliderValue: Float,
   val trip: Trip,
   val overriddenHeadsign: String?,
@@ -46,15 +39,14 @@ fun Route.getLiveSchedule(): RouteLiveSchedule? {
 
   val trips = schedule.getTripsOfRoute(id).value ?: return null
   val calendarDates = schedule.calendarDates ?: return null
-  val stops = schedule.stops ?: return null
 
   val live = Live.instance
 
-  return remember(this, trips, calendarDates, stops, live) {
+  return remember(this, trips, calendarDates, live) {
     val currentMillis = localCurrentTimeMillis()
     val time = (currentMillis % MILLIS_IN_DAY).toInt() / MILLIS_IN_SECONDS
     val date = currentMillis / MILLIS_IN_DAY
-    getLiveSchedule(trips, calendarDates, stops, live, time, date)
+    getLiveSchedule(trips, calendarDates, live, time, date)
   }
 }
 
@@ -64,7 +56,6 @@ fun Route.getLiveSchedule(): RouteLiveSchedule? {
 private fun Route.getLiveSchedule(
   trips: Trips,
   calendarDates: CalendarDates,
-  stops: Stops,
   live: Live,
   time: Int,
   date: Long,
@@ -72,8 +63,7 @@ private fun Route.getLiveSchedule(
   trips, calendarDates, live, time, date,
 ).mapNoInline {
   RouteScheduleEntry(
-    name = stops.list[it.trip.stops[it.nextStopIndex].toStopId()]?.name ?: "???",
-    stopSequence = it.nextStopIndex + 1,
+    nextStopIndex = it.nextStopIndex,
     sliderValue = if (it.nextStopIndex == 0) -0.5f
     else it.nextStopIndex - 1 + getArrivalLineRatio(it.trip.departures, it.nextStopIndex, it.delayByStop, time),
     trip = it.trip,

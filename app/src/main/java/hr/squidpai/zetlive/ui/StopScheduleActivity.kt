@@ -11,7 +11,7 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -20,6 +20,7 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import hr.squidpai.zetlive.LOADING_TEXT
 import hr.squidpai.zetlive.gtfs.*
@@ -88,9 +89,7 @@ class StopScheduleActivity : ComponentActivity() {
       }
     },
     navigationIcon = {
-      IconButton(onClick = { finish() }) {
-        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Natrag")
-      }
+      IconButton(Icons.AutoMirrored.Filled.ArrowBack, "Natrag") { finish() }
     },
   )
 
@@ -130,14 +129,21 @@ class StopScheduleActivity : ComponentActivity() {
             .padding(vertical = 8.dp),
           verticalAlignment = Alignment.CenterVertically
         ) {
+          val routeStyle = MaterialTheme.typography.titleMedium
           Text(
             text = routeNumber.toString(),
-            modifier = Modifier.width(48.dp),
+            modifier = Modifier.width(with(LocalDensity.current) { (routeStyle.fontSize * 3.5f).toDp() }),
             color = if (!departed) MaterialTheme.colorScheme.primary else departedColor,
             textAlign = TextAlign.Center,
-            style = MaterialTheme.typography.titleMedium,
+            style = routeStyle,
           )
-          Text(headsign, Modifier.weight(1f), color = if (!departed) Color.Unspecified else departedColor)
+          Text(
+            headsign,
+            Modifier.weight(1f),
+            color = if (!departed) Color.Unspecified else departedColor,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+          )
           Text(
             if (departed) "otišao"
             else if (useRelative) "${relativeTime / 60} min"

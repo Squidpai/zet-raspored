@@ -43,8 +43,12 @@ class Stops(val list: SortedListMap<StopId, Stop>) {
 
 }
 
-fun List<GroupedStop>.filter(trimmedInput: String) =
-  filter { it.parentStop.name.contains(trimmedInput, ignoreCase = true) }
+fun List<GroupedStop>.filter(trimmedInput: String): List<GroupedStop> {
+  val splitInput = trimmedInput.split(' ')
+  return filter { stop ->
+    splitInput.all { stop.parentStop.name.contains(it, ignoreCase = true) }
+  }
+}
 
 
 class GroupedStop(
@@ -111,6 +115,10 @@ value class StopId(val value: Int) : Comparable<StopId> {
 
   inline fun <T> ifValid(action: (StopId) -> T) =
     if (this.isValid()) action(this) else null
+
+  operator fun component1() = stationNumber
+
+  operator fun component2() = stationCode
 
   companion object {
     val Invalid = StopId(-1)

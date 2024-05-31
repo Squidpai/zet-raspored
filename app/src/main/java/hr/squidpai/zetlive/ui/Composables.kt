@@ -1,24 +1,71 @@
 package hr.squidpai.zetlive.ui
 
 import androidx.collection.IntList
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.defaultMinSize
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.*
+import androidx.compose.foundation.interaction.Interaction
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import hr.squidpai.zetlive.orLoading
 import kotlin.math.floor
 import kotlin.math.max
+
+/**
+ * [Material Design standard icon button](https://m3.material.io/components/icon-button/overview)
+ *
+ * Icon buttons help people take supplementary actions with a single tap.
+ * They’re used when a compact button is required, such as in a toolbar or image list.
+ *
+ * [Standard icon button image](https://developer.android.com/images/reference/androidx/compose/material3/standard-icon-button.png)
+ *
+ * @param icon [ImageVector] to draw inside
+ * @param contentDescription text used by accessibility services to describe what this icon represents.
+ * This should always be provided unless this icon is used for decorative purposes, and
+ * does not represent a meaningful action that a user can take.
+ * This text should be localized, such as by using [androidx.compose.ui.res.stringResource] or similar
+ * @param onClick called when this icon button is clicked
+ * @param modifier the [Modifier] to be applied to this icon button
+ * @param enabled controls the enabled state of this icon button. When `false`, this component will
+ * not respond to user input, and it will appear visually disabled and disabled to accessibility
+ * services.
+ * button in different states. See [IconButtonDefaults.iconButtonColors].
+ * @param interactionSource the [MutableInteractionSource] representing the stream of [Interaction]s
+ * for this icon button. You can create and pass in your own `remember`ed instance to observe
+ * [Interaction]s and customize the appearance / behaviour of this icon button in different states.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun IconButton(
+  icon: ImageVector,
+  contentDescription: String,
+  modifier: Modifier = Modifier,
+  enabled: Boolean = true,
+  colors: IconButtonColors = IconButtonDefaults.iconButtonColors(),
+  interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
+  onClick: () -> Unit,
+) = TooltipBox(
+  positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+  tooltip = {
+    PlainTooltip { Text(contentDescription) }
+  },
+  state = rememberTooltipState(),
+) {
+  IconButton(onClick, modifier, enabled, colors, interactionSource) {
+    Icon(icon, contentDescription)
+  }
+}
 
 /**
  * Draws a [CircularProgressIndicator] wrapped in the center of
@@ -43,31 +90,56 @@ fun CircularLoadingBox(modifier: Modifier = Modifier) =
  * @param modifier the modifier to be applied to this layout
  */
 @Composable
-fun DirectionRow(
+fun ColumnScope.DirectionRow(
   commonHeadsign: Pair<String, String>?,
   direction: Int,
   setDirection: (Int) -> Unit,
+  isRoundRoute: Boolean,
   modifier: Modifier = Modifier,
-) = Row(modifier, verticalAlignment = Alignment.CenterVertically) {
+) = Row(modifier.align(Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
   val firstSign = commonHeadsign?.first.orLoading()
-  val secondSign = commonHeadsign?.second.orLoading()
 
-  val leftSign: String
-  val rightSign: String
-
-  if (direction == 1) {
-    leftSign = firstSign
-    rightSign = secondSign
+  if (isRoundRoute) {
+    Text(firstSign, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    Box(Modifier.minimumInteractiveComponentSize()) {
+      Icon(Symbols._360, null, tint = MaterialTheme.colorScheme.secondary)
+    }
+    Text(firstSign, maxLines = 1, overflow = TextOverflow.Ellipsis)
   } else {
-    leftSign = secondSign
-    rightSign = firstSign
-  }
+    // putting an else block instead of a return in the if block because an exception is thrown from Compose otherwise
 
-  Text(leftSign, modifier = Modifier.weight(1f), textAlign = TextAlign.End)
-  IconButton(onClick = { setDirection(1 - direction) }) {
-    Icon(Symbols.SwapHorizontal, null, tint = MaterialTheme.colorScheme.primary)
+    val secondSign = commonHeadsign?.second.orLoading()
+
+    val leftSign: String
+    val rightSign: String
+
+    if (direction == 1) {
+      leftSign = firstSign
+      rightSign = secondSign
+    } else {
+      leftSign = secondSign
+      rightSign = firstSign
+    }
+
+    Text(
+      leftSign,
+      modifier = Modifier.weight(1f),
+      textAlign = TextAlign.End,
+      maxLines = 1,
+      overflow = TextOverflow.Ellipsis,
+    )
+    IconButton(
+      Symbols.SwapHorizontal,
+      contentDescription = "Zamijeni smjer",
+      colors = IconButtonDefaults.iconButtonColors(contentColor = MaterialTheme.colorScheme.primary),
+    ) { setDirection(1 - direction) }
+    Text(
+      rightSign,
+      modifier = Modifier.weight(1f),
+      maxLines = 1,
+      overflow = TextOverflow.Ellipsis,
+    )
   }
-  Text(rightSign, modifier = Modifier.weight(1f))
 }
 
 /**
