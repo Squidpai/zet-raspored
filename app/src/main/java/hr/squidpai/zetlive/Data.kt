@@ -5,9 +5,6 @@ import android.util.JsonToken
 import android.util.JsonWriter
 import android.util.Log
 import androidx.collection.MutableIntIntMap
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import hr.squidpai.zetlive.gtfs.RouteId
 import hr.squidpai.zetlive.gtfs.StopId
 import hr.squidpai.zetlive.gtfs.toStopId
@@ -25,7 +22,6 @@ object Data {
   private const val PINNED_ROUTES = "pinnedRoutes"
   private const val PINNED_STOPS = "pinnedStops"
   private const val PREFERRED_DEFAULT_STOP_CODES = "defaultStopCodes"
-  private const val TRIP_TIME_TYPE = "tripTimeType"
 
   private var file: File? = null
 
@@ -51,10 +47,6 @@ object Data {
    * one specific stop.
    */
   val defaultStopCodes = MutableIntIntMap()
-
-  enum class TripTimeType { Default, Absolute, Relative }
-
-  var tripTimeType by mutableStateOf(TripTimeType.Default)
 
   /**
    * Tries loading the data from [file].
@@ -115,12 +107,6 @@ object Data {
                 reader.endArray()
               }
             }
-
-            TRIP_TIME_TYPE -> try {
-              tripTimeType = TripTimeType.valueOf(reader.nextString())
-            } catch (e: IllegalArgumentException) {
-              Log.w(TAG, "load: invalid tripTimeType in loaded file", e)
-            }
           }
         }
 
@@ -177,11 +163,6 @@ object Data {
           }
           writer.endArray()
         }
-
-        val tripTimeType = tripTimeType
-        if (tripTimeType != TripTimeType.Default)
-          writer.name(TRIP_TIME_TYPE)
-            .value(tripTimeType.name)
 
         writer.endObject()
       }
