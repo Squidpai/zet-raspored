@@ -132,6 +132,31 @@ private fun StopFilterSearchBar(
   )
 }
 
+data class LabelPair(val stop: Stop, val label: String?) : Comparable<LabelPair> {
+  override fun compareTo(other: LabelPair): Int {
+    return when {
+      this.label === other.label -> 0
+      this.label == null -> -1
+      other.label == null -> 1
+      else -> {
+        val firstCharComparison = this.label[0].compareTo(other.label[0])
+
+        if (firstCharComparison != 0) firstCharComparison
+        else {
+          val thisNum = this.label.extractInt()
+          val otherNum = other.label.extractInt()
+          if (thisNum != -1 || otherNum != -1) thisNum.compareTo(otherNum)
+          else this.label.compareTo(other.label)
+        }
+      }
+    }
+  }
+}
+
+fun GroupedStop.labeledStop(routesAtStopMap: RoutesAtStopMap?) = childStops
+  .map { LabelPair(it, it.getLabel(routesAtStopMap)) }
+  .sorted()
+
 @Composable
 private fun StopContent(groupedStop: GroupedStop, pinned: Boolean, modifier: Modifier) {
   val (expanded, setExpanded) =
@@ -198,30 +223,7 @@ private fun StopContent(groupedStop: GroupedStop, pinned: Boolean, modifier: Mod
       }
 
       if (expanded) {
-        data class LabelPair(val stop: Stop, val label: String?) : Comparable<LabelPair> {
-          override fun compareTo(other: LabelPair): Int {
-            return when {
-              this.label === other.label -> 0
-              this.label == null -> -1
-              other.label == null -> 1
-              else -> {
-                val firstCharComparison = this.label[0].compareTo(other.label[0])
-
-                if (firstCharComparison != 0) firstCharComparison
-                else {
-                  val thisNum = this.label.extractInt()
-                  val otherNum = other.label.extractInt()
-                  if (thisNum != -1 || otherNum != -1) thisNum.compareTo(otherNum)
-                  else this.label.compareTo(other.label)
-                }
-              }
-            }
-          }
-        }
-
-        val labeledStops = groupedStop.childStops
-          .map { LabelPair(it, it.getLabel(routesAtStopMap)) }
-          .sorted()
+        val labeledStops = groupedStop.labeledStop(routesAtStopMap)
 
         val (selectedStopIndex, setSelectedStopIndex) = rememberSaveable {
           val preferredCode = Data.defaultStopCodes.getOrDefault(groupedStop.parentStop.id.stationNumber, 0)
