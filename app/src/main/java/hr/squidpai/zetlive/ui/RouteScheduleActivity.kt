@@ -140,13 +140,18 @@ class RouteScheduleActivity : ComponentActivity() {
           .filterByServiceId(selectedServiceId.first!!)
           .filterByDirection()
           .sortedByDepartures()
-      else null
+      else if (trips != null) // this date does not have a schedule associated with it
+        emptyList<Trip>() to emptyList()
+      else null // trips not loaded, give null to display loading box
 
     DateContent(
       routeId, commonFirstStops, trips?.commonHeadsign,
       stopTimes = filteredStopTimes,
-      stops,
-      selectedDate = selectedServiceId.second
+      stops = stops,
+      selectedServiceId = selectedServiceId.first,
+      selectedDate = selectedServiceId.second,
+      serviceIdTypes = serviceIdTypes,
+      tripsList = trips?.list,
     )
   }
 
@@ -157,7 +162,10 @@ class RouteScheduleActivity : ComponentActivity() {
     commonHeadsigns: Pair<String, String>?,
     stopTimes: Pair<List<Trip>, List<Trip>>?,
     stops: Stops?,
+    selectedServiceId: ServiceId?,
     selectedDate: Long,
+    serviceIdTypes: ServiceIdTypes?,
+    tripsList: TripsList?,
   ) {
     val (direction, setDirection) = selectedDirection
 
@@ -197,8 +205,9 @@ class RouteScheduleActivity : ComponentActivity() {
       CircularLoadingBox()
     else if (list.isEmpty())
       Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        val specialLabel = Love.giveMeTheSpecialLabelForNoTrips(routeId)
-        Text(specialLabel ?: "Linija nema polazaka na izabrani datum.", Modifier.padding(horizontal = 16.dp))
+        val specialLabel =
+          Love.giveMeTheSpecialLabelForNoTrips(routeId, tripsList, selectedServiceId, selectedDate, serviceIdTypes)
+        Text(specialLabel, Modifier.padding(horizontal = 16.dp))
       }
     else LazyColumn(state = state!!) { // list != null  =>  stopTimes != null  =>  state != null
       val firstOfNextDay = list.findFirstDepartureTomorrow()

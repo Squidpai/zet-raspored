@@ -5,6 +5,8 @@ import hr.squidpai.zetlive.*
 
 object Love {
 
+  private const val TAG = "Love"
+
   private val stopLabels = buildIntObjectMap {
     operator fun Int.get(vararg pairs: IntObjectPair<String>) {
       for ((code, value) in pairs) {
@@ -291,11 +293,43 @@ object Love {
       null
     }
 
-  fun giveMeTheSpecialLabelForNoTrips(routeId: RouteId) = when (routeId) {
-    219 -> "Polaske subotom, nedjeljom i praznikom ostvaruje autobus linije 229 koji na Glavnom kolodvoru polazi " +
-        "s perona 10 na Koturaškoj cesti."
+  const val NULL_SERVICE_ID_MESSAGE = "Ne postoji vozni red za izabrani datum.\nPokušajte se spojiti na " +
+      "internet, ako već niste, kako bi se preuzela najnovija inačica rasporeda."
 
-    else -> null
+  fun giveMeTheSpecialLabelForNoTrips(
+    routeId: RouteId,
+    trips: List<Trip>?,
+    serviceId: ServiceId?,
+    selectedDate: Long,
+    serviceIdTypes: ServiceIdTypes?,
+  ): String {
+    if (serviceId == null && trips != null)
+      return NULL_SERVICE_ID_MESSAGE
+
+    val serviceIdType =
+      if (serviceIdTypes != null)
+        serviceIdTypes[serviceId] ?: return NULL_SERVICE_ID_MESSAGE
+      else
+        ServiceIdType.ofDate(selectedDate)
+
+    // Route 219 gets a special label.
+    if ((serviceIdType == ServiceIdType.SATURDAY || serviceIdType == ServiceIdType.SUNDAY) && routeId == 219)
+      return "Polaske subotom, nedjeljom i praznikom ostvaruje autobus linije 229 koji na Glavnom kolodvoru polazi " +
+          "s perona 10 na Koturaškoj cesti."
+
+    return when (serviceIdType) {
+      ServiceIdType.WEEKDAY -> "Linija nema polazaka na izabrani datum."
+      ServiceIdType.SATURDAY -> "Linija ne vozi vikendom i praznicima."
+      ServiceIdType.SUNDAY -> {
+        val saturdayServiceId =
+          serviceIdTypes?.entries?.firstOrNull { it.value == ServiceIdType.SATURDAY }?.key
+
+        if (saturdayServiceId != null && trips != null && trips.none { it.serviceId == saturdayServiceId })
+          "Linija ne vozi vikendom i praznicima."
+        else
+          "Linija ne vozi nedjeljom i praznicima."
+      }
+    }
   }
 
   fun giveMeTheServiceIdTypes(schedule: Schedule): ServiceIdTypes? {

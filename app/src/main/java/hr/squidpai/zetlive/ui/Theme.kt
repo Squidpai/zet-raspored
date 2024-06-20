@@ -3,16 +3,14 @@ package hr.squidpai.zetlive.ui
 import android.app.Activity
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
-import androidx.compose.material3.lightColorScheme
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import hr.squidpai.zetlive.gtfs.Trip
 
@@ -84,15 +82,18 @@ private val DarkColors = darkColorScheme(
 val LocalSelectTrip =
   staticCompositionLocalOf<(Trip?, Long) -> Unit> { { _, _ -> } }
 
+val LocalStatusBarColor =
+  staticCompositionLocalOf { Color.Unspecified }
+
 @Composable
 fun AppTheme(
-  dynamicColor: Boolean = true,
+  statusBarElevation: Dp = 0.dp,
   content: @Composable () -> Unit
 ) {
   val darkTheme = isSystemInDarkTheme()
 
   val colorScheme = when {
-    dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+    Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
       val context = LocalContext.current
       if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
     }
@@ -100,11 +101,14 @@ fun AppTheme(
     darkTheme -> DarkColors
     else -> LightColors
   }
+
+  val statusBarColor = colorScheme.surfaceColorAtElevation(statusBarElevation)
+
   val view = LocalView.current
   if (!view.isInEditMode) {
     SideEffect {
       val window = (view.context as Activity).window
-      window.statusBarColor = colorScheme.surface.toArgb()
+      window.statusBarColor = statusBarColor.toArgb()
       WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
     }
   }
@@ -115,7 +119,8 @@ fun AppTheme(
     CompositionLocalProvider(
       LocalSelectTrip provides { trip, timeOffset ->
         selectedTrip.value = trip?.let { it to timeOffset }
-      }
+      },
+      LocalStatusBarColor provides statusBarColor
     ) {
       content()
     }

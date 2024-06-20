@@ -229,7 +229,8 @@ private fun ColumnScope.RouteLiveTravels(route: Route, directionState: MutableIn
     commonHeadsign = routeLiveSchedule?.commonHeadsign,
     direction, setDirection,
     isRoundRoute = routeLiveSchedule != null &&
-        (if (routeLiveSchedule.first.isNotEmpty()) routeLiveSchedule.second.isEmpty()
+        (if (routeLiveSchedule.noLiveMessage == null && routeLiveSchedule.first!!.isNotEmpty())
+          routeLiveSchedule.second!!.isEmpty()
         else routeLiveSchedule.commonHeadsign.second.isEmpty()),
   )
 
@@ -246,14 +247,9 @@ private fun ColumnScope.RouteLiveTravels(route: Route, directionState: MutableIn
     if (direction == 0) routeLiveSchedule.first
     else routeLiveSchedule.second
 
-  LaunchedEffect(Unit) {
-    val schedule = Schedule.instance
-    schedule.stops?.let { schedule.getTripsOfRoute(route.id).value?.printSpecialTripShapes(it) }
-  }
-
-  if (liveTravels.isEmpty()) {
+  if (liveTravels.isNullOrEmpty()) {
     Text(
-      "Linija danas nema više polazaka.",
+      routeLiveSchedule.noLiveMessage ?: "Linija danas nema više polazaka.",
       Modifier
         .padding(vertical = 8.dp)
         .align(Alignment.CenterHorizontally)

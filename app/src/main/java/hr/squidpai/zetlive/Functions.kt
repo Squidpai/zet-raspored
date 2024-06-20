@@ -72,6 +72,12 @@ inline fun <R : Any> IntList.mapNotNull(transform: (Int) -> R?): List<R> {
   return list
 }
 
+/** Returns `true` if no elements match the given [predicate]. */
+inline fun IntList.none(predicate: (Int) -> Boolean): Boolean {
+  forEach { if (predicate(it)) return false }
+  return true
+}
+
 /**
  * Returns a list containing the results of applying the given [transform] function
  * to each element in the original `IntSet`.

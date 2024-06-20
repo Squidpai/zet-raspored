@@ -292,11 +292,21 @@ private fun StopContent(groupedStop: GroupedStop, pinned: Boolean, modifier: Mod
 }
 
 @Composable
-private fun StopLiveTravels(stop: Stop, routesAtStopMap: RoutesAtStopMap) {
-  val live = routesAtStopMap[stop.id.value]?.let {
+private fun ColumnScope.StopLiveTravels(stop: Stop, routesAtStopMap: RoutesAtStopMap) {
+  val (live, errorMessage) = routesAtStopMap[stop.id.value]?.let {
     stop.getLiveSchedule(it, keepDeparted = false, maxSize = 8)
   }
     ?: return
+
+  if (live.isNullOrEmpty()) {
+    Text(
+      errorMessage ?: "Na postaji nema više polazaka danas.",
+      Modifier
+        .padding(vertical = 8.dp)
+        .align(Alignment.CenterHorizontally)
+    )
+    return
+  }
 
   val selectTrip = LocalSelectTrip.current
 

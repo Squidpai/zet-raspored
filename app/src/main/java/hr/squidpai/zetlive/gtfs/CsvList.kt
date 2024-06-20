@@ -94,7 +94,7 @@ fun <T, C> CSVReader.toListSequential(
   context: C,
   headerMapping: CsvHeaderMapping,
   factory: SequentialCsvFactory<T, C>,
-  priorityLevel: TripsLoader.PriorityLevel,
+  loadingState: Schedule.Companion.TrackableLoadingState?,
 ): MutableList<T> {
   val headerMap = headerMapping(readNext() ?: return mutableListOf())
 
@@ -103,24 +103,12 @@ fun <T, C> CSVReader.toListSequential(
   var previous: T? = null
   var count = 0
 
-  val loadingState = when (priorityLevel) {
-    TripsLoader.PriorityLevel.Hidden -> null
-
-    TripsLoader.PriorityLevel.Background ->
-      Schedule.Companion.TrackableLoadingState("Ažuriranje rasporeda${Typography.ellipsis}")
-        .also { Schedule.loadingState = it }
-
-    TripsLoader.PriorityLevel.Foreground ->
-      Schedule.Companion.TrackableLoadingState("Pripremanje rasporeda za prvo pokretanje${Typography.ellipsis}")
-        .also { Schedule.priorityLoadingState = it }
-  }
-
   while (true) {
     val line = readNext() ?: break
     count++
 
     if (count % 20_000 == 0) {
-      loadingState?.progress = count / 1_100_000f
+      loadingState?.progress = (count / 3_000_000f).coerceAtMost(.5f)
     }
 
     val current = try {
@@ -133,12 +121,6 @@ fun <T, C> CSVReader.toListSequential(
       list += current
       previous = current
     }
-  }
-
-  when (priorityLevel) {
-    TripsLoader.PriorityLevel.Hidden -> {}
-    TripsLoader.PriorityLevel.Background -> Schedule.loadingState = null
-    TripsLoader.PriorityLevel.Foreground -> Schedule.priorityLoadingState = null
   }
 
   return list

@@ -107,6 +107,8 @@ object Data {
                 reader.endArray()
               }
             }
+
+            else -> reader.skipValue()
           }
         }
 

@@ -64,7 +64,7 @@ data class Trip(
     }
 }
 
-class Trips(
+class Trips constructor(
   val list: TripsList,
   val commonHeadsign: Pair<String, String>,
   val commonFirstStop: Pair<StopId, StopId>,
@@ -466,6 +466,34 @@ object TripsLoader {
   enum class PriorityLevel { Hidden, Background, Foreground }
 
   fun loadTrips(zipFile: File, stopTimesDirectory: File, priorityLevel: PriorityLevel) {
+    val loadingState = when (priorityLevel) {
+      PriorityLevel.Hidden -> null
+
+      PriorityLevel.Background ->
+        Schedule.Companion.TrackableLoadingState("Ažuriranje rasporeda${Typography.ellipsis}")
+          .also { Schedule.loadingState = it }
+
+      PriorityLevel.Foreground ->
+        Schedule.Companion.TrackableLoadingState("Pripremanje rasporeda za prvo pokretanje${Typography.ellipsis}")
+          .also { Schedule.priorityLoadingState = it }
+    }
+
+    try {
+      loadTrips(zipFile, stopTimesDirectory, loadingState)
+    } finally {
+      when (priorityLevel) {
+        PriorityLevel.Hidden -> {}
+        PriorityLevel.Background -> Schedule.loadingState = null
+        PriorityLevel.Foreground -> Schedule.priorityLoadingState = null
+      }
+    }
+  }
+
+  private fun loadTrips(
+    zipFile: File,
+    stopTimesDirectory: File,
+    loadingState: Schedule.Companion.TrackableLoadingState?,
+  ) {
     if (!stopTimesDirectory.isDirectory && !stopTimesDirectory.mkdir())
       throw IOException("Cannot create stopTimesDirectory")
 
@@ -479,7 +507,7 @@ object TripsLoader {
     ZipFile(zipFile).use {
       zippedTrips = ZippedTrips(it)
       stopTimes = CSVReader(it.getInputStream(it.getEntry("stop_times.txt")).bufferedReader())
-        .toListSequential(zippedTrips to tripShapes, tripMapping, tripPrototypeFactory, priorityLevel)
+        .toListSequential(zippedTrips to tripShapes, tripMapping, tripPrototypeFactory, loadingState)
     }
 
     kotlin.run { // using run so the names last and routeTrips do not leak out (so I can reuse them)
@@ -503,7 +531,11 @@ object TripsLoader {
 
     stopTimes.sortBy { it.routeId }
 
+    loadingState?.progress = .8f
+
     val commonHeadsigns = calculateAllCommonHeadsigns(zippedTrips)
+
+    loadingState?.progress = .85f
 
     var currentRouteId = stopTimes[0].routeId
     var beginIndex = 0
@@ -535,6 +567,9 @@ object TripsLoader {
       currentRouteId = stopTimes[i].routeId
     }
 
+
+    loadingState?.progress = .9f
+
     val stopsByRoute = MutableRoutesAtStopMap()
 
     for (stopTime in stopTimes) {
@@ -549,6 +584,8 @@ object TripsLoader {
         else stopsByRoute[stopId] = MutableRoutesAtStop(first, last, stopTime.routeId * sign)
       }
     }
+
+    loadingState?.progress = .95f
 
     DataOutputStream(
       BufferedOutputStream(FileOutputStream(File(stopTimesDirectory, STOPS_BY_ROUTE_FILE_NAME)))

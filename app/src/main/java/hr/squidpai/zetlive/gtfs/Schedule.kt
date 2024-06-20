@@ -41,8 +41,8 @@ sealed interface Schedule {
 
     private const val LINK = "https://www.zet.hr/gtfs-scheduled/latest"
 
-    private fun previousVersionLink(currentVersion: String) =
-      "https://www.zet.hr/gtfs-scheduled/scheduled-000-${currentVersion.decrementInt()}.zip"
+    private fun versionLink(version: String) =
+      "https://www.zet.hr/gtfs-scheduled/scheduled-000-$version.zip"
 
     private val parentScope = CoroutineScope(Dispatchers.IO)
 
@@ -73,24 +73,6 @@ sealed interface Schedule {
     fun init(filesDir: File) {
       val originalZipFile = File(filesDir, SCHEDULE_NAME)
       val stopTimesDirectory = File(filesDir, STOP_TIMES)
-      /*run {
-      val files = scheduleDirectory.listFiles()?.filter { it.isFile }
-
-      if (files == null) {
-        scheduleDirectory.mkdir()
-        return@run null
-      }
-      if (files.isEmpty()) {
-        return@run null
-      }
-      if (files.size == 1) {
-        return@run files[0]
-      }
-
-      // If there are multiple versions,
-      // choose the newest one and delete the rest.
-      files.maxBy { it.lastModified() }.also { for (f in files) if (f !== it) f.delete() }
-    }*/
 
       if (originalZipFile.isFile && instance == EmptySchedule) {
         instance = ScheduleImpl(parentScope, originalZipFile, stopTimesDirectory)
@@ -99,7 +81,7 @@ sealed interface Schedule {
       update(filesDir)
     }
 
-    private fun download(link: String, file: File): Boolean {
+    private fun downloadRecursively(link: String, file: File): Boolean {
       Log.d(TAG, "Downloading from: $link")
       val url = try {
         URL(link).also { Log.d(TAG, "URL initialized successfully.") }
@@ -208,7 +190,7 @@ sealed interface Schedule {
 
             if (success) {
               newFeedInfo = null
-              //
+              // delete stop times of the new version, as we've found an even newer version
               newStopTimes.deleteRecursively()
             }
           } else Log.d(TAG, "Schedule already up-to-date.")
@@ -253,12 +235,20 @@ sealed interface Schedule {
 
         // Big Problem: we have only one schedule, and it hasn't started yet!
         // Download the previous version and set it as the old one;
-        // surely it's started... right? (if not, give up, ZET je glup ko kurac)
+        // surely it's started... right?
+        // (if not, try this recursively 10 times)
         if (originalSchedule == null) {
           Log.w(TAG, "bruh")
           val originalZipFile = File(filesDir, SCHEDULE_NAME)
-          if (download(previousVersionLink(newFeedInfo!!.version), originalZipFile))
-            instance = ScheduleImpl(parentScope, originalZipFile, File(filesDir, STOP_TIMES))
+          var previousVersion = newFeedInfo!!.version
+          repeat(10) {
+            previousVersion = previousVersion.decrementInt()
+            if (downloadRecursively(versionLink(previousVersion), originalZipFile)) {
+              instance = ScheduleImpl(parentScope, originalZipFile, File(filesDir, STOP_TIMES))
+              return@launch
+            }
+          }
+          // TODO give error message
           return@launch
         }
 
@@ -277,6 +267,7 @@ sealed interface Schedule {
       originalStopTimes.deleteRecursively()
       newZipFile.renameTo(originalZipFile)
       newStopTimes.renameTo(originalStopTimes)
+      (instance as? ScheduleImpl)?.cancel()
       instance = ScheduleImpl(parentScope, originalZipFile, originalStopTimes, builder)
     }
   }
@@ -305,6 +296,18 @@ private class ScheduleImpl(
 
   private val scope = parentScope + Job()
 
+  override var feedInfo by mutableStateOf<FeedInfo?>(null)
+
+  override var routes by mutableStateOf<Routes?>(null)
+
+  override var stops by mutableStateOf<Stops?>(null)
+
+  override var calendarDates by mutableStateOf<CalendarDates?>(null)
+
+  override var routesAtStopMap by mutableStateOf<RoutesAtStopMap?>(null)
+
+  private var _serviceIdTypes by mutableStateOf<ServiceIdTypes?>(null)
+
   init {
     scope.launch {
       ZipFile(zipFile).use { zip ->
@@ -320,23 +323,13 @@ private class ScheduleImpl(
         routesAtStopMap = TripsLoader.getRoutesAtStopMap(stopTimesDirectory)
         if (!TripsLoader.tripsLoaded(stopTimesDirectory))
           loadStopTimesAsync(TripsLoader.PriorityLevel.Foreground)
+      } else {
+        routesAtStopMap = scheduleBuilder.routesAtStopMap
       }
     }
   }
 
   fun cancel() = scope.cancel()
-
-  override var feedInfo by mutableStateOf<FeedInfo?>(null)
-
-  override var routes by mutableStateOf<Routes?>(null)
-
-  override var stops by mutableStateOf<Stops?>(null)
-
-  override var calendarDates by mutableStateOf<CalendarDates?>(null)
-
-  override var routesAtStopMap by mutableStateOf<RoutesAtStopMap?>(null)
-
-  private var _serviceIdTypes by mutableStateOf<ServiceIdTypes?>(null)
 
   override val serviceIdTypes: ServiceIdTypes?
     get() {

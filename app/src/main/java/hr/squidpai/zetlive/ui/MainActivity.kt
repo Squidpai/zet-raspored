@@ -48,7 +48,10 @@ class MainActivity : ComponentActivity() {
             if (loadingState != null) Snackbar {
               Row(verticalAlignment = Alignment.CenterVertically) {
                 if (loadingState is Schedule.Companion.TrackableLoadingState)
-                  CircularProgressIndicator(progress = { loadingState.progress })
+                  CircularProgressIndicator(
+                    progress = { loadingState.progress },
+                    color = MaterialTheme.colorScheme.inversePrimary,
+                  )
                 else CircularProgressIndicator()
                 Text(loadingState.text, Modifier.padding(start = 8.dp))
               }
@@ -125,17 +128,17 @@ class MainActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun MyTopAppBar() {
-  var showUpdateDialog by remember { mutableStateOf(false) }
+  //var showUpdateDialog by remember { mutableStateOf(false) }
 
   TopAppBar(
     title = { Text("Raspored", maxLines = 1, overflow = TextOverflow.Ellipsis) },
-    actions = {
+    /*actions = {
       IconButton(onClick = { showUpdateDialog = true }) {
       }
-    }
+    }*/
   )
 
-  if (showUpdateDialog) {
+  /*if (showUpdateDialog) {
     var link by remember { mutableStateOf("https://www.zet.hr/gtfs-scheduled/scheduled-000-000348.zip") }
 
     val context = LocalContext.current
@@ -170,7 +173,7 @@ private fun MyTopAppBar() {
         }
       }
     )
-  }
+  }*/
 }
 
 @Composable
