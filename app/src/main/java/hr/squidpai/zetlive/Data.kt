@@ -1,10 +1,12 @@
 package hr.squidpai.zetlive
 
 import android.util.JsonReader
-import android.util.JsonToken
 import android.util.JsonWriter
 import android.util.Log
 import androidx.collection.MutableIntIntMap
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import hr.squidpai.zetlive.gtfs.RouteId
 import hr.squidpai.zetlive.gtfs.StopId
 import hr.squidpai.zetlive.gtfs.toStopId
@@ -22,6 +24,7 @@ object Data {
   private const val PINNED_ROUTES = "pinnedRoutes"
   private const val PINNED_STOPS = "pinnedStops"
   private const val PREFERRED_DEFAULT_STOP_CODES = "defaultStopCodes"
+  private const val HIGHLIGHT_NEXT_STOP = "highlightNextStop"
 
   private var file: File? = null
 
@@ -47,6 +50,12 @@ object Data {
    * one specific stop.
    */
   val defaultStopCodes = MutableIntIntMap()
+
+  /**
+   * If `true`, the next station is highlighted. Otherwise, the
+   * current station is highlighted.
+   */
+  var highlightNextStop by mutableStateOf(false)
 
   /**
    * Tries loading the data from [file].
@@ -91,22 +100,19 @@ object Data {
             }
 
             PREFERRED_DEFAULT_STOP_CODES -> {
+              reader.beginArray()
+
               defaultStopCodes.clear()
-              if (reader.peek() == JsonToken.BEGIN_OBJECT) {
-                reader.skipValue()
-              } else {
-                reader.beginArray()
+              while (reader.hasNext()) {
+                val (number, code) = reader.nextString().toStopId()
 
-                defaultStopCodes.clear()
-                while (reader.hasNext()) {
-                  val (number, code) = reader.nextString().toStopId()
-
-                  defaultStopCodes[number] = code
-                }
-
-                reader.endArray()
+                defaultStopCodes[number] = code
               }
+
+              reader.endArray()
             }
+
+            HIGHLIGHT_NEXT_STOP -> highlightNextStop = reader.nextBoolean()
 
             else -> reader.skipValue()
           }
@@ -165,6 +171,9 @@ object Data {
           }
           writer.endArray()
         }
+
+        writer.name(HIGHLIGHT_NEXT_STOP)
+          .value(highlightNextStop)
 
         writer.endObject()
       }

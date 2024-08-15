@@ -4,15 +4,40 @@ import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.*
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
@@ -27,7 +52,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import hr.squidpai.zetlive.gtfs.*
+import hr.squidpai.zetlive.gtfs.GroupedStop
+import hr.squidpai.zetlive.gtfs.RoutesAtStopMap
+import hr.squidpai.zetlive.gtfs.Schedule
+import hr.squidpai.zetlive.gtfs.StopId
+import hr.squidpai.zetlive.gtfs.getLiveSchedule
+import hr.squidpai.zetlive.gtfs.toParentStopId
+import hr.squidpai.zetlive.gtfs.toStopId
 import hr.squidpai.zetlive.none
 import hr.squidpai.zetlive.orLoading
 import hr.squidpai.zetlive.timeToString
@@ -54,8 +85,9 @@ class StopScheduleActivity : ComponentActivity() {
       return
     }
 
+    enableEdgeToEdge()
     setContent {
-      AppTheme(statusBarElevation = 3.dp) {
+      AppTheme {
         val schedule = Schedule.instance
 
         val groupedStop = schedule.stops?.groupedStops?.get(stopId.stationNumber.toParentStopId())
@@ -64,6 +96,7 @@ class StopScheduleActivity : ComponentActivity() {
 
         Scaffold(
           topBar = { MyTopAppBar(groupedStop?.parentStop?.name.orLoading()) },
+          contentWindowInsets = WindowInsets.safeDrawing,
         ) { padding ->
           MyContent(
             groupedStop, routesAtStopMap,
@@ -82,9 +115,17 @@ class StopScheduleActivity : ComponentActivity() {
   private fun MyTopAppBar(stopName: String) = TopAppBar(
     title = { Text(stopName) },
     navigationIcon = {
-      IconButton(Icons.AutoMirrored.Filled.ArrowBack, "Natrag") { finish() }
+      IconButton(
+        Icons.AutoMirrored.Outlined.ArrowBack,
+        contentDescription = "Natrag",
+        onClick = { finish() },
+      )
     },
-    colors = TopAppBarDefaults.topAppBarColors(containerColor = LocalStatusBarColor.current)
+    colors = TopAppBarDefaults.topAppBarColors(
+      containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(3.dp)
+    ),
+    windowInsets = WindowInsets.safeDrawing
+      .only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top),
   )
 
   @Composable

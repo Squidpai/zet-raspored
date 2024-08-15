@@ -2,21 +2,32 @@ package hr.squidpai.zetlive.gtfs
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
-import hr.squidpai.zetlive.*
+import hr.squidpai.zetlive.ListPair
+import hr.squidpai.zetlive.MILLIS_IN_DAY
+import hr.squidpai.zetlive.MILLIS_IN_SECONDS
+import hr.squidpai.zetlive.SECONDS_IN_DAY
+import hr.squidpai.zetlive.SECONDS_IN_HOUR
+import hr.squidpai.zetlive.get
+import hr.squidpai.zetlive.localCurrentTimeMillis
+import hr.squidpai.zetlive.none
 import kotlin.math.absoluteValue
 import kotlin.math.max
+
+@Suppress("UNUSED")
+private const val TAG = "LiveSchedule"
 
 /**
  * An entry of [RouteLiveSchedule] returned by [getLiveSchedule]. Contains
  * all data required to display to the user where the current trip is.
  */
 data class RouteScheduleEntry(
-  val nextStopIndex: Int,
-  val sliderValue: Float,
-  val trip: Trip,
-  val overriddenHeadsign: String?,
-  val overriddenFirstStop: StopId,
-  val departureTime: Int,
+   val nextStopIndex: Int,
+   val sliderValue: Float,
+   val trip: Trip,
+   val overriddenHeadsign: String?,
+   val overriddenFirstStop: StopId,
+   val departureTime: Int,
+   val timeOffset: Long,
 )
 
 /**
@@ -27,10 +38,10 @@ data class RouteScheduleEntry(
  * if and only if [noLiveMessage] is `null`.
  */
 class RouteLiveSchedule(
-  val first: List<RouteScheduleEntry>?,
-  val second: List<RouteScheduleEntry>?,
-  val commonHeadsign: Pair<String, String>,
-  val noLiveMessage: String?,
+   val first: List<RouteScheduleEntry>?,
+   val second: List<RouteScheduleEntry>?,
+   val commonHeadsign: Pair<String, String>,
+   val noLiveMessage: String?,
 )
 
 /**
@@ -39,52 +50,59 @@ class RouteLiveSchedule(
  */
 @Composable
 fun Route.getLiveSchedule(): RouteLiveSchedule? {
-  val schedule = Schedule.instance
+   val schedule = Schedule.instance
 
-  val trips = schedule.getTripsOfRoute(id).value ?: return null
-  val calendarDates = schedule.calendarDates ?: return null
+   val trips = schedule.getTripsOfRoute(id).value ?: return null
+   val calendarDates = schedule.calendarDates ?: return null
 
-  val live = Live.instance
+   val live = Live.instance
 
-  return remember(this, trips, calendarDates, live) {
-    val currentMillis = localCurrentTimeMillis()
-    val time = (currentMillis % MILLIS_IN_DAY).toInt() / MILLIS_IN_SECONDS
-    val date = currentMillis / MILLIS_IN_DAY
-    getLiveSchedule(trips, calendarDates, live, time, date, schedule.serviceIdTypes)
-  }
+   return remember(this, trips, calendarDates, live) {
+      val currentMillis = localCurrentTimeMillis()
+      val time = (currentMillis % MILLIS_IN_DAY).toInt() / MILLIS_IN_SECONDS
+      val date = currentMillis / MILLIS_IN_DAY
+      getLiveSchedule(trips, calendarDates, live, time, date, schedule.serviceIdTypes)
+   }
 }
 
 /**
  * Calculates the live schedule of the given route based on the given parameters.
  */
 private fun Route.getLiveSchedule(
-  trips: Trips,
-  calendarDates: CalendarDates,
-  live: Live,
-  time: Int,
-  date: Long,
-  serviceIdTypes: ServiceIdTypes?,
+   trips: Trips,
+   calendarDates: CalendarDates,
+   live: Live,
+   time: Int,
+   date: Long,
+   serviceIdTypes: ServiceIdTypes?,
 ) = try {
-  getLiveScheduleData(
-    trips, calendarDates, live, time, date, serviceIdTypes
-  ).mapNoInline {
-    RouteScheduleEntry(
-      nextStopIndex = it.nextStopIndex,
-      sliderValue = if (it.nextStopIndex == 0) -0.5f
-      else it.nextStopIndex - 1 + getArrivalLineRatio(it.trip.departures, it.nextStopIndex, it.delayByStop, time),
-      trip = it.trip,
-      overriddenHeadsign = it.overriddenHeadsign,
-      overriddenFirstStop = it.trip.stops[0].toStopId().takeIf { id -> id != trips.commonFirstStop[it.trip.directionId] },
-      // departureTime is only used if nextStopIndex == 0
-      departureTime = it.trip.departures[0].let { departure ->
-        if (departure <= time) -1
-        else if (departure - time <= 15 * 60) time - departure - 1
-        else departure
-      },
-    )
-  }.let { RouteLiveSchedule(it.first, it.second, trips.commonHeadsign, null) }
+   getLiveScheduleData(
+      trips, calendarDates, live, time, date, serviceIdTypes
+   ).map {
+      RouteScheduleEntry(
+         nextStopIndex = it.nextStopIndex,
+         sliderValue = if (it.nextStopIndex == 0) -0.5f
+         else it.nextStopIndex - 1 + getArrivalLineRatio(
+            it.trip.departures,
+            it.nextStopIndex,
+            it.delayByStop,
+            time
+         ),
+         trip = it.trip,
+         overriddenHeadsign = it.overriddenHeadsign,
+         overriddenFirstStop = it.trip.stops[0].toStopId()
+            .takeIf { id -> id != trips.commonFirstStop[it.trip.directionId] },
+         // departureTime is only used if nextStopIndex == 0
+         departureTime = it.trip.departures[0].let { departure ->
+            if (departure <= time) -1
+            else if (departure - time <= 15 * 60) time - departure - 1
+            else departure
+         },
+         timeOffset = it.timeOffset
+      )
+   }.let { RouteLiveSchedule(it.first, it.second, trips.commonHeadsign, null) }
 } catch (e: NoLiveScheduleException) {
-  RouteLiveSchedule(null, null, trips.commonHeadsign, e.message)
+   RouteLiveSchedule(null, null, trips.commonHeadsign, e.message)
 }
 
 /**
@@ -92,13 +110,13 @@ private fun Route.getLiveSchedule(
  * display to the user where the current trip is.
  */
 data class StopScheduleEntry(
-  val routeNumber: Int,
-  val headsign: String,
-  val trip: Trip,
-  val absoluteTime: Int,
-  val relativeTime: Int,
-  val useRelative: Boolean,
-  val departed: Boolean,
+   val routeNumber: Int,
+   val headsign: String,
+   val trip: Trip,
+   val absoluteTime: Int,
+   val relativeTime: Int,
+   val useRelative: Boolean,
+   val departed: Boolean,
 )
 
 /**
@@ -113,10 +131,10 @@ typealias StopLiveSchedule = Pair<List<StopScheduleEntry>?, String?>
  * in this class changes, the live schedule is recalculated.
  */
 private data class RouteDirAtStop(
-  val route: Route?,
-  val trips: Trips?,
-  var buildFirst: Boolean,
-  var buildSecond: Boolean,
+   val route: Route?,
+   val trips: Trips?,
+   var buildFirst: Boolean,
+   var buildSecond: Boolean,
 )
 
 /**
@@ -125,129 +143,138 @@ private data class RouteDirAtStop(
  */
 @Composable
 fun Stop.getLiveSchedule(
-  routesAtStop: RoutesAtStop,
-  keepDeparted: Boolean,
-  maxSize: Int,
-  routesFiltered: List<Int>? = null,
+   routesAtStop: RoutesAtStop,
+   keepDeparted: Boolean,
+   maxSize: Int,
+   routesFiltered: List<Int>? = null,
 ): StopLiveSchedule? {
-  val schedule = Schedule.instance
+   val schedule = Schedule.instance
 
-  val routes = schedule.routes ?: return null
-  val calendarDates = schedule.calendarDates ?: return null
+   val routes = schedule.routes ?: return null
+   val calendarDates = schedule.calendarDates ?: return null
 
-  val live = Live.instance
+   val live = Live.instance
 
-  val filterEmpty = routesFiltered == null || routesAtStop.routes.none { it.absoluteValue in routesFiltered }
+   val filterEmpty =
+      routesFiltered == null || routesAtStop.routes.none { it.absoluteValue in routesFiltered }
 
-  val routeDirsAtStop = ArrayList<RouteDirAtStop>()
-  routesAtStop.routes.forEach { routeAtStopId ->
-    val routeId = routeAtStopId.absoluteValue
+   val routeDirsAtStop = ArrayList<RouteDirAtStop>()
+   routesAtStop.routes.forEach { routeAtStopId ->
+      val routeId = routeAtStopId.absoluteValue
 
-    if (filterEmpty || routeId in routesFiltered!!) {
-      val routeAtStop = routeDirsAtStop.firstOrNull { routeId == it.route?.id }
-      if (routeAtStop == null) {
-        val route = routes.list.get(key = routeId)
-        val trips = schedule.getTripsOfRoute(routeId).value
-        routeDirsAtStop += RouteDirAtStop(
-          route,
-          trips,
-          buildFirst = routeAtStopId >= 0,
-          buildSecond = routeAtStopId < 0
-        )
-      } else if (routeAtStopId >= 0)
-        routeAtStop.buildFirst = true
-      else
-        routeAtStop.buildSecond = true
-    }
-  }
+      if (filterEmpty || routeId in routesFiltered!!) {
+         val routeAtStop = routeDirsAtStop.firstOrNull { routeId == it.route?.id }
+         if (routeAtStop == null) {
+            val route = routes.list.get(key = routeId)
+            val trips = schedule.getTripsOfRoute(routeId).value
+            routeDirsAtStop += RouteDirAtStop(
+               route,
+               trips,
+               buildFirst = routeAtStopId >= 0,
+               buildSecond = routeAtStopId < 0
+            )
+         } else if (routeAtStopId >= 0)
+            routeAtStop.buildFirst = true
+         else
+            routeAtStop.buildSecond = true
+      }
+   }
 
-  return remember(this, calendarDates, live, routeDirsAtStop, keepDeparted, maxSize) {
-    getLiveSchedule(calendarDates, live, routeDirsAtStop, keepDeparted, maxSize, schedule.serviceIdTypes)
-  }
+   return remember(this, calendarDates, live, routeDirsAtStop, keepDeparted, maxSize) {
+      getLiveSchedule(
+         calendarDates,
+         live,
+         routeDirsAtStop,
+         keepDeparted,
+         maxSize,
+         schedule.serviceIdTypes
+      )
+   }
 }
 
 /**
  * Calculates the live schedule of the given stop based on the given parameters.
  */
 private fun Stop.getLiveSchedule(
-  calendarDates: CalendarDates,
-  live: Live,
-  routeDirsAtStop: List<RouteDirAtStop>,
-  keepDeparted: Boolean,
-  maxSize: Int,
-  serviceIdTypes: ServiceIdTypes?,
+   calendarDates: CalendarDates,
+   live: Live,
+   routeDirsAtStop: List<RouteDirAtStop>,
+   keepDeparted: Boolean,
+   maxSize: Int,
+   serviceIdTypes: ServiceIdTypes?,
 ): StopLiveSchedule {
-  val currentMillis = localCurrentTimeMillis()
-  val time = (currentMillis % MILLIS_IN_DAY).toInt() / MILLIS_IN_SECONDS
-  val date = currentMillis / MILLIS_IN_DAY
+   val currentMillis = localCurrentTimeMillis()
+   val time = (currentMillis % MILLIS_IN_DAY).toInt() / MILLIS_IN_SECONDS
+   val date = currentMillis / MILLIS_IN_DAY
 
-  val list = ArrayList<StopScheduleEntry>()
+   val list = ArrayList<StopScheduleEntry>()
 
-  fun handleData(routeNumber: Int, data: RouteScheduleData, commonHeadsign: String) {
-    val stopIndex = data.trip.stops.indexOf(this.id.value)
-    if (stopIndex == -1) return
+   fun handleData(routeNumber: Int, data: RouteScheduleData, commonHeadsign: String) {
+      val stopIndex = data.trip.stops.indexOf(this.id.value)
+      if (stopIndex == -1) return
 
-    if (!keepDeparted && data.nextStopIndex > stopIndex)
-      return
+      if (!keepDeparted && data.nextStopIndex > stopIndex)
+         return
 
-    val departureTime = data.trip.departures[stopIndex] + data.delayByStop[stopIndex]
+      val departureTime = data.trip.departures[stopIndex] + data.delayByStop[stopIndex]
 
-    val useRelative = data.delayByStop != BlankDelayByStop
+      val useRelative = data.delayByStop != BlankDelayByStop
 
-    list += StopScheduleEntry(
-      routeNumber = routeNumber,
-      headsign = data.overriddenHeadsign ?: commonHeadsign,
-      trip = data.trip,
-      absoluteTime = departureTime,
-      relativeTime = max(departureTime - time, 0),
-      useRelative = useRelative,
-      departed = data.nextStopIndex > stopIndex
-    )
-  }
-
-  for ((route, trips, buildFirst, buildSecond) in routeDirsAtStop) {
-    route ?: continue
-    trips ?: continue
-
-    val commonHeadsign = trips.commonHeadsign
-
-    val (first, second) = try {
-      route.getLiveScheduleData(
-        trips, calendarDates, live, time, date, serviceIdTypes,
-        preferredSize = 20,
-        buildFirstList = buildFirst,
-        buildSecondList = buildSecond,
+      list += StopScheduleEntry(
+         routeNumber = routeNumber,
+         headsign = data.overriddenHeadsign ?: commonHeadsign,
+         trip = data.trip,
+         absoluteTime = departureTime,
+         relativeTime = max(departureTime - time, 0),
+         useRelative = useRelative,
+         departed = data.nextStopIndex > stopIndex
       )
-    } catch (e: NoLiveScheduleException) {
-      if (e is NullServiceIdLiveScheduleException || routeDirsAtStop.size == 1)
-        return null to e.message
-      continue
-    }
+   }
 
-    for (data in first)
-      handleData(
-        routeNumber = route.id,
-        data = data,
-        commonHeadsign = commonHeadsign.first,
-      )
-    for (data in second)
-      handleData(
-        routeNumber = route.id,
-        data = data,
-        commonHeadsign = commonHeadsign.second,
-      )
-  }
+   for ((route, trips, buildFirst, buildSecond) in routeDirsAtStop) {
+      route ?: continue
+      trips ?: continue
 
-  list.sortBy { it.absoluteTime }
+      val commonHeadsign = trips.commonHeadsign
 
-  return (if (list.size <= maxSize) list else list.subList(0, maxSize)) to null
+      val (first, second) = try {
+         route.getLiveScheduleData(
+            trips, calendarDates, live, time, date, serviceIdTypes,
+            preferredSize = 20,
+            buildFirstList = buildFirst,
+            buildSecondList = buildSecond,
+         )
+      } catch (e: NoLiveScheduleException) {
+         if (e is NullServiceIdLiveScheduleException || routeDirsAtStop.size == 1)
+            return null to e.message
+         continue
+      }
+
+      for (data in first)
+         handleData(
+            routeNumber = route.id,
+            data = data,
+            commonHeadsign = commonHeadsign.first,
+         )
+      for (data in second)
+         handleData(
+            routeNumber = route.id,
+            data = data,
+            commonHeadsign = commonHeadsign.second,
+         )
+   }
+
+   list.sortBy { it.absoluteTime }
+
+   return (if (list.size <= maxSize) list else list.subList(0, maxSize)) to null
 }
 
 private data class RouteScheduleData(
-  val nextStopIndex: Int,
-  val trip: Trip,
-  val overriddenHeadsign: String?,
-  val delayByStop: DelayByStop,
+   val nextStopIndex: Int,
+   val trip: Trip,
+   val overriddenHeadsign: String?,
+   val delayByStop: DelayByStop,
+   val timeOffset: Long,
 )
 
 private typealias RouteLiveScheduleData = ListPair<RouteScheduleData>
@@ -257,130 +284,151 @@ open class NoLiveScheduleException(message: String) : Exception(message)
 class NullServiceIdLiveScheduleException : NoLiveScheduleException(Love.NULL_SERVICE_ID_MESSAGE)
 
 private fun Route.getLiveScheduleData(
-  trips: Trips,
-  calendarDates: CalendarDates,
-  live: Live,
-  time: Int,
-  date: Long,
-  serviceIdTypes: ServiceIdTypes?,
-  preferredSize: Int = 4,
-  buildFirstList: Boolean = true,
-  buildSecondList: Boolean = true,
+   trips: Trips,
+   calendarDates: CalendarDates,
+   live: Live,
+   time: Int,
+   date: Long,
+   serviceIdTypes: ServiceIdTypes?,
+   preferredSize: Int = 4,
+   buildFirstList: Boolean = true,
+   buildSecondList: Boolean = true,
 ): RouteLiveScheduleData {
-  val commonHeadsign = trips.commonHeadsign
+   val commonHeadsign = trips.commonHeadsign
 
-  val serviceId = calendarDates[date]
-    ?: throw NullServiceIdLiveScheduleException()
+   val serviceId = calendarDates[date]
+      ?: throw NullServiceIdLiveScheduleException()
 
-  val filteredStopTimes = trips.list
-    .filterByServiceId(serviceId).also {
-      if (it.isEmpty())
-        throw NoLiveScheduleException(
-          Love.giveMeTheSpecialLabelForNoTrips(this.id, trips.list, serviceId, date, serviceIdTypes)
-        )
-    }
-    .filterByDirection()
-    .sortedByDepartures()
-
-  val firstList = mutableListOf<RouteScheduleData>()
-  val secondList = mutableListOf<RouteScheduleData>()
-
-  fun buildRouteSchedule(
-    list: MutableList<RouteScheduleData>,
-    iterator: ListIterator<Trip>,
-    directionId: Int,
-    commonHeadsign: String,
-  ) {
-    fun Trip.toEntry(nextStopIndex: Int = 0, delayByStop: DelayByStop = BlankDelayByStop) =
-      RouteScheduleData(
-        nextStopIndex = nextStopIndex,
-        trip = this,
-        overriddenHeadsign = headsign.takeIf { it != commonHeadsign },
-        delayByStop = delayByStop,
-      )
-
-    if (live.feedMessage != null) {
-      live.forEachOfRoute(this.id) {
-        val tripId = it.tripUpdate.trip.tripId
-        val next = trips.list[tripId]
-        if (next?.directionId == directionId) {
-          val delayByStop = it.tripUpdate.stopTimeUpdateList.getDelayByStop()
-          val nextStop = next.findNextStopIndexToday(time, delayByStop)
-          if (0 < nextStop && nextStop < next.stops.size) {
-            list += next.toEntry(nextStop, delayByStop)
-          }
-        }
+   val filteredStopTimes = trips.list
+      .filterByServiceId(serviceId).also {
+         if (it.isEmpty())
+            throw NoLiveScheduleException(
+               Love.giveMeTheSpecialLabelForNoTrips(
+                  this.id,
+                  trips.list,
+                  serviceId,
+                  date,
+                  serviceIdTypes
+               )
+            )
       }
-      list.sortBy { -it.nextStopIndex }
-    }
+      .splitByDirection()
+      .sortedByDepartures()
 
-    val firstAfter: Trip
-    if (live.feedMessage == null || list.size == 0) while (true) {
-      if (!iterator.hasNext()) return
+   val firstList = mutableListOf<RouteScheduleData>()
+   val secondList = mutableListOf<RouteScheduleData>()
 
-      val next = iterator.next()
-      if (time >= next.departures.first()) {
-        val delayByStop = live.getDelayByStopForTrip(next.tripId)
-        val nextStop = next.findNextStopIndex(time, delayByStop)
-        if (nextStop < next.stops.size) {
-          list += next.toEntry(nextStop, delayByStop)
-        }
-      } else {
-        firstAfter = next
-        break
+   fun buildRouteSchedule(
+      list: MutableList<RouteScheduleData>,
+      iterator: ListIterator<Trip>,
+      directionId: Int,
+      commonHeadsign: String,
+      isYesterday: Boolean = false,
+   ) {
+      fun Trip.toEntry(nextStopIndex: Int = 0, delayByStop: DelayByStop = BlankDelayByStop) =
+         RouteScheduleData(
+            nextStopIndex = nextStopIndex,
+            trip = this,
+            overriddenHeadsign = headsign.takeIf { it != commonHeadsign },
+            delayByStop = delayByStop,
+            timeOffset = if (isYesterday) (date - 1) * MILLIS_IN_DAY else 0L,
+         )
+      val offsetTime = if (isYesterday) time + SECONDS_IN_DAY else time
+
+      if (live.feedMessage != null) {
+         live.forEachOfRoute(this.id) {
+            val tripId = it.tripUpdate.trip.tripId
+            val next = trips.list[tripId]
+            if (next?.directionId == directionId) {
+               val delayByStop = it.tripUpdate.stopTimeUpdateList.getDelayByStop()
+               val nextStop = next.findNextStopIndexToday(offsetTime, delayByStop)
+               if (0 < nextStop && nextStop < next.stops.size) {
+                  list += next.toEntry(nextStop, delayByStop)
+               }
+            }
+         }
+         list.sortBy { -it.nextStopIndex }
       }
-    } else while (true) {
-      if (!iterator.hasNext()) return
 
-      val next = iterator.next()
-      if (time < next.departures.first()) {
-        firstAfter = next
-        break
+      val firstAfter: Trip
+      if (live.feedMessage == null || list.size == 0) while (true) {
+         if (!iterator.hasNext()) return
+
+         val next = iterator.next()
+         if (offsetTime >= next.departures.first()) {
+            val delayByStop = live.getDelayByStopForTrip(next.tripId)
+            val nextStop = next.findNextStopIndex(offsetTime, delayByStop)
+            if (nextStop < next.stops.size) {
+               list += next.toEntry(nextStop, delayByStop)
+            }
+         } else {
+            firstAfter = next
+            break
+         }
+      } else while (true) {
+         if (!iterator.hasNext()) return
+
+         val next = iterator.next()
+         if (offsetTime < next.departures.first()) {
+            firstAfter = next
+            break
+         }
       }
-    }
 
-    list += firstAfter.toEntry()
+      list += firstAfter.toEntry()
 
-    /*while (list.size < 6) {
-      if (!iterator.hasNext()) return
+      /*while (list.size < 6) {
+        if (!iterator.hasNext()) return
 
-      val next = iterator.next()
-      if (next.departures.first() - time < 60 * 60) {
-        list += next.toEntry()
-      } else break
-    }*/
+        val next = iterator.next()
+        if (next.departures.first() - time < 60 * 60) {
+          list += next.toEntry()
+        } else break
+      }*/
 
-    while (list.size < preferredSize && iterator.hasNext()) {
-      list += iterator.next().toEntry()
-    }
-  }
+      while (list.size < preferredSize && iterator.hasNext()) {
+         list += iterator.next().toEntry()
+      }
+   }
 
-  if (time < 6 * SECONDS_IN_HOUR) run yesterday@{
-    val yesterdayServiceId = calendarDates[date - 1] ?: return@yesterday
+   if (time < 6 * SECONDS_IN_HOUR) run yesterday@{
+      val yesterdayServiceId = calendarDates[date - 1] ?: return@yesterday
 
-    val yStopTimes = if (yesterdayServiceId == serviceId) filteredStopTimes else
-      trips.list
-        .filterByServiceId(yesterdayServiceId)
-        .filterByDirection()
-        .sortedByDepartures()
+      val yStopTimes = if (yesterdayServiceId == serviceId) filteredStopTimes else
+         trips.list
+            .filterByServiceId(yesterdayServiceId)
+            .splitByDirection()
+            .sortedByDepartures()
 
-    val yIndices = yStopTimes.findFirstDepartures(time + SECONDS_IN_DAY)
+      val yIndices = yStopTimes.findFirstDepartures(time + SECONDS_IN_DAY)
 
-    if (buildFirstList)
-      buildRouteSchedule(firstList, yStopTimes.first.listIterator(yIndices.first), 0, commonHeadsign.first)
-    if (buildSecondList)
-      buildRouteSchedule(secondList, yStopTimes.second.listIterator(yIndices.second), 1, commonHeadsign.second)
-  }
+      if (buildFirstList)
+         buildRouteSchedule(
+            firstList,
+            yStopTimes.first.listIterator(yIndices.first),
+            directionId = 0,
+            commonHeadsign.first,
+            isYesterday = true,
+         )
+      if (buildSecondList)
+         buildRouteSchedule(
+            secondList,
+            yStopTimes.second.listIterator(yIndices.second),
+            directionId = 1,
+            commonHeadsign.second,
+            isYesterday = true,
+         )
+   }
 
-  val indices = filteredStopTimes.findFirstDepartures(time)
+   val indices = filteredStopTimes.findFirstDepartures(time)
 
-  val firstIterator = filteredStopTimes.first.listIterator(indices.first)
-  val secondIterator = filteredStopTimes.second.listIterator(indices.second)
+   val firstIterator = filteredStopTimes.first.listIterator(indices.first)
+   val secondIterator = filteredStopTimes.second.listIterator(indices.second)
 
-  if (buildFirstList)
-    buildRouteSchedule(firstList, firstIterator, 0, commonHeadsign.first)
-  if (buildSecondList)
-    buildRouteSchedule(secondList, secondIterator, 1, commonHeadsign.second)
+   if (buildFirstList)
+      buildRouteSchedule(firstList, firstIterator, 0, commonHeadsign.first)
+   if (buildSecondList)
+      buildRouteSchedule(secondList, secondIterator, 1, commonHeadsign.second)
 
-  return RouteLiveScheduleData(firstList, secondList)
+   return RouteLiveScheduleData(firstList, secondList)
 }

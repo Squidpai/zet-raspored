@@ -8,7 +8,7 @@ import java.util.zip.ZipFile
 typealias ServiceId = String
 
 /** Class containing data from the GTFS schedule file "calendar_dates.txt". */
-class CalendarDates : AbstractList<ServiceId> {
+class CalendarDates {
 
   /**
    * The [ServiceId] used in each date of this schedule.
@@ -29,6 +29,8 @@ class CalendarDates : AbstractList<ServiceId> {
    */
   private val firstDateEpoch: Long
 
+  val lastDate: LocalDate?
+
   /**
    * Creates an empty `CalendarDates` instance.
    */
@@ -36,6 +38,7 @@ class CalendarDates : AbstractList<ServiceId> {
     data = emptyArray()
     firstDate = null
     firstDateEpoch = 0L
+    lastDate = null
   }
 
   /**
@@ -52,6 +55,7 @@ class CalendarDates : AbstractList<ServiceId> {
       data = emptyArray()
       firstDate = null
       firstDateEpoch = 0L
+      lastDate = null
       return
     }
 
@@ -67,18 +71,10 @@ class CalendarDates : AbstractList<ServiceId> {
     data = Array(allEntries.size - 1) { entryIterator.next()[serviceIdOffset] }
     firstDate = allEntries[1][dateOffset].dateToLocalDate()
     firstDateEpoch = firstDate.toEpochDay()
+    lastDate = allEntries.last()[dateOffset].dateToLocalDate()
   }
 
-  override val size get() = data.size
-
   val serviceIds get() = data.iterator()
-
-  /**
-   * Returns the [ServiceId] directly from the data.
-   *
-   * [index] is a regular index, which goes from 0 until [size].
-   */
-  override fun get(index: Int) = data[index]
 
   /**
    * Returns the [ServiceId] operating at the given date [epoch],
@@ -97,18 +93,16 @@ class CalendarDates : AbstractList<ServiceId> {
    * Returns a list of [ServiceId] operating from epoch [dateEpoch] + [range].[first][IntRange.first]
    * to (including) [dateEpoch] + [range].[last][IntRange.last].
    */
-  fun relativeSubList(dateEpoch: Long, range: IntRange): List<ServiceId?> {
+  fun relativeSubRange(dateEpoch: Long, range: IntRange): List<ServiceId?> {
     val dateOffset = dateEpoch - firstDateEpoch
 
     return RelativeSubList((dateOffset + range.first).toInt(), (dateOffset + range.last + 1).toInt())
   }
 
   private inner class RelativeSubList(private val fromIndex: Int, toIndex: Int) : AbstractList<ServiceId?>(), RandomAccess {
-    private val _size: Int = toIndex - fromIndex
+    override val size = toIndex - fromIndex
 
     override fun get(index: Int) = data.getOrNull(fromIndex + index)
-
-    override val size: Int get() = _size
   }
 
 }

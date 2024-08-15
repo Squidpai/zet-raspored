@@ -1,11 +1,28 @@
 package hr.squidpai.zetlive.ui
 
 import androidx.collection.IntList
-import androidx.compose.foundation.*
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.interaction.Interaction
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.*
-import androidx.compose.material3.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonColors
+import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.PlainTooltip
+import androidx.compose.material3.Text
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.TooltipDefaults
+import androidx.compose.material3.contentColorFor
+import androidx.compose.material3.minimumInteractiveComponentSize
+import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -50,11 +67,11 @@ import kotlin.math.max
 fun IconButton(
   icon: ImageVector,
   contentDescription: String,
+  onClick: () -> Unit,
   modifier: Modifier = Modifier,
   enabled: Boolean = true,
   colors: IconButtonColors = IconButtonDefaults.iconButtonColors(),
   interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
-  onClick: () -> Unit,
 ) = TooltipBox(
   positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
   tooltip = {
@@ -131,8 +148,9 @@ fun ColumnScope.DirectionRow(
     IconButton(
       Symbols.SwapHorizontal,
       contentDescription = "Zamijeni smjer",
+      onClick = { setDirection(1 - direction) },
       colors = IconButtonDefaults.iconButtonColors(contentColor = MaterialTheme.colorScheme.primary),
-    ) { setDirection(1 - direction) }
+    )
     Text(
       rightSign,
       modifier = Modifier.weight(1f),
@@ -317,3 +335,5 @@ fun RouteSlider(
   trackWidth, pointRadius, nextPointRadius, passedTrackColor, notPassedTrackColor, passedStopColor,
   notPassedStopColor, nextStopColor,
 )
+
+
