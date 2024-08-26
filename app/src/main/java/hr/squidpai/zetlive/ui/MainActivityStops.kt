@@ -356,12 +356,12 @@ private fun ColumnScope.StopLiveTravels(stop: Stop, routesAtStopMap: RoutesAtSto
       return
    }
 
-   val selectTrip = LocalSelectTrip.current
+   val context = LocalContext.current
 
    for ((routeNumber, headsign, trip, absoluteTime, relativeTime, useRelative) in live) {
       Row(
          Modifier
-            .clickable { selectTrip(trip, 0L) }
+            .clickable { TripDialogActivity.selectTrip(context, trip, 0L) }
             .padding(vertical = 4.dp),
          verticalAlignment = Alignment.CenterVertically
       ) {

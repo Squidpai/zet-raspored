@@ -391,6 +391,8 @@ private class ScheduleImpl(
 
    private var _serviceIdTypes by mutableStateOf<ServiceIdTypes?>(null)
 
+   private val fieldLock = Any()
+
    init {
       try {
          ZipFile(zipFile).use { zip ->
@@ -456,8 +458,6 @@ private class ScheduleImpl(
 
          mutableStateOf(stopTimes)
       }
-
-   private val fieldLock = Any()
 
    private var loadingStopTimes = false
 

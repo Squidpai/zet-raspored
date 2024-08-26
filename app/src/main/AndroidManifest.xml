@@ -3,6 +3,9 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
     <application
         android:name=".MainApplication"
@@ -24,9 +27,29 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity
+            android:name=".ui.TripDialogActivity"
+            android:theme="@style/Theme.Transparent" />
         <activity android:name=".ui.RouteScheduleActivity" />
         <activity android:name=".ui.StopScheduleActivity" />
         <activity android:name=".ui.SettingsActivity" />
+
+        <service
+            android:name=".ui.NotificationTrackerService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="The user can select to track a specific bus or tram via the
+                status bar. If they choose to stop, they can simply swipe the notification away." />
+        </service>
+        <receiver
+            android:name=".ui.NotificationTrackerService$NotificationRemoveReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="hr.squidpai.zetlive.REMOVE_NOTIFICATION" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>

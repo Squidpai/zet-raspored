@@ -94,6 +94,7 @@ private fun Route.getLiveSchedule(
             .takeIf { id -> id != trips.commonFirstStop[it.trip.directionId] },
          // departureTime is only used if nextStopIndex == 0
          departureTime = it.trip.departures[0].let { departure ->
+            // TODO ne pokazuje dobro za nocne polaske iza ponoci ako je i vrijeme iza ponoci
             if (departure <= time) -1
             else if (departure - time <= 15 * 60) time - departure - 1
             else departure

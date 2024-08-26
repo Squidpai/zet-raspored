@@ -92,9 +92,6 @@ class RouteScheduleActivity : ComponentActivity() {
    companion object {
       private const val TAG = "RouteScheduleActivity"
 
-      const val EXTRA_ROUTE = "hr.squidpai.zetlive.extra.ROUTE"
-      const val EXTRA_DIRECTION = "hr.squidpai.zetlive.extra.DIRECTION"
-
       /**
        * Array whose contents is `["Pon", "Uto", "Sri", "Čet", "Pet", "Sub", "Ned"]`
        */
@@ -119,7 +116,7 @@ class RouteScheduleActivity : ComponentActivity() {
    override fun onCreate(savedInstanceState: Bundle?) {
       super.onCreate(savedInstanceState)
 
-      val routeId = intent.getIntExtra(EXTRA_ROUTE, -1)
+      val routeId = intent.getIntExtra(EXTRA_ROUTE_ID, -1)
 
       if (routeId == -1) {
          Log.w(TAG, "onCreate: No route id given, finishing activity early.")
@@ -432,8 +429,6 @@ class RouteScheduleActivity : ComponentActivity() {
       selectedDate: Long,
       modifier: Modifier = Modifier,
    ) {
-      val selectTrip = LocalSelectTrip.current
-
       val specialLabel = Love.giveMeTheSpecialTripLabel(trip)
 
       Layout(
@@ -491,7 +486,9 @@ class RouteScheduleActivity : ComponentActivity() {
                maxLines = 3,
             )
          },
-         modifier = modifier.clickable { selectTrip(trip, selectedDate * MILLIS_IN_DAY) },
+         modifier = modifier.clickable {
+            TripDialogActivity.selectTrip(this, trip, selectedDate * MILLIS_IN_DAY)
+         },
          measurePolicy = TripRowMeasurePolicy,
       )
    }

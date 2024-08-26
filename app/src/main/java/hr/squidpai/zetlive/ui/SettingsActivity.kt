@@ -213,11 +213,11 @@ class SettingsActivity : ComponentActivity() {
                      buildString {
                         append("Verzija: ").append(feedInfo?.version.orLoading())
                         if (latestVersion != null)
-                           append("Najnovija verzija: ").append(latestVersion)
+                           append("\nNajnovija verzija: ").append(latestVersion)
                         append("\nPočetak rasporeda: ").append(startDate?.toString().orLoading())
                         append("\nKraj rasporeda: ").append(lastDate?.toString().orLoading())
                         if (newScheduleFeedInfo != null) {
-                           append("Postoji neaktivirani raspored:")
+                           append("\n\nPostoji neaktivirani raspored:")
                            append("\n Verzija: ").append(newScheduleFeedInfo.version)
                            append("\n Početak: ").append(newScheduleFeedInfo.startDate)
                         }

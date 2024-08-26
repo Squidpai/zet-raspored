@@ -1,6 +1,11 @@
 package hr.squidpai.zetlive
 
-import androidx.collection.*
+import androidx.collection.IntIntMap
+import androidx.collection.IntList
+import androidx.collection.IntObjectMap
+import androidx.collection.IntSet
+import androidx.collection.MutableIntIntMap
+import androidx.collection.MutableIntObjectMap
 import androidx.compose.runtime.State
 import androidx.compose.ui.Modifier
 import java.io.DataInputStream
@@ -70,6 +75,20 @@ inline fun <R : Any> IntList.mapNotNull(transform: (Int) -> R?): List<R> {
   val list = ArrayList<R>()
   forEach { element -> transform(element)?.let { list.add(it) } }
   return list
+}
+
+/**
+ * Returns an [IntObjectMap] where keys are elements from the given [IntList] and values are
+ * produced by the [valueSelector] function applied to each element.
+ *
+ * If any two elements are equal, the last one gets added to the map.
+ */
+inline fun <V> IntList.associateWith(valueSelector: (Int) -> V): IntObjectMap<V> {
+  val result = MutableIntObjectMap<V>(size)
+  forEach {
+    result[it] = valueSelector(it)
+  }
+  return result
 }
 
 /** Returns `true` if no elements match the given [predicate]. */
@@ -192,9 +211,12 @@ operator fun <T> Pair<T, T>.get(index: Int) = when (index) {
   else -> throw IndexOutOfBoundsException("Index out of range: $index")
 }
 
+operator fun <T> Pair<T, *>?.component1() = this?.first
+
+operator fun <T> Pair<*, T>?.component2() = this?.second
+
 /**
  * Returns the enum entry whose ordinal is one more than this, or
  * whose ordinal is zero, if this is the last entry.
  */
-@OptIn(ExperimentalStdlibApi::class)
 inline val <reified T : Enum<T>> T.next get() = enumEntries<T>().let { it[(ordinal + 1) % it.size] }

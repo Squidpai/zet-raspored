@@ -8,14 +8,8 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.MutableState
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import hr.squidpai.zetlive.gtfs.Trip
 
 private val LightColors = lightColorScheme(
    primary = Color(0xFF004DEA),
@@ -82,9 +76,6 @@ private val DarkColors = darkColorScheme(
    scrim = Color(0xFF000000),
 )
 
-val LocalSelectTrip =
-   staticCompositionLocalOf<(Trip?, Long) -> Unit> { { _, _ -> } }
-
 @Composable
 fun AppTheme(content: @Composable () -> Unit) {
    val darkTheme = isSystemInDarkTheme()
@@ -99,24 +90,5 @@ fun AppTheme(content: @Composable () -> Unit) {
       else -> LightColors
    }
 
-   MaterialTheme(colorScheme = colorScheme) {
-      val selectedTrip = remember { mutableStateOf<Pair<Trip, Long>?>(null) }
-
-      CompositionLocalProvider(
-         LocalSelectTrip provides { trip, timeOffset ->
-            selectedTrip.value = trip?.let { it to timeOffset }
-         }
-      ) {
-         content()
-      }
-
-      LocalTripDialog(selectedTrip)
-   }
-}
-
-@Composable
-fun LocalTripDialog(selectedTrip: MutableState<Pair<Trip, Long>?>) {
-   selectedTrip.value?.let { (trip, timeOffset) ->
-      TripDialog(onDismissRequest = { selectedTrip.value = null }, trip, timeOffset)
-   }
+   MaterialTheme(colorScheme = colorScheme, content = content)
 }

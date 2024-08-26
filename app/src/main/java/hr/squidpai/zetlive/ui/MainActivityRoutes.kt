@@ -235,8 +235,8 @@ private fun RouteContent(route: Route, pinned: Boolean, modifier: Modifier) {
                OutlinedButton(onClick = {
                   context.startActivity(
                      Intent(context, RouteScheduleActivity::class.java)
-                        .putExtra(RouteScheduleActivity.EXTRA_ROUTE, route.id)
-                        .putExtra(RouteScheduleActivity.EXTRA_DIRECTION, directionState.intValue)
+                        .putExtra(EXTRA_ROUTE_ID, route.id)
+                        .putExtra(EXTRA_DIRECTION, directionState.intValue)
                   )
                }) {
                   Text("Raspored")
@@ -292,14 +292,13 @@ private fun ColumnScope.RouteLiveTravels(route: Route, directionState: MutableIn
       return
    }
 
-   for (entry in liveTravels) {
+   for (entry in liveTravels)
       LiveTravelSlider(entry)
-   }
 }
 
 @Composable
 fun LiveTravelSlider(routeScheduleEntry: RouteScheduleEntry, interactable: Boolean = true) {
-   val selectTrip = LocalSelectTrip.current
+   val context = LocalContext.current
 
    val highlightNextStop = Data.highlightNextStop
 
@@ -315,7 +314,9 @@ fun LiveTravelSlider(routeScheduleEntry: RouteScheduleEntry, interactable: Boole
    Column(
       Modifier
          .padding(vertical = 6.dp)
-         .alsoIf(interactable) { clickable { selectTrip(trip, timeOffset) } },
+         .alsoIf(interactable) {
+            clickable { TripDialogActivity.selectTrip(context, trip, timeOffset) }
+         },
    ) {
       val tint =
          if (overriddenHeadsign != null || overriddenFirstStop.isValid() || specialLabel != null)
