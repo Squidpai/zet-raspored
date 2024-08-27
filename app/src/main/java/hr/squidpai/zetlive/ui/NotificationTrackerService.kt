@@ -190,8 +190,17 @@ class NotificationTrackerService : Service(), Live.UpdateListener {
       val stopsList = schedule.stops?.list
       stopNames = trip.stops.associateWith { stopsList?.get(it.toStopId())?.name.orLoading() }
 
+      val deleteIntent = PendingIntent.getBroadcast(
+         /* context = */ this,
+         /* requestCode = */ 0,
+         /* intent = */
+         Intent(this, NotificationRemoveReceiver::class.java)
+            .setAction(ACTION_REMOVE_NOTIFICATION),
+         /* flags = */ PendingIntent.FLAG_IMMUTABLE,
+      )
+
       notificationBuilder = NotificationCompat.Builder(this, CHANNEL_ID)
-         .setSmallIcon(R.drawable.ic_launcher_foreground)
+         .setSmallIcon(R.drawable.notification_app_icon)
          .setShowWhen(false)
          .setAllowSystemGeneratedContextualActions(false)
          .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
@@ -211,16 +220,9 @@ class NotificationTrackerService : Service(), Live.UpdateListener {
                /* flags = */ PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
             )
          )
-         .setDeleteIntent(
-            PendingIntent.getBroadcast(
-               /* context = */ this,
-               /* requestCode = */ 0,
-               /* intent = */
-               Intent(this, NotificationRemoveReceiver::class.java)
-                  .setAction(ACTION_REMOVE_NOTIFICATION),
-               /* flags = */ PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_IMMUTABLE,
-            )
-         )
+         .addAction(0, "Prestani pratiti", deleteIntent)
+         .setDeleteIntent(deleteIntent)
+         .setOngoing(false)
 
       titleText = buildString {
          append(routeId)
@@ -252,6 +254,8 @@ class NotificationTrackerService : Service(), Live.UpdateListener {
          if (intent.action != ACTION_REMOVE_NOTIFICATION)
             return
 
+         context.stopService(Intent(context, NotificationTrackerService::class.java))
+         context.getSystemService<NotificationManager>()!!.cancel(666)
          Live.removeNotificationTrackerListener()
       }
    }
