@@ -1,6 +1,7 @@
 package hr.squidpai.zetlive.gtfs
 
 import android.util.Log
+import androidx.collection.IntIntMap
 import androidx.collection.IntIntPair
 import androidx.collection.IntList
 import androidx.collection.IntObjectMap
@@ -9,6 +10,7 @@ import androidx.collection.MutableIntList
 import androidx.collection.MutableIntObjectMap
 import androidx.collection.MutableIntSet
 import androidx.collection.MutableObjectIntMap
+import androidx.collection.ObjectIntMap
 import androidx.collection.mutableIntListOf
 import androidx.collection.mutableIntSetOf
 import com.opencsv.CSVReader
@@ -23,13 +25,11 @@ import hr.squidpai.zetlive.readShortString
 import hr.squidpai.zetlive.toInt
 import hr.squidpai.zetlive.toIntArray
 import hr.squidpai.zetlive.writeShortString
-import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
 import java.io.DataInputStream
 import java.io.DataOutputStream
 import java.io.EOFException
 import java.io.File
-import java.io.FileInputStream
 import java.io.FileNotFoundException
 import java.io.FileOutputStream
 import java.io.IOException
@@ -48,7 +48,7 @@ data class Trip(
    val routeId: RouteId,
    val serviceId: ServiceId,
    val tripId: TripId,
-   val headsign: String,
+   val headsign: String?,
    val directionId: Int,
    val blockId: Int,
    val stops: IntList,
@@ -94,46 +94,16 @@ data class Trip(
    }
 }
 
+typealias CommonHeadsignByDay = Map<ServiceId, Pair<String, String>>
+
+typealias CommonFirstStopByDay = Map<ServiceId, Pair<StopId, StopId>>
+
 class Trips(
    val list: TripsList,
-   val commonHeadsign: Pair<String, String>,
-   val commonFirstStop: Pair<StopId, StopId>,
+   val commonHeadsignByDay: CommonHeadsignByDay,
+   val commonFirstStopByDay: CommonFirstStopByDay,
    val tripShapes: List<IntList>,
-) {
-   fun printTripShapes(stops: Stops) {
-      for (shape in tripShapes) {
-         if (shape.first().toStopId() != commonFirstStop.first && shape.first()
-               .toStopId() != commonFirstStop.second
-         )
-            continue
-
-         println(shape.joinToString(
-            prefix = "[",
-            postfix = "]",
-            transform = { stops.list[it.toStopId()]?.name ?: "?" }
-         ))
-      }
-   }
-
-   fun printSpecialTripShapes(stops: Stops) {
-      val printedShapes = MutableIntSet()
-      for (trip in list) {
-         if (trip.stops.first().toStopId() != commonFirstStop[trip.directionId] ||
-            trip.headsign != commonHeadsign[trip.directionId] ||
-            trip.tripShape in printedShapes
-         )
-            continue
-
-         printedShapes += trip.tripShape
-
-         Log.d("SpecialRoutes", trip.stops.joinToString(
-            prefix = "[",
-            postfix = "]",
-            transform = { stops.list[it.toStopId()]?.name ?: "?" }
-         ))
-      }
-   }
-}
+)
 
 typealias TripsList = SortedListMap<TripId, Trip>
 
@@ -234,22 +204,63 @@ object TripsLoader {
       if (!file.isFile)
          return null
 
-      return DataInputStream(BufferedInputStream(FileInputStream(file))).use { input ->
-         val commonHeadsign = input.readCommonHeadsign()
-         val tripShapes = input.readTripShapes()
-         val commonFirstStop = input.readCommonFirstStop()
+      return try {
+         var shouldUpdateFile = false
 
-         val list = buildList<Trip> {
-            try {
-               while (input.available() > 0) {
-                  add(input.readTrip(tripShapes))
+         val trips = DataInputStream(file.inputStream().buffered()).use { input ->
+            var commonHeadsign = input.readCommonHeadsignByDay()
+            val tripShapes = input.readTripShapes()
+            var commonFirstStop = input.readCommonFirstStopByDay()
+
+            val list = ArrayList<Trip>().apply {
+               try {
+                  while (input.available() > 0) {
+                     add(input.readTrip(tripShapes))
+                  }
+               } catch (_: EOFException) {
+                  // stop loading
                }
-            } catch (_: EOFException) {
-               // stop loading
+               sortWith { st1, st2 -> st1.tripId.compareTo(st2.tripId) }
             }
-            sortWith { st1, st2 -> st1.tripId.compareTo(st2.tripId) }
-         }.asSortedListMap { it.tripId }
-         Trips(list, commonHeadsign, commonFirstStop, tripShapes)
+
+            if (commonHeadsign == null) {
+               commonHeadsign = updateCommonHeadsignByDay(routeId, list)
+               list.replaceAll {
+                  if (commonHeadsign[it.serviceId]?.get(it.directionId) == it.headsign)
+                     it.copy(headsign = null)
+                  else it
+               }
+               shouldUpdateFile = true
+            }
+            if (commonFirstStop == null) {
+               commonFirstStop = updateCommonFirstStopsByDay(routeId, list)
+               shouldUpdateFile = true
+            }
+
+            Trips(list.asSortedListMap { it.tripId }, commonHeadsign, commonFirstStop, tripShapes)
+         }
+
+         if (shouldUpdateFile)
+            updateTripsOfRoute(file, trips)
+
+         trips
+      } catch (e: IOException) {
+         Log.e(TAG, "Exception occurred while getting trips of route $routeId", e)
+         null
+      }
+   }
+
+   private fun updateTripsOfRoute(file: File, trips: Trips) {
+      try {
+         DataOutputStream(file.outputStream().buffered()).use { output ->
+            output.write(trips.commonHeadsignByDay)
+            output.write(trips.tripShapes)
+            output.write(trips.commonFirstStopByDay)
+            for (trip in trips.list)
+               output.write(trip = trip)
+         }
+      } catch (e: IOException) {
+         Log.e(TAG, "Exception occurred wile updating trips.", e)
       }
    }
 
@@ -259,7 +270,7 @@ object TripsLoader {
       val file = File(stopTimesDirectory, STOPS_BY_ROUTE_FILE_NAME)
 
       return try {
-         DataInputStream(BufferedInputStream(file.inputStream())).use { input ->
+         DataInputStream(file.inputStream().buffered()).use { input ->
             input.readStopsByRoute()
          }
       } catch (e: FileNotFoundException) {
@@ -420,85 +431,149 @@ object TripsLoader {
    fun tripsLoaded(stopTimesDirectory: File) =
       stopTimesDirectory.isDirectory && File(stopTimesDirectory, DONE_VERSION).isFile
 
-   private fun calculateAllCommonHeadsigns(zippedTrips: ZippedTrips): IntObjectMap<Pair<String, String>> {
-      val appearances =
-         MutableIntObjectMap<Pair<MutableObjectIntMap<String>, MutableObjectIntMap<String>>>()
+   private fun getCommonHeadsign(
+      appearances: ObjectIntMap<String>,
+      forcedCommonHeadsign: String?,
+   ): String {
+      if (appearances.isEmpty())
+         return ""
 
-      for (trip in zippedTrips.list) {
-         val (first, second) = appearances.getOrPut(trip.routeId) {
-            MutableObjectIntMap<String>() to MutableObjectIntMap()
+      var maxCount = 0
+      var maxSign = ""
+      appearances.forEach { sign, count ->
+         if (forcedCommonHeadsign == sign)
+            return forcedCommonHeadsign
+         if (count > maxCount) {
+            maxCount = count
+            maxSign = sign
          }
+      }
 
-         val map = if (trip.directionId == 0) first else second
+      return maxSign
+   }
+
+   private fun updateCommonHeadsignByDay(
+      routeId: RouteId,
+      tripsList: List<Trip>
+   ): CommonHeadsignByDay {
+      val appearances =
+         HashMap<ServiceId, Pair<MutableObjectIntMap<String>, MutableObjectIntMap<String>>>()
+
+      for (trip in tripsList) {
+         trip.headsign ?: continue
+
+         val map = appearances.getOrPut(trip.serviceId) {
+            MutableObjectIntMap<String>() to MutableObjectIntMap()
+         }[trip.directionId]
 
          map[trip.headsign] = map.getOrDefault(trip.headsign, 0) + 1
       }
 
-      val outputMap = MutableIntObjectMap<Pair<String, String>>(appearances.size)
+      val forcedCommonHeadsign = Love.giveMeTheForcedCommonHeadsign(routeId)
 
-      appearances.forEach { routeId, (first, second) ->
-         var firstMaxCount = 0
-         var firstMaxSign = ""
-         first.forEach { sign, count ->
-            if (count > firstMaxCount) {
-               firstMaxCount = count
-               firstMaxSign = sign
-            }
-         }
-
-         var secondMaxCount = 0
-         var secondMaxSign = ""
-         second.forEach { sign, count ->
-            if (count > secondMaxCount) {
-               secondMaxCount = count
-               secondMaxSign = sign
-            }
-         }
-
-         outputMap[routeId] = firstMaxSign to secondMaxSign
+      return appearances.mapValues {
+         getCommonHeadsign(it.value.first, forcedCommonHeadsign?.first) to
+               getCommonHeadsign(it.value.second, forcedCommonHeadsign?.second)
       }
-
-      return outputMap
    }
 
-   private fun calculateCommonFirstStop(
+   private fun calculateAllCommonHeadsignsByDay(zippedTrips: ZippedTrips): IntObjectMap<CommonHeadsignByDay> {
+      val appearances =
+         MutableIntObjectMap<MutableMap<ServiceId, Pair<MutableObjectIntMap<String>, MutableObjectIntMap<String>>>>()
+
+      for (trip in zippedTrips.list) {
+         val appearancesByRoute = appearances.getOrPut(trip.routeId) { HashMap() }
+         val appearancesByServiceId = appearancesByRoute.getOrPut(trip.serviceId) {
+            MutableObjectIntMap<String>() to MutableObjectIntMap()
+         }
+         val appearancesByDirection = appearancesByServiceId[trip.directionId]
+
+         appearancesByDirection[trip.headsign] =
+            appearancesByDirection.getOrDefault(trip.headsign, 0) + 1
+      }
+
+      val result = MutableIntObjectMap<CommonHeadsignByDay>()
+
+      appearances.forEach { routeId, appearancesByServiceId ->
+         val forcedCommonHeadsign = Love.giveMeTheForcedCommonHeadsign(routeId)
+
+         result[routeId] = appearancesByServiceId.mapValues {
+            getCommonHeadsign(it.value.first, forcedCommonHeadsign?.first) to
+                  getCommonHeadsign(it.value.second, forcedCommonHeadsign?.second)
+         }
+      }
+
+      return result
+   }
+
+   private fun getCommonFirstStop(
+      appearances: IntIntMap,
+      forcedFirstStop: StopId,
+   ): StopId {
+      if (appearances.isEmpty())
+         return StopId.Invalid
+
+      var maxCount = 0
+      var maxStop = StopId.Invalid.value
+      appearances.forEach { stop, count ->
+         if (forcedFirstStop.value == stop)
+            return forcedFirstStop
+         if (count > maxCount) {
+            maxCount = count
+            maxStop = stop
+         }
+      }
+
+      return maxStop.toStopId()
+   }
+
+   private fun updateCommonFirstStopsByDay(
+      routeId: RouteId,
+      tripsList: List<Trip>
+   ): CommonFirstStopByDay {
+      val appearances = HashMap<ServiceId, Pair<MutableIntIntMap, MutableIntIntMap>>()
+
+      for (trip in tripsList) {
+         val map = appearances.getOrPut(trip.serviceId) {
+            MutableIntIntMap() to MutableIntIntMap()
+         }[trip.directionId]
+         val firstStop = trip.stops.first()
+
+         map[firstStop] = map.getOrDefault(firstStop, 0) + 1
+      }
+
+      val forcedCommonFirstStop = Love.giveMeTheForcedFirstStop(routeId)
+
+      return appearances.mapValues {
+         getCommonFirstStop(it.value.first, forcedCommonFirstStop.first.toStopId()) to
+               getCommonFirstStop(it.value.second, forcedCommonFirstStop.second.toStopId())
+      }
+   }
+
+   private fun calculateCommonFirstStopByDay(
+      routeId: RouteId,
       tripList: List<IntList>,
       trips: List<TripPrototype>,
       beginIndex: Int,
       endIndex: Int,
-   ): Pair<StopId, StopId> {
-      val appearances = MutableIntIntMap() to MutableIntIntMap()
+   ): CommonFirstStopByDay {
+      val appearances = HashMap<ServiceId, Pair<MutableIntIntMap, MutableIntIntMap>>()
 
       for (i in beginIndex..<endIndex) {
          val trip = trips[i]
+         val map = appearances.getOrPut(trip.serviceId) {
+            MutableIntIntMap() to MutableIntIntMap()
+         }[trip.directionId]
          val firstStop = tripList[trip.tripShape].first()
-         val map =
-            if (trip.directionId == 0) appearances.first
-            else appearances.second
          map[firstStop] = map.getOrDefault(firstStop, 0) + 1
       }
 
-      val (first, second) = appearances
+      val forcedCommonFirstStop = Love.giveMeTheForcedFirstStop(routeId)
 
-      var firstMaxCount = 0
-      var firstMaxStop = -1
-      first.forEach { stop, count ->
-         if (count > firstMaxCount) {
-            firstMaxCount = count
-            firstMaxStop = stop
-         }
+      return appearances.mapValues {
+         getCommonFirstStop(it.value.first, forcedCommonFirstStop.first.toStopId()) to
+               getCommonFirstStop(it.value.second, forcedCommonFirstStop.second.toStopId())
       }
-
-      var secondMaxCount = 0
-      var secondMaxStop = -1
-      second.forEach { stop, count ->
-         if (count > secondMaxCount) {
-            secondMaxCount = count
-            secondMaxStop = stop
-         }
-      }
-
-      return (firstMaxStop.toStopId() to secondMaxStop.toStopId())
    }
 
    enum class PriorityLevel { Hidden, Background, Foreground }
@@ -512,7 +587,7 @@ object TripsLoader {
                .also { Schedule.loadingState = it }
 
          PriorityLevel.Foreground ->
-            Schedule.Companion.TrackableLoadingState("Pripremanje rasporeda za prvo pokretanje${Typography.ellipsis}")
+            Schedule.Companion.TrackableLoadingState("Pripremanje rasporeda${Typography.ellipsis}")
                .also { Schedule.priorityLoadingState = it }
       }
 
@@ -576,7 +651,7 @@ object TripsLoader {
 
       loadingState?.progress = .8f
 
-      val commonHeadsigns = calculateAllCommonHeadsigns(zippedTrips)
+      val commonHeadsigns = calculateAllCommonHeadsignsByDay(zippedTrips)
 
       loadingState?.progress = .85f
 
@@ -589,7 +664,8 @@ object TripsLoader {
 
          val tripList = tripShapes[currentRouteId]!!
          val commonHeadsign = commonHeadsigns[currentRouteId]!!
-         val commonFirstStop = calculateCommonFirstStop(tripList, stopTimes, beginIndex, i)
+         val commonFirstStop =
+            calculateCommonFirstStopByDay(currentRouteId, tripList, stopTimes, beginIndex, i)
 
          DataOutputStream(
             BufferedOutputStream(
@@ -600,7 +676,7 @@ object TripsLoader {
             output.write(tripShapes[currentRouteId]!!)
             output.write(commonFirstStop)
             for (j in beginIndex..<i)
-               output.write(stopTimes[j])
+               output.write(stopTimes[j], commonHeadsign)
          }
 
          if (i == stopTimes.size)
@@ -643,28 +719,66 @@ object TripsLoader {
       Log.d(TAG, "loadStopTimes: loaded stop times! time took: ${time2 / 1_000_000_000.0} s")
    }
 
-   @JvmName("writeCommonHeadsign") // this function and writeCommonFirstStop have the same signature
-   private fun DataOutputStream.write(commonHeadsign: Pair<String, String>) {
-      writeShortString(commonHeadsign.first)
-      writeShortString(commonHeadsign.second)
+   @JvmName("writeCommonHeadsignByDay")
+   private fun DataOutputStream.write(commonHeadsignByDay: CommonHeadsignByDay) {
+      // this is written for compatibility with the previous readCommonHeadsign implementation
+      writeShortString("[")
+      writeShort(commonHeadsignByDay.size)
+      for ((serviceId, commonHeadsign) in commonHeadsignByDay) {
+         writeShortString(serviceId)
+         writeShortString(commonHeadsign.first)
+         writeShortString(commonHeadsign.second)
+      }
    }
 
-   private fun DataInputStream.readCommonHeadsign(): Pair<String, String> {
-      val first = readShortString()
-      val second = readShortString()
-      return first to second
+   private fun DataInputStream.readCommonHeadsignByDay(): CommonHeadsignByDay? {
+      // if this is not "[", that means that this Trip was saved in a previous version,
+      // where there was only one common headsign
+      if (readShortString() != "[") {
+         // read the second part of the old common headsign to stay aligned in the file
+         readShortString()
+         return null
+      }
+      val length = readShort().toInt()
+      val map = HashMap<ServiceId, Pair<String, String>>(length)
+      repeat(length) {
+         val serviceId = readShortString()
+         val first = readShortString()
+         val second = readShortString()
+         map[serviceId] = first to second
+      }
+      return map
    }
 
-   @JvmName("writeCommonFirstStop") // this function and writeCommonHeadsign have the same signature
-   private fun DataOutputStream.write(commonFirstStop: Pair<StopId, StopId>) {
-      writeInt(commonFirstStop.first.value)
-      writeInt(commonFirstStop.second.value)
+   @JvmName("writeCommonFirstStopByDay")
+   private fun DataOutputStream.write(commonFirstStopByDay: CommonFirstStopByDay) {
+      // this is written for compatibility with the previous readCommonFirstStop implementation
+      writeInt(-2)
+      writeShort(commonFirstStopByDay.size)
+      for ((serviceId, commonFirstStop) in commonFirstStopByDay) {
+         writeShortString(serviceId)
+         writeInt(commonFirstStop.first.value)
+         writeInt(commonFirstStop.second.value)
+      }
    }
 
-   private fun DataInputStream.readCommonFirstStop(): Pair<StopId, StopId> {
-      val first = readInt()
-      val second = readInt()
-      return first.toStopId() to second.toStopId()
+   private fun DataInputStream.readCommonFirstStopByDay(): CommonFirstStopByDay? {
+      // if this is not -2, that means that this Trip was saved in a previous version,
+      // where there was only one common first stop
+      if (readInt() != -2) {
+         // read the second part of the old common first stop to stay aligned in the file
+         readInt()
+         return null
+      }
+      val length = readShort().toInt()
+      val map = HashMap<ServiceId, Pair<StopId, StopId>>(length)
+      repeat(length) {
+         val serviceId = readShortString()
+         val first = readInt()
+         val second = readInt()
+         map[serviceId] = first.toStopId() to second.toStopId()
+      }
+      return map
    }
 
    private fun DataOutputStream.write(tripShapes: List<IntList>) {
@@ -685,23 +799,42 @@ object TripsLoader {
       }
    }
 
-   private fun DataOutputStream.write(stopTime: TripPrototype) {
-      writeShort(stopTime.routeId)
-      writeShortString(stopTime.serviceId)
-      writeShortString(stopTime.tripId)
-      writeShortString(stopTime.headsign)
-      writeByte(stopTime.directionId)
-      writeInt(stopTime.blockId)
-      writeByte(stopTime.tripShape)
-      writeByte(stopTime.departures.size)
-      stopTime.departures.forEach { writeInt(it) }
+   private fun DataOutputStream.write(
+      trip: TripPrototype,
+      commonHeadsignByDay: CommonHeadsignByDay,
+   ) {
+      writeShort(trip.routeId)
+      writeShortString(trip.serviceId)
+      writeShortString(trip.tripId)
+      writeShortString(
+         if (commonHeadsignByDay[trip.serviceId]
+               ?.get(trip.directionId) == trip.headsign
+         ) "" else trip.headsign
+      )
+      writeByte(trip.directionId)
+      writeInt(trip.blockId)
+      writeByte(trip.tripShape)
+      writeByte(trip.departures.size)
+      trip.departures.forEach { writeInt(it) }
+   }
+
+   private fun DataOutputStream.write(trip: Trip) {
+      writeShort(trip.routeId)
+      writeShortString(trip.serviceId)
+      writeShortString(trip.tripId)
+      writeShortString(trip.headsign.orEmpty())
+      writeByte(trip.directionId)
+      writeInt(trip.blockId)
+      writeByte(trip.tripShape)
+      writeByte(trip.departures.size)
+      trip.departures.forEach { writeInt(it) }
    }
 
    private fun DataInputStream.readTrip(tripShapes: List<IntList>): Trip {
       val routeId = readUnsignedShort()
       val serviceId = readShortString()
       val tripId = readShortString()
-      val headsign = readShortString()
+      val headsign = readShortString().takeIf { it.isNotEmpty() }
       val directionId = readByte().toInt()
       val blockId = readInt()
 
@@ -721,7 +854,7 @@ object TripsLoader {
          blockId,
          stops,
          departures,
-         tripShape
+         tripShape,
       )
    }
 

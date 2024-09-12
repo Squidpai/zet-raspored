@@ -5,7 +5,6 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
@@ -36,7 +35,9 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import hr.squidpai.zetlive.gtfs.EmptySchedule
 import hr.squidpai.zetlive.gtfs.Live
+import hr.squidpai.zetlive.gtfs.LoadedSchedule
 import hr.squidpai.zetlive.gtfs.Schedule
 import kotlinx.coroutines.launch
 
@@ -50,7 +51,7 @@ private const val TAG = "MainActivity"
  */
 class MainActivity : ComponentActivity() {
 
-   @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+   @OptIn(ExperimentalMaterial3Api::class)
    override fun onCreate(savedInstanceState: Bundle?) {
       super.onCreate(savedInstanceState)
 
@@ -75,59 +76,69 @@ class MainActivity : ComponentActivity() {
                },
                contentWindowInsets = WindowInsets.safeDrawing,
             ) { padding ->
-               Column(modifier = Modifier.padding(padding)) {
-                  val scope = rememberCoroutineScope()
+               val outerModifier = Modifier.padding(padding)
+               when (val schedule = Schedule.instance) {
+                  is EmptySchedule -> MainActivityLoading(
+                     errorType = schedule.errorType,
+                     modifier = outerModifier,
+                  )
 
-                  val pagerState = rememberPagerState { 2 }
+                  is LoadedSchedule -> Column(modifier = outerModifier) {
+                     val scope = rememberCoroutineScope()
 
-                  val selectedPage = pagerState.currentPage
+                     val pagerState = rememberPagerState { 2 }
 
-                  val keyboardController = LocalSoftwareKeyboardController.current
-                  val focusManager = LocalFocusManager.current
+                     val selectedPage = pagerState.currentPage
 
-                  fun setSelectedPage(page: Int) {
-                     keyboardController?.hide()
-                     focusManager.clearFocus()
-                     scope.launch { pagerState.animateScrollToPage(page) }
-                  }
+                     val keyboardController = LocalSoftwareKeyboardController.current
+                     val focusManager = LocalFocusManager.current
 
-                  PrimaryTabRow(selectedTabIndex = selectedPage) {
-                     Tab(
-                        selected = selectedPage == 0,
-                        onClick = { setSelectedPage(0) },
-                        text = {
-                           Text("Linije", maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        },
-                     )
-                     Tab(
-                        selected = selectedPage == 1,
-                        onClick = { setSelectedPage(1) },
-                        text = {
-                           Text("Postaje", maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        },
-                     )
-                  }
-
-                  HorizontalPager(
-                     state = pagerState,
-                     pageNestedScrollConnection = object : NestedScrollConnection {
-                        // Make the child consume all the available scroll amount, so it
-                        // doesn't overscroll into the other pager state
-                        override fun onPostScroll(
-                           consumed: Offset,
-                           available: Offset,
-                           source: NestedScrollSource
-                        ) = available
+                     fun setSelectedPage(page: Int) {
+                        keyboardController?.hide()
+                        focusManager.clearFocus()
+                        scope.launch { pagerState.animateScrollToPage(page) }
                      }
-                  ) {
-                     when (it) {
-                        0 -> MainActivityRoutes()
-                        1 -> MainActivityStops()
-                     }
-                  }
 
-                  PriorityLoadingDialog()
+                     PrimaryTabRow(selectedTabIndex = selectedPage) {
+                        Tab(
+                           selected = selectedPage == 0,
+                           onClick = { setSelectedPage(0) },
+                           text = {
+                              Text("Linije", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                           },
+                        )
+                        Tab(
+                           selected = selectedPage == 1,
+                           onClick = { setSelectedPage(1) },
+                           text = {
+                              Text("Postaje", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                           },
+                        )
+                     }
+
+                     HorizontalPager(
+                        state = pagerState,
+                        pageNestedScrollConnection = object : NestedScrollConnection {
+                           // Make the child consume all the available scroll amount, so it
+                           // doesn't overscroll into the other pager state
+                           override fun onPostScroll(
+                              consumed: Offset,
+                              available: Offset,
+                              source: NestedScrollSource
+                           ) = available
+                        }
+                     ) {
+                        when (it) {
+                           0 -> MainActivityRoutes(schedule.routes)
+                           1 -> MainActivityStops(schedule.stops.groupedStops)
+                        }
+                     }
+
+                     PriorityLoadingDialog()
+                  }
                }
+
+
             }
          }
       }

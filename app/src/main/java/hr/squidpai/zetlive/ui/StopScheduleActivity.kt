@@ -64,7 +64,6 @@ import hr.squidpai.zetlive.orLoading
 import hr.squidpai.zetlive.timeToString
 import kotlin.math.absoluteValue
 
-@OptIn(ExperimentalMaterial3Api::class)
 class StopScheduleActivity : ComponentActivity() {
 
    companion object {

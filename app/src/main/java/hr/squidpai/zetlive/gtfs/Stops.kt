@@ -4,7 +4,10 @@ import androidx.collection.MutableIntList
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import hr.squidpai.zetlive.*
+import hr.squidpai.zetlive.SortedListMap
+import hr.squidpai.zetlive.asSortedListMap
+import hr.squidpai.zetlive.emptySortedListMap
+import hr.squidpai.zetlive.toSortedListMap
 import hr.squidpai.zetlive.ui.Symbols
 import java.util.zip.ZipFile
 import kotlin.math.absoluteValue
@@ -40,6 +43,10 @@ class Stops(val list: SortedListMap<StopId, Stop>) {
       currentGroup.stopType = if (currentGroup.childStops.any { it.code < 10 }) StopType.Tram else StopType.Bus
     }
   }.asSortedListMap { it.parentStop.id }
+
+  companion object {
+    val empty = Stops()
+  }
 
 }
 

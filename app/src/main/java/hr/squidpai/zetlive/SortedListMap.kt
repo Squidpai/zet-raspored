@@ -138,9 +138,11 @@ inline fun <K : Comparable<K>, V> SortedListMap<K, V>.filterByKey(predicate: (K)
  *
  * The returned `SortedListMap` preserves the entry iteration order of the original `SortedListMap`.
  */
-inline fun <K : Comparable<K>, V> SortedListMap<K, V>.filterByValue(predicate: (V) -> Boolean) = buildList {
-  for (v in this@filterByValue) if (predicate(v)) add(v)
-}.asSortedListMap(keyFactory)
+inline fun <K : Comparable<K>, V> SortedListMap<K, V>.filterByValue(predicate: (V) -> Boolean) =
+  (this as List<V>).filter(predicate).asSortedListMap(keyFactory)
+
+inline fun <K : Comparable<K>, V> SortedListMap<K, V>.mapSorted(transform: (V) -> V) =
+  (this as List<V>).map(transform).asSortedListMap(keyFactory)
 
 /** Returns `true` if at least one element matches the given [predicate]. */
 inline fun <K: Comparable<K>, V> SortedListMap<K, V>.any(predicate: (V) -> Boolean): Boolean {

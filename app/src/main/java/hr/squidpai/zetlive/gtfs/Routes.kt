@@ -21,6 +21,8 @@ value class Routes(val list: SortedListMap<RouteId, Route>) {
   fun filter(trimmedInput: String) = filter(list, trimmedInput)
 
   companion object {
+    val empty = Routes()
+
     fun filter(list: List<Route>, trimmedInput: String): List<Route> {
       if (trimmedInput.isEmpty()) return list
 

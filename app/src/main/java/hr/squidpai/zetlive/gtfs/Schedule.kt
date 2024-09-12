@@ -70,8 +70,6 @@ sealed interface Schedule {
       var instance by mutableStateOf<Schedule>(EmptySchedule())
          private set
 
-      val isInitialized get() = instance is ScheduleImpl
-
       var lastCheckedLatestVersion by mutableStateOf<String?>(null)
          private set
 
@@ -91,17 +89,23 @@ sealed interface Schedule {
       fun init(filesDir: File) {
          val originalZipFile = File(filesDir, SCHEDULE_NAME)
          val stopTimesDirectory = File(filesDir, STOP_TIMES)
+         val oldInstance = instance
 
-         if (originalZipFile.isFile && instance is EmptySchedule)
-            try {
-               instance = ScheduleImpl(parentScope, originalZipFile, stopTimesDirectory)
-            } catch (e: Exception) {
-               Log.e(TAG, "init: an error occurred while loading schedule", e)
-            }
+         if (oldInstance is EmptySchedule) {
+            if (originalZipFile.isFile)
+               try {
+                  instance = LoadedSchedule(parentScope, originalZipFile, stopTimesDirectory)
+               } catch (e: Exception) {
+                  Log.e(TAG, "init: an error occurred while loading the schedule", e)
+               }
+
+            if (oldInstance.errorType != null)
+               instance = EmptySchedule()
+         }
 
          parentScope.launch {
             val errorType = update(filesDir).await()
-            if (!isInitialized)
+            if (instance !is LoadedSchedule)
                instance = EmptySchedule(errorType)
          }
       }
@@ -194,10 +198,15 @@ sealed interface Schedule {
          if (newVersion != cachedVersion) {
 
             if (newZipFile.isFile) {
-               newFeedInfo = newZipFile.feedInfo
-               // do not download if the new schedule is already up-to-date.
-               if (newVersion == newFeedInfo.version)
-                  return newFeedInfo to ErrorType.UP_TO_DATE
+               try {
+                  newFeedInfo = newZipFile.feedInfo
+
+                  // do not download if the new schedule is already up-to-date.
+                  if (newVersion == newFeedInfo.version)
+                     return newFeedInfo to ErrorType.UP_TO_DATE
+               } catch (_: IOException) {
+                  // new schedule is invalid
+               }
             }
 
             var success = false
@@ -242,7 +251,7 @@ sealed interface Schedule {
          return parentScope.async {
             val errorType: ErrorType?
             run downloading@{
-               val originalSchedule = instance as? ScheduleImpl
+               val originalSchedule = instance as? LoadedSchedule
                val newZipFile = getNewScheduleFile(filesDir)
                val newStopTimes = File(filesDir, NEW_STOP_TIMES)
 
@@ -258,7 +267,12 @@ sealed interface Schedule {
                Log.d(TAG, "Found new schedule.")
 
                if (newFeedInfo == null)
-                  newFeedInfo = newZipFile.feedInfo
+                  try {
+                     newFeedInfo = newZipFile.feedInfo
+                  } catch (e: IOException) {
+                     Log.d(TAG, "Zip file invalid: $e")
+                     return@downloading
+                  }
 
                val startsIn = newFeedInfo.startDate.toEpochDay() - localEpochDate()
 
@@ -300,18 +314,25 @@ sealed interface Schedule {
                      previousVersion = previousVersion.decrementInt()
                      if (downloadRecursively(versionLink(previousVersion), originalZipFile)) {
                         try {
-                           instance = ScheduleImpl(
+                           instance = LoadedSchedule(
                               parentScope,
                               originalZipFile,
                               File(filesDir, STOP_TIMES),
                            )
                            return@downloading
                         } catch (e: Exception) {
-                           Log.e(TAG, "Exception thrown while initializing recursively downloaded schedule", e)
+                           Log.e(
+                              TAG,
+                              "Exception thrown while initializing recursively downloaded schedule",
+                              e
+                           )
                         }
                      }
                   }
-                  Log.d(TAG, "There are no schedules that have started yet, loading the latest one.")
+                  Log.d(
+                     TAG,
+                     "There are no schedules that have started yet, loading the latest one."
+                  )
                   replaceSchedule(filesDir, newZipFile, newStopTimes)
                   return@downloading
                }
@@ -340,9 +361,9 @@ sealed interface Schedule {
          originalStopTimes.deleteRecursively()
          newZipFile.renameTo(originalZipFile)
          newStopTimes.renameTo(originalStopTimes)
-         val oldSchedule = instance as? ScheduleImpl
+         val oldSchedule = instance as? LoadedSchedule
          try {
-            instance = ScheduleImpl(parentScope, originalZipFile, originalStopTimes, builder)
+            instance = LoadedSchedule(parentScope, originalZipFile, originalStopTimes, builder)
             oldSchedule?.cancel()
          } catch (e: Exception) {
             Log.e(TAG, "replaceSchedule: failed to init schedule", e)
@@ -351,12 +372,28 @@ sealed interface Schedule {
    }
 
    enum class ErrorType {
-      MALFORMED_URL, OPENING_CONNECTION, NO_CONTENT, NO_FILENAME, UP_TO_DATE, ALREADY_DOWNLOADING
+      MALFORMED_URL, OPENING_CONNECTION, NO_CONTENT, NO_FILENAME, UP_TO_DATE, ALREADY_DOWNLOADING,
+      DOWNLOAD_ERROR;
+
+      val errorMessage
+         get() = when (this) {
+            ALREADY_DOWNLOADING -> null
+            MALFORMED_URL ->
+               "Nije moguće spojiti se na ZET-ovu stranicu. Provjerite svoju internet konekciju."
+
+            OPENING_CONNECTION -> "Dogodila se greška prilikom spajanja na ZET-ovu stranicu. " +
+                  "Provjerite svoju internet konekciju."
+
+            NO_CONTENT, NO_FILENAME -> "Nije moguće preuzeti raspored sa ZET-ove stranice."
+            UP_TO_DATE -> "Već je preuzet najnoviji raspored."
+            DOWNLOAD_ERROR -> "Dogodila se greška prilikom preuzimanja novog rasporeda. " +
+                  "Provjerite svoju internet konekciju."
+         }
    }
 
 }
 
-private class ScheduleBuilder(zipFile: File, stopTimesDirectory: File) {
+class ScheduleBuilder(zipFile: File, stopTimesDirectory: File) {
    val routes: Routes
    val routesAtStopMap: RoutesAtStopMap?
 
@@ -370,7 +407,7 @@ private class ScheduleBuilder(zipFile: File, stopTimesDirectory: File) {
 }
 
 /** The actual schedule implementation containing all schedule data. */
-private class ScheduleImpl(
+class LoadedSchedule(
    parentScope: CoroutineScope,
    val zipFile: File,
    val stopTimesDirectory: File,
@@ -381,9 +418,9 @@ private class ScheduleImpl(
 
    override var feedInfo by mutableStateOf<FeedInfo?>(null)
 
-   override var routes by mutableStateOf<Routes?>(null)
+   override var routes by mutableStateOf(Routes.empty)
 
-   override var stops by mutableStateOf<Stops?>(null)
+   override var stops by mutableStateOf(Stops.empty)
 
    override var calendarDates by mutableStateOf<CalendarDates?>(null)
 
@@ -490,7 +527,7 @@ private class ScheduleImpl(
  * Displayed before the actual schedule is loaded (in which case [errorType] is `null`) or
  * if an error occurs while loading the schedule.
  */
-private data class EmptySchedule(val errorType: Schedule.ErrorType? = null) : Schedule {
+data class EmptySchedule(val errorType: Schedule.ErrorType? = null) : Schedule {
 
    override val feedInfo = null
 

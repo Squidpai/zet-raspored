@@ -2,6 +2,7 @@ package hr.squidpai.zetlive.ui
 
 import androidx.collection.IntList
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.Interaction
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
@@ -17,25 +18,31 @@ import androidx.compose.material3.IconButtonColors
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PlainTooltip
+import androidx.compose.material3.RichTooltip
 import androidx.compose.material3.Text
 import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
+import androidx.compose.material3.TooltipState
 import androidx.compose.material3.contentColorFor
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import hr.squidpai.zetlive.orLoading
+import hr.squidpai.zetlive.Data
+import hr.squidpai.zetlive.gtfs.RouteId
+import kotlinx.coroutines.launch
 import kotlin.math.floor
 import kotlin.math.max
 
@@ -65,23 +72,21 @@ import kotlin.math.max
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun IconButton(
-  icon: ImageVector,
-  contentDescription: String,
-  onClick: () -> Unit,
-  modifier: Modifier = Modifier,
-  enabled: Boolean = true,
-  colors: IconButtonColors = IconButtonDefaults.iconButtonColors(),
-  interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
+   icon: ImageVector,
+   contentDescription: String,
+   onClick: () -> Unit,
+   modifier: Modifier = Modifier,
+   enabled: Boolean = true,
+   colors: IconButtonColors = IconButtonDefaults.iconButtonColors(),
+   interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
 ) = TooltipBox(
-  positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
-  tooltip = {
-    PlainTooltip { Text(contentDescription) }
-  },
-  state = rememberTooltipState(),
+   positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+   tooltip = { PlainTooltip { Text(contentDescription) } },
+   state = rememberTooltipState(),
 ) {
-  IconButton(onClick, modifier, enabled, colors, interactionSource) {
-    Icon(icon, contentDescription)
-  }
+   IconButton(onClick, modifier, enabled, colors, interactionSource) {
+      Icon(icon, contentDescription)
+   }
 }
 
 /**
@@ -92,72 +97,175 @@ fun IconButton(
  */
 @Composable
 fun CircularLoadingBox(modifier: Modifier = Modifier) =
-  Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-    CircularProgressIndicator()
-  }
+   Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+      CircularProgressIndicator()
+   }
+
+@ExperimentalMaterial3Api
+@Composable
+fun TooltipDefaults.inverseRichTooltipColors() = richTooltipColors(
+   containerColor = MaterialTheme.colorScheme.inverseSurface,
+   contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+   titleContentColor = MaterialTheme.colorScheme.inverseOnSurface,
+   actionContentColor = MaterialTheme.colorScheme.inversePrimary,
+)
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun HintBox(
+   hint: Data.hints,
+   modifier: Modifier = Modifier,
+   state: TooltipState = rememberTooltipState(
+      initialIsVisible = hint.shouldBeVisible(),
+      isPersistent = true,
+   ),
+   content: @Composable () -> Unit
+) = TooltipBox(
+   positionProvider = TooltipDefaults.rememberRichTooltipPositionProvider(),
+   tooltip = {
+      RichTooltip(colors = TooltipDefaults.inverseRichTooltipColors()) {
+         Text(hint.hintText)
+      }
+   },
+   state,
+   modifier,
+   focusable = false,
+   enableUserInput = false,
+   content
+)
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun HintIconButton(
+   icon: ImageVector,
+   contentDescription: String?,
+   tooltipTitle: String,
+   tooltipText: String,
+   modifier: Modifier = Modifier,
+   iconTint: Color = MaterialTheme.colorScheme.secondary,
+) {
+   val state = rememberTooltipState(isPersistent = true)
+   TooltipBox(
+      positionProvider = TooltipDefaults.rememberRichTooltipPositionProvider(),
+      tooltip = {
+         RichTooltip(
+            title = { Text(tooltipTitle) },
+            colors = TooltipDefaults.inverseRichTooltipColors(),
+         ) {
+            Text(tooltipText)
+         }
+      },
+      state,
+      modifier,
+      focusable = false,
+      enableUserInput = false,
+   ) {
+      val scope = rememberCoroutineScope()
+      Icon(
+         icon,
+         contentDescription,
+         modifier = Modifier
+            .minimumInteractiveComponentSize()
+            .pointerInput(Unit) {
+               while (true) {
+                  detectTapGestures {
+                     if (!state.isVisible)
+                        scope.launch { state.show() }
+                  }
+               }
+            },
+         iconTint,
+      )
+   }
+}
 
 /**
  * Used to select the direction of a route.
  *
+ * @param routeId the route id
  * @param commonHeadsign the labels to be displayed as the directions' headsign
  * @param direction index representing the selected direction (0 is the first direction
  * and 1 is the opposite direction)
  * @param setDirection the callback that is triggered when the direction is updated by
  * this function
+ * @param isRoundRoute whether the route is a round one: it only has one direction
  * @param modifier the modifier to be applied to this layout
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ColumnScope.DirectionRow(
-  commonHeadsign: Pair<String, String>?,
-  direction: Int,
-  setDirection: (Int) -> Unit,
-  isRoundRoute: Boolean,
-  modifier: Modifier = Modifier,
-) = Row(modifier.align(Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
-  val firstSign = commonHeadsign?.first.orLoading()
+   routeId: RouteId,
+   commonHeadsign: Pair<String, String>,
+   direction: Int,
+   setDirection: (Int) -> Unit,
+   isRoundRoute: Boolean,
+   modifier: Modifier = Modifier,
+) = Row(
+   modifier.align(Alignment.CenterHorizontally),
+   verticalAlignment = Alignment.CenterVertically,
+) {
+   val firstSign = commonHeadsign.first
 
-  if (isRoundRoute) {
-    Text(firstSign, maxLines = 1, overflow = TextOverflow.Ellipsis)
-    Box(Modifier.minimumInteractiveComponentSize()) {
-      Icon(Symbols._360, null, tint = MaterialTheme.colorScheme.secondary)
-    }
-    Text(firstSign, maxLines = 1, overflow = TextOverflow.Ellipsis)
-  } else {
-    // putting an else block instead of a return in the if block because an exception is thrown from Compose otherwise
+   if (isRoundRoute) {
+      Text(firstSign, maxLines = 1, overflow = TextOverflow.Ellipsis)
 
-    val secondSign = commonHeadsign?.second.orLoading()
+      HintIconButton(
+         Symbols._360,
+         contentDescription = null,
+         tooltipTitle = "Ovo je kružna linija.",
+         tooltipText = "Kružne linije nemaju dva smjera, već naprave krug po svojoj trasi " +
+               "te se vrate natrag na početno stajalište.",
+      )
 
-    val leftSign: String
-    val rightSign: String
+      Text(firstSign, maxLines = 1, overflow = TextOverflow.Ellipsis)
+   } else {
+      // putting an else block instead of a return in the if block
+      // because an exception is thrown from Compose otherwise
 
-    if (direction == 1) {
-      leftSign = firstSign
-      rightSign = secondSign
-    } else {
-      leftSign = secondSign
-      rightSign = firstSign
-    }
+      val secondSign = commonHeadsign.second
 
-    Text(
-      leftSign,
-      modifier = Modifier.weight(1f),
-      textAlign = TextAlign.End,
-      maxLines = 1,
-      overflow = TextOverflow.Ellipsis,
-    )
-    IconButton(
-      Symbols.SwapHorizontal,
-      contentDescription = "Zamijeni smjer",
-      onClick = { setDirection(1 - direction) },
-      colors = IconButtonDefaults.iconButtonColors(contentColor = MaterialTheme.colorScheme.primary),
-    )
-    Text(
-      rightSign,
-      modifier = Modifier.weight(1f),
-      maxLines = 1,
-      overflow = TextOverflow.Ellipsis,
-    )
-  }
+      val leftSign: String
+      val rightSign: String
+
+      if (direction == 1) {
+         leftSign = firstSign
+         rightSign = secondSign
+      } else {
+         leftSign = secondSign
+         rightSign = firstSign
+      }
+
+      Text(
+         leftSign,
+         modifier = Modifier.weight(1f),
+         textAlign = TextAlign.End,
+         maxLines = 1,
+         overflow = TextOverflow.Ellipsis,
+      )
+      HintBox(Data.hints.swapDirection) {
+         IconButton(
+            icon = Symbols.SwapHorizontal,
+            contentDescription = "Zamijeni smjer",
+            onClick = {
+               setDirection(1 - direction)
+               Data.updateData {
+                  Data.hints.swapDirection.satisfyWithoutUpdate()
+                  if (direction == 0)
+                     directionSwapped += routeId
+                  else
+                     directionSwapped -= routeId
+               }
+            },
+            colors = IconButtonDefaults.iconButtonColors(contentColor = MaterialTheme.colorScheme.primary),
+         )
+      }
+      Text(
+         rightSign,
+         modifier = Modifier.weight(1f),
+         maxLines = 1,
+         overflow = TextOverflow.Ellipsis,
+      )
+   }
 }
 
 /**
@@ -201,112 +309,113 @@ fun ColumnScope.DirectionRow(
  */
 @Composable
 fun RouteSlider(
-  value: Float,
-  stopCount: Int,
-  modifier: Modifier = Modifier,
-  weights: IntArray? = null,
-  trackWidth: Dp = 3.dp,
-  pointRadius: Dp = 2.dp,
-  nextPointRadius: Dp = 4.dp,
-  passedTrackColor: Color = MaterialTheme.colorScheme.primary,
-  notPassedTrackColor: Color = MaterialTheme.colorScheme.surfaceVariant,
-  passedStopColor: Color = MaterialTheme.colorScheme.contentColorFor(passedTrackColor),
-  notPassedStopColor: Color = MaterialTheme.colorScheme.contentColorFor(notPassedTrackColor),
-  nextStopColor: Color = MaterialTheme.colorScheme.onSurface,
+   value: Float,
+   stopCount: Int,
+   modifier: Modifier = Modifier,
+   weights: IntArray? = null,
+   trackWidth: Dp = 3.dp,
+   pointRadius: Dp = 2.dp,
+   nextPointRadius: Dp = 4.dp,
+   passedTrackColor: Color = MaterialTheme.colorScheme.primary,
+   notPassedTrackColor: Color = MaterialTheme.colorScheme.surfaceVariant,
+   passedStopColor: Color = MaterialTheme.colorScheme.contentColorFor(passedTrackColor),
+   notPassedStopColor: Color = MaterialTheme.colorScheme.contentColorFor(notPassedTrackColor),
+   nextStopColor: Color = MaterialTheme.colorScheme.onSurface,
 ) = Canvas(
-  modifier.defaultMinSize(
-    minWidth = nextPointRadius * stopCount,
-    minHeight = nextPointRadius,
-  )
+   modifier.defaultMinSize(
+      minWidth = nextPointRadius * stopCount,
+      minHeight = nextPointRadius,
+   )
 ) {
-  if (stopCount <= 0)
-    return@Canvas
+   if (stopCount <= 0)
+      return@Canvas
 
-  val pointRadiusPx = pointRadius.toPx()
-  val nextPointRadiusPx = nextPointRadius.toPx()
+   val pointRadiusPx = pointRadius.toPx()
+   val nextPointRadiusPx = nextPointRadius.toPx()
 
-  if (stopCount == 1) {
-    drawCircle(
-      color = if (value >= 0f) passedStopColor else nextStopColor,
-      radius = if (value >= 0f) pointRadiusPx else nextPointRadiusPx,
-    )
-    return@Canvas
-  }
+   if (stopCount == 1) {
+      drawCircle(
+         color = if (value >= 0f) passedStopColor else nextStopColor,
+         radius = if (value >= 0f) pointRadiusPx else nextPointRadiusPx,
+      )
+      return@Canvas
+   }
 
-  val (width, height) = size
-  val centerHeight = height / 2f
+   val (width, height) = size
+   val centerHeight = height / 2f
 
-  val trackWidthPx = trackWidth.toPx()
-  val totalTrackLength = width - nextPointRadiusPx * 2
+   val trackWidthPx = trackWidth.toPx()
+   val totalTrackLength = width - nextPointRadiusPx * 2
 
-  var passedTrackLength: Float
-  val weightRatios: FloatArray?
+   var passedTrackLength: Float
+   val weightRatios: FloatArray?
 
-  if (weights != null) {
-    require(weights.size == stopCount - 1) {
-      "weights.size != stopCount - 1, weights.size = ${weights.size}, stopCount = $stopCount"
-    }
+   if (weights != null) {
+      require(weights.size == stopCount - 1) {
+         "weights.size != stopCount - 1, weights.size = ${weights.size}, stopCount = $stopCount"
+      }
 
-    val weightSum = weights.sum().toFloat()
-    weightRatios = FloatArray(stopCount - 1) { weights[it] / weightSum }
-    passedTrackLength = 0f //totalTrackLength * value / (stopCount - 1)
-    for ((i, ratio) in weightRatios.withIndex()) {
-      passedTrackLength += if (i + 1 <= value) ratio
-      else if (i < value) value % 1 * ratio
-      else break
-    }
-    passedTrackLength *= totalTrackLength
-  } else {
-    passedTrackLength = totalTrackLength * value / (stopCount - 1)
-    weightRatios = null
-  }
+      val weightSum = weights.sum().toFloat()
+      weightRatios = FloatArray(stopCount - 1) { weights[it] / weightSum }
+      passedTrackLength = 0f //totalTrackLength * value / (stopCount - 1)
+      for ((i, ratio) in weightRatios.withIndex()) {
+         passedTrackLength += if (i + 1 <= value) ratio
+         else if (i < value) value % 1 * ratio
+         else break
+      }
+      passedTrackLength *= totalTrackLength
+   } else {
+      passedTrackLength = totalTrackLength * value / (stopCount - 1)
+      weightRatios = null
+   }
 
-  drawLine(
-    color = notPassedTrackColor,
-    start = Offset(nextPointRadiusPx + passedTrackLength, centerHeight),
-    end = Offset(nextPointRadiusPx + totalTrackLength, centerHeight),
-    strokeWidth = trackWidthPx,
-    cap = StrokeCap.Round,
-  )
-  drawLine(
-    color = passedTrackColor,
-    start = Offset(nextPointRadiusPx, centerHeight),
-    end = Offset(nextPointRadiusPx + passedTrackLength, centerHeight),
-    strokeWidth = trackWidthPx,
-    cap = StrokeCap.Round,
-  )
+   drawLine(
+      color = notPassedTrackColor,
+      start = Offset(nextPointRadiusPx + passedTrackLength, centerHeight),
+      end = Offset(nextPointRadiusPx + totalTrackLength, centerHeight),
+      strokeWidth = trackWidthPx,
+      cap = StrokeCap.Round,
+   )
+   drawLine(
+      color = passedTrackColor,
+      start = Offset(nextPointRadiusPx, centerHeight),
+      end = Offset(nextPointRadiusPx + passedTrackLength, centerHeight),
+      strokeWidth = trackWidthPx,
+      cap = StrokeCap.Round,
+   )
 
-  val valueInt = floor(value).toInt()
-  var currentPointPosition = nextPointRadiusPx
-  val pointSpacing = totalTrackLength / (stopCount - 1)
+   val valueInt = floor(value).toInt()
+   var currentPointPosition = nextPointRadiusPx
+   val pointSpacing = totalTrackLength / (stopCount - 1)
 
-  for (i in 0..valueInt) {
-    drawCircle(
-      color = passedStopColor,
-      radius = pointRadiusPx,
+   for (i in 0..valueInt) {
+      drawCircle(
+         color = passedStopColor,
+         radius = pointRadiusPx,
+         center = Offset(currentPointPosition, centerHeight),
+         alpha = 0.28f,
+      )
+      currentPointPosition += totalTrackLength * (weightRatios?.get(i) ?: pointSpacing)
+   }
+   drawCircle(
+      color = nextStopColor,
+      radius = nextPointRadiusPx,
       center = Offset(currentPointPosition, centerHeight),
-      alpha = 0.28f,
-    )
-    currentPointPosition += totalTrackLength * (weightRatios?.get(i) ?: pointSpacing)
-  }
-  drawCircle(
-    color = nextStopColor,
-    radius = nextPointRadiusPx,
-    center = Offset(currentPointPosition, centerHeight),
-  )
-  if (valueInt + 1 >= stopCount - 1)
-    return@Canvas
-  currentPointPosition += totalTrackLength * (weightRatios?.get(max(valueInt + 1, 0)) ?: pointSpacing)
-  for (i in max(valueInt + 2, 1)..<stopCount) {
-    drawCircle(
-      color = notPassedStopColor,
-      radius = pointRadiusPx,
-      center = Offset(currentPointPosition, centerHeight),
-      alpha = 0.38f,
-    )
-    if (i == stopCount - 1) continue
-    currentPointPosition += totalTrackLength * (weightRatios?.get(i) ?: pointSpacing)
-  }
+   )
+   if (valueInt + 1 >= stopCount - 1)
+      return@Canvas
+   currentPointPosition += totalTrackLength * (weightRatios?.get(max(valueInt + 1, 0))
+      ?: pointSpacing)
+   for (i in max(valueInt + 2, 1)..<stopCount) {
+      drawCircle(
+         color = notPassedStopColor,
+         radius = pointRadiusPx,
+         center = Offset(currentPointPosition, centerHeight),
+         alpha = 0.38f,
+      )
+      if (i == stopCount - 1) continue
+      currentPointPosition += totalTrackLength * (weightRatios?.get(i) ?: pointSpacing)
+   }
 }
 
 /**
@@ -318,22 +427,22 @@ fun RouteSlider(
  */
 @Composable
 fun RouteSlider(
-  value: Float,
-  departures: IntList,
-  modifier: Modifier = Modifier,
-  trackWidth: Dp = 3.dp,
-  pointRadius: Dp = 2.dp,
-  nextPointRadius: Dp = 4.dp,
-  passedTrackColor: Color = MaterialTheme.colorScheme.primary,
-  notPassedTrackColor: Color = MaterialTheme.colorScheme.surfaceVariant,
-  passedStopColor: Color = MaterialTheme.colorScheme.contentColorFor(passedTrackColor),
-  notPassedStopColor: Color = MaterialTheme.colorScheme.contentColorFor(notPassedTrackColor),
-  nextStopColor: Color = MaterialTheme.colorScheme.onSurface,
+   value: Float,
+   departures: IntList,
+   modifier: Modifier = Modifier,
+   trackWidth: Dp = 3.dp,
+   pointRadius: Dp = 2.dp,
+   nextPointRadius: Dp = 4.dp,
+   passedTrackColor: Color = MaterialTheme.colorScheme.primary,
+   notPassedTrackColor: Color = MaterialTheme.colorScheme.surfaceVariant,
+   passedStopColor: Color = MaterialTheme.colorScheme.contentColorFor(passedTrackColor),
+   notPassedStopColor: Color = MaterialTheme.colorScheme.contentColorFor(notPassedTrackColor),
+   nextStopColor: Color = MaterialTheme.colorScheme.onSurface,
 ) = RouteSlider(
-  value, stopCount = departures.size, modifier,
-  weights = IntArray(departures.size - 1) { departures[it + 1] - departures[it] },
-  trackWidth, pointRadius, nextPointRadius, passedTrackColor, notPassedTrackColor, passedStopColor,
-  notPassedStopColor, nextStopColor,
+   value, stopCount = departures.size, modifier,
+   weights = IntArray(departures.size - 1) { departures[it + 1] - departures[it] },
+   trackWidth, pointRadius, nextPointRadius, passedTrackColor, notPassedTrackColor, passedStopColor,
+   notPassedStopColor, nextStopColor,
 )
 
 

@@ -5,8 +5,6 @@ import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -34,12 +32,10 @@ import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRowDefaults
-import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -56,12 +52,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import hr.squidpai.zetlive.LOADING_TEXT
 import hr.squidpai.zetlive.MILLIS_IN_DAY
 import hr.squidpai.zetlive.MILLIS_IN_SECONDS
 import hr.squidpai.zetlive.SECONDS_IN_DAY
 import hr.squidpai.zetlive.any
+import hr.squidpai.zetlive.get
 import hr.squidpai.zetlive.gtfs.Live
 import hr.squidpai.zetlive.gtfs.Love
 import hr.squidpai.zetlive.gtfs.Route
@@ -82,6 +80,7 @@ import hr.squidpai.zetlive.gtfs.sortedByDepartures
 import hr.squidpai.zetlive.gtfs.splitByDirection
 import hr.squidpai.zetlive.gtfs.toStopId
 import hr.squidpai.zetlive.localCurrentTimeMillis
+import hr.squidpai.zetlive.orLoading
 import hr.squidpai.zetlive.timeToString
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -136,12 +135,10 @@ class RouteScheduleActivity : ComponentActivity() {
             val route = schedule.routes?.list?.get(key = routeId)
             val trips = schedule.getTripsOfRoute(routeId).value
 
-            val commonFirstStop = trips?.commonFirstStop
-
             val serviceIdTypes = schedule.serviceIdTypes
 
             Scaffold(topBar = { MyTopAppBar(route) }) { padding ->
-               MyContent(routeId, trips, commonFirstStop, serviceIdTypes, Modifier.padding(padding))
+               MyContent(routeId, trips, serviceIdTypes, Modifier.padding(padding))
             }
          }
       }
@@ -178,12 +175,10 @@ class RouteScheduleActivity : ComponentActivity() {
          .only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top),
    )
 
-   @OptIn(ExperimentalFoundationApi::class)
    @Composable
    private fun MyContent(
       routeId: RouteId,
       trips: Trips?,
-      commonFirstStops: Pair<StopId, StopId>?,
       serviceIdTypes: ServiceIdTypes?,
       modifier: Modifier = Modifier,
    ) = Column(modifier) {
@@ -234,8 +229,10 @@ class RouteScheduleActivity : ComponentActivity() {
             else null // trips not loaded, give null to display loading box
 
          DateContent(
-            routeId, commonFirstStops, trips?.commonHeadsign,
-            stopTimes = filteredStopTimes,
+            routeId,
+            commonFirstStops = trips?.commonFirstStopByDay?.get(serviceId),
+            commonHeadsigns = trips?.commonHeadsignByDay?.get(serviceId),
+            tripsLists = filteredStopTimes,
             stops = stops,
             selectedServiceId = serviceId,
             selectedDate = date,
@@ -250,7 +247,7 @@ class RouteScheduleActivity : ComponentActivity() {
       routeId: RouteId,
       commonFirstStops: Pair<StopId, StopId>?,
       commonHeadsigns: Pair<String, String>?,
-      stopTimes: Pair<List<Trip>, List<Trip>>?,
+      tripsLists: Pair<List<Trip>, List<Trip>>?,
       stops: Stops?,
       selectedServiceId: ServiceId?,
       selectedDate: Long,
@@ -262,35 +259,33 @@ class RouteScheduleActivity : ComponentActivity() {
       val currentTime = localCurrentTimeMillis() / MILLIS_IN_SECONDS
       val timeOffset = selectedDate * SECONDS_IN_DAY
 
-      val states = remember(key1 = System.identityHashCode(stopTimes)) {
-         stopTimes?.findFirstDepartures((currentTime - timeOffset).toInt())
+      val states = remember(key1 = System.identityHashCode(tripsLists)) {
+         tripsLists?.findFirstDepartures((currentTime - timeOffset).toInt())
             ?.let { (first, second) ->
                LazyListState(first) to LazyListState(second)
             }
       }
 
-      val commonHeadsign: String?
       val commonFirstStop: StopId
       val list: List<Trip>?
       val state: LazyListState?
 
-      val isRoundRoute = stopTimes != null &&
-            (if (stopTimes.first.isNotEmpty()) stopTimes.second.isEmpty()
+      val isRoundRoute = tripsLists != null &&
+            (if (tripsLists.first.isNotEmpty()) tripsLists.second.isEmpty()
             else commonHeadsigns?.second?.isEmpty() ?: false)
 
       if (direction == 0 || isRoundRoute) {
-         commonHeadsign = commonHeadsigns?.first
          commonFirstStop = commonFirstStops?.first ?: StopId.Invalid
-         list = stopTimes?.first
+         list = tripsLists?.first
          state = states?.first
       } else {
-         commonHeadsign = commonHeadsigns?.second
          commonFirstStop = commonFirstStops?.second ?: StopId.Invalid
-         list = stopTimes?.second
+         list = tripsLists?.second
          state = states?.second
       }
 
-      DirectionRow(commonHeadsigns, direction, setDirection, isRoundRoute)
+      if (commonHeadsigns != null)
+         DirectionRow(routeId, commonHeadsigns, direction, setDirection, isRoundRoute)
 
       if (list == null)
          CircularLoadingBox()
@@ -308,12 +303,15 @@ class RouteScheduleActivity : ComponentActivity() {
          }
       else LazyColumn(state = state!!) { // list != null  =>  stopTimes != null  =>  state != null
          val firstOfNextDay = list.findFirstDepartureTomorrow()
+         val commonHeadsign = commonHeadsigns?.get(direction).orLoading()
 
          items(list.size) { i ->
-            val stopTime = list[i]
-            val stopId = stopTime.stops.first().toStopId()
+            val trip = list[i]
+            val stopId = trip.stops.first().toStopId()
 
             val stop = if (stopId != commonFirstStop) stops?.list?.get(stopId) else null
+
+            Log.d(TAG, "stopId = $stopId, commonFirstStop = $commonFirstStop, stop = $stop")
 
             if (i == firstOfNextDay) {
                HorizontalDivider(Modifier.padding(horizontal = 4.dp))
@@ -328,12 +326,13 @@ class RouteScheduleActivity : ComponentActivity() {
             }
             HorizontalDivider(Modifier.padding(horizontal = 4.dp))
             TripRow(
-               stopTime,
-               stop?.name,
-               stopTime.headsign.takeIf { it != commonHeadsign },
+               trip,
+               overriddenFirstStop = stop?.name,
+               headsign = trip.headsign ?: commonHeadsign,
+               isHeadsignOverridden = trip.headsign != null,
                liveComparison = when {
-                  currentTime < stopTime.departures.first() + timeOffset -> 1
-                  currentTime < stopTime.departures.last() + timeOffset -> 0
+                  currentTime < trip.departures.first() + timeOffset -> 1
+                  currentTime < trip.departures.last() + timeOffset -> 0
                   else -> -1
                },
                selectedDate
@@ -424,7 +423,8 @@ class RouteScheduleActivity : ComponentActivity() {
    private fun TripRow(
       trip: Trip,
       overriddenFirstStop: String?,
-      overriddenHeadsign: String?,
+      headsign: String,
+      isHeadsignOverridden: Boolean,
       liveComparison: Int,
       selectedDate: Long,
       modifier: Modifier = Modifier,
@@ -476,7 +476,7 @@ class RouteScheduleActivity : ComponentActivity() {
                Text(trip.departures.last().timeToString(), color = tint, fontWeight = weight)
             }
 
-            val endLabel = specialLabel?.second ?: overriddenHeadsign
+            val endLabel = specialLabel?.second ?: headsign.takeIf { isHeadsignOverridden }
 
             if (endLabel != null) Text(
                text = endLabel,
@@ -516,19 +516,13 @@ class RouteScheduleActivity : ComponentActivity() {
 
       PrimaryScrollableTabRow(
          selectedTabIndex, modifier,
-         indicator = { tabPositions ->
-            if (selectedTabIndex < tabPositions.size) {
-               val width by animateDpAsState(
-                  targetValue = tabPositions[selectedTabIndex].contentWidth,
-                  label = "WidthAnimation",
-               )
-               TabRowDefaults.PrimaryIndicator(
-                  Modifier.tabIndicatorOffset(tabPositions[selectedTabIndex]),
-                  width = width,
-                  color = (serviceIdTypes?.get(serviceIds[selectedTabIndex])
-                     ?: ServiceIdType.WEEKDAY).contentColor
-               )
-            }
+         indicator = {
+            TabRowDefaults.PrimaryIndicator(
+               Modifier.tabIndicatorOffset(selectedTabIndex, matchContentSize = true),
+               width = Dp.Unspecified,
+               color = (serviceIdTypes?.get(serviceIds[selectedTabIndex])
+                  ?: ServiceIdType.WEEKDAY).contentColor
+            )
          }
       ) {
          serviceIds.forEachIndexed { i, serviceId ->

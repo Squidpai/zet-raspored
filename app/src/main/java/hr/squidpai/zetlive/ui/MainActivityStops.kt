@@ -2,13 +2,11 @@ package hr.squidpai.zetlive.ui
 
 import android.content.Intent
 import androidx.compose.animation.animateContentSize
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -27,6 +25,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableIntStateOf
@@ -63,21 +62,18 @@ import hr.squidpai.zetlive.orLoading
 import hr.squidpai.zetlive.timeToString
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun MainActivityStops() = Column(Modifier.fillMaxSize()) {
-   val groupedStops = Schedule.instance.stops?.groupedStops
+fun MainActivityStops(groupedStops: SortedListMap<StopId, GroupedStop>) =
+   Column(Modifier.fillMaxSize()) {
+      val inputState = rememberSaveable { mutableStateOf("") }
 
-   val inputState = rememberSaveable { mutableStateOf("") }
-
-   val pinnedStops = Data.pinnedStops.toSet()
-   val list = remember(key1 = groupedStops, key2 = pinnedStops) {
-      groupedStops?.let {
-         mutableStateListOf<GroupedStop>().apply { addAll(it.filter(inputState.value.trim())) }
+      val pinnedStops = Data.pinnedStops.toSet()
+      val list = remember(key1 = groupedStops, key2 = pinnedStops) {
+         mutableStateListOf<GroupedStop>().apply {
+            addAll(groupedStops.filter(inputState.value.trim()))
+         }
       }
-   }
 
-   if (groupedStops != null && list != null) {
       val lazyListState = rememberLazyListState()
 
       StopFilterSearchBar(
@@ -96,7 +92,7 @@ fun MainActivityStops() = Column(Modifier.fillMaxSize()) {
                      stop, pinned = true,
                      modifier = Modifier
                         .fillParentMaxWidth()
-                        .animateItemPlacement(),
+                        .animateItem(),
                   )
                }
             }
@@ -107,13 +103,12 @@ fun MainActivityStops() = Column(Modifier.fillMaxSize()) {
                stop, pinned = stop.parentStop.id.stationNumber in pinnedStops,
                modifier = Modifier
                   .fillParentMaxWidth()
-                  .animateItemPlacement(),
+                  .animateItem(),
             )
          }
       }
-   } else CircularLoadingBox()
 
-}
+   }
 
 @Composable
 private fun StopFilterSearchBar(
@@ -207,8 +202,8 @@ private fun StopContent(groupedStop: GroupedStop, pinned: Boolean, modifier: Mod
 
          Row(
             modifier = Modifier
-               .defaultMinSize(minHeight = 48.dp)
-               .clickable { setExpanded(!expanded) },
+               .clickable { setExpanded(!expanded) }
+               .minimumInteractiveComponentSize(),
             verticalAlignment = Alignment.CenterVertically,
          ) {
             Column(

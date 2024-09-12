@@ -176,6 +176,7 @@ class NotificationTrackerService : Service(), Live.UpdateListener {
             Log.w(TAG, "onStartCommand: no routeId given, stopping service")
          if (tripId == null)
             Log.w(TAG, "onStartCommand: no tripId given, stopping service")
+
          stopSelf()
          return START_REDELIVER_INTENT
       }
@@ -187,6 +188,10 @@ class NotificationTrackerService : Service(), Live.UpdateListener {
             Log.w(TAG, "onStartCommand: trip not found")
             return START_REDELIVER_INTENT
          }
+      val headsign = trip.headsign ?: trips.commonHeadsignByDay[trip.serviceId]
+         ?.get(trip.directionId) ?: run {
+         Log.w(TAG, "onStartCommand: trip headsign not found")
+      }
       val stopsList = schedule.stops?.list
       stopNames = trip.stops.associateWith { stopsList?.get(it.toStopId())?.name.orLoading() }
 
@@ -226,10 +231,10 @@ class NotificationTrackerService : Service(), Live.UpdateListener {
 
       titleText = buildString {
          append(routeId)
-         if (trip.stops.first() != trips.commonFirstStop[trip.directionId].value)
+         if (trip.stops.first() != trips.commonFirstStopByDay[trip.serviceId]?.get(trip.directionId)?.value)
             append(' ').append(stopNames[trip.stops.first()])
          append(" smjer ")
-         append(trip.headsign)
+         append(headsign)
          val specialLabel = Love.giveMeTheSpecialTripLabel(trip)
             ?.let { it.first ?: it.second }
          if (specialLabel != null)

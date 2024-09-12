@@ -43,6 +43,7 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import hr.squidpai.zetlive.Data
+import hr.squidpai.zetlive.gtfs.LoadedSchedule
 import hr.squidpai.zetlive.gtfs.RouteScheduleEntry
 import hr.squidpai.zetlive.gtfs.Schedule
 import hr.squidpai.zetlive.gtfs.StopId
@@ -76,9 +77,11 @@ class SettingsActivity : ComponentActivity() {
             ),
             tripShape = 2,
          ),
-         overriddenHeadsign = null,
+         headsign = "",
+         isHeadsignCommon = true,
          overriddenFirstStop = StopId.Invalid,
          departureTime = -1,
+         delayAmount = 0,
          timeOffset = 0L,
       )
    }
@@ -174,7 +177,7 @@ class SettingsActivity : ComponentActivity() {
 
       val schedule = Schedule.instance
       val feedInfo = schedule.feedInfo
-      val isInitialized = Schedule.isInitialized
+      val isInitialized = schedule is LoadedSchedule
 
       Column(
          modifier = Modifier
@@ -236,21 +239,7 @@ class SettingsActivity : ComponentActivity() {
                         setIsCheckingUpdate(true)
                         errorMessage = null
                         val errorType = Schedule.update(filesDir).await()
-                        errorMessage = when (errorType) {
-                           null, Schedule.ErrorType.ALREADY_DOWNLOADING -> null
-                           Schedule.ErrorType.MALFORMED_URL ->
-                              "Nije moguće spojiti se na ZET-ovu stranicu. Provjerite svoju " +
-                                    "internet konekciju."
-
-                           Schedule.ErrorType.OPENING_CONNECTION -> "Dogodila se greška prilikom " +
-                                 "spajanja na ZET-ovu stranicu. Provjerite svoju internet konekciju."
-
-                           Schedule.ErrorType.NO_CONTENT, Schedule.ErrorType.NO_FILENAME ->
-                              "Nije moguće preuzeti raspored sa ZET-ove stranice."
-
-                           Schedule.ErrorType.UP_TO_DATE ->
-                              "Već je preuzeti najnoviji raspored."
-                        }
+                        errorMessage = errorType?.errorMessage
                         setIsCheckingUpdate(false)
                      }
                   },

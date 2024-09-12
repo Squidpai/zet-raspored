@@ -186,15 +186,21 @@ fun String.decrementInt(): String {
 }
 
 fun DataOutputStream.writeShortString(string: String) {
+  if (string.isEmpty()) {
+    writeByte(0)
+    return
+  }
   val buff = string.encodeToByteArray()
   if (buff.size > 255)
-    throw IllegalArgumentException("Short string too long (string.toByteArray().size = ${buff.size} > 255")
+    throw IllegalArgumentException("Short string too long: 255 < string.toByteArray().size = ${buff.size}")
   writeByte(buff.size)
   write(buff)
 }
 
 fun DataInputStream.readShortString(): String {
   val size = readUnsignedByte()
+  if (size == 0)
+    return ""
   val buff = ByteArray(size)
   read(buff)
   return buff.decodeToString()

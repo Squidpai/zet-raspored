@@ -34,6 +34,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.lerp
@@ -52,7 +54,9 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import hr.squidpai.zetlive.LOADING_TEXT
 import hr.squidpai.zetlive.MILLIS_IN_SECONDS
+import hr.squidpai.zetlive.get
 import hr.squidpai.zetlive.gtfs.Live
+import hr.squidpai.zetlive.gtfs.PreciseDelayByStop
 import hr.squidpai.zetlive.gtfs.Schedule
 import hr.squidpai.zetlive.gtfs.Trip
 import hr.squidpai.zetlive.gtfs.TripId
@@ -64,6 +68,7 @@ import hr.squidpai.zetlive.localEpochTime
 import hr.squidpai.zetlive.orLoading
 import hr.squidpai.zetlive.timeToString
 import kotlin.math.max
+import kotlin.math.min
 
 class TripDialogActivity : ComponentActivity() {
 
@@ -83,6 +88,7 @@ class TripDialogActivity : ComponentActivity() {
    private var routeId = -1
    private lateinit var tripId: TripId
    private var timeOffset = 0L
+   //private lateinit var headsign: String
 
    private val requestPermissionLauncher = registerForActivityResult(
       ActivityResultContracts.RequestPermission()
@@ -147,7 +153,8 @@ class TripDialogActivity : ComponentActivity() {
             var isAbsoluteTime by remember { mutableStateOf(false) }
 
             val schedule = Schedule.instance
-            val trip = schedule.getTripsOfRoute(routeId).value?.list?.get(key = tripId)
+            val trips = schedule.getTripsOfRoute(routeId).value
+            val trip = trips?.list?.get(key = tripId)
 
             AlertDialog(
                onDismissRequest = ::finish,
@@ -162,7 +169,11 @@ class TripDialogActivity : ComponentActivity() {
                   Row(verticalAlignment = Alignment.CenterVertically) {
                      Text(
                         text = if (route != null && trip != null)
-                           "${route.shortName} smjer ${trip.headsign}" else LOADING_TEXT,
+                           "${route.shortName} smjer ${
+                              trip.headsign ?: trips.commonHeadsignByDay[trip.serviceId]?.get(
+                                 trip.directionId
+                              ).orLoading()
+                           }" else LOADING_TEXT,
                         modifier = Modifier.weight(1f),
                      )
 
@@ -199,25 +210,15 @@ class TripDialogActivity : ComponentActivity() {
                      Live.instance.findForTrip(id)?.tripUpdate?.stopTimeUpdateList
                   }
 
-                  //val firstUpdate = stopTimeUpdate?.fastMinByOrNull { it.stopSequence }
-
                   val time =
                      if (timeOffset != 0L) localCurrentTimeMillis() else localEpochTime().toLong()
                   val timeOfDay = ((time - timeOffset) / MILLIS_IN_SECONDS).toInt()
 
-                  //val liveStopId = firstUpdate?.stopId?.toStopId()
-
                   val delays = stopTimeUpdate.getDelayByStop()
 
+                  val isLive = delays is PreciseDelayByStop
+
                   val nextStopIndex = trip.findNextStopIndex(timeOfDay, delays)
-                  /*run nextStopIndex@{
-                stopTime.departures.forEachIndexed { index, departure ->
-                  if (time < timeOffset + (delays[index] + departure) * MILLIS_IN_SECONDS) {
-                    return@nextStopIndex index
-                  }
-                }
-                return@nextStopIndex stopTime.stops.size
-              }*/
 
                   val nextStopValue = when (nextStopIndex) {
                      0 -> 0f
@@ -254,17 +255,19 @@ class TripDialogActivity : ComponentActivity() {
                                     val prefillRatio =
                                        ((nextStopValue - (it + 1 - 0.5f)) * 2f).coerceIn(0f, 1f)
                                     val prefillLength = prefillRatio * (height / 2 - width / 6)
-                                    if (prefillRatio != 0f) drawLine(
-                                       color = filled,
-                                       start = Offset(width / 2, 0f),
-                                       end = Offset(width / 2, prefillLength),
-                                       strokeWidth = width / 16,
-                                    )
                                     if (prefillRatio != 1f) drawLine(
                                        color = notFilled,
                                        start = Offset(width / 2, prefillLength),
                                        end = Offset(width / 2, (height / 2 - width / 6)),
                                        strokeWidth = width / 16,
+                                       cap = StrokeCap.Round,
+                                    )
+                                    if (prefillRatio != 0f) drawLine(
+                                       color = filled,
+                                       start = Offset(width / 2, 0f),
+                                       end = Offset(width / 2, prefillLength),
+                                       strokeWidth = width / 16,
+                                       cap = StrokeCap.Round,
                                     )
                                  }
                                  drawCircle(
@@ -277,33 +280,43 @@ class TripDialogActivity : ComponentActivity() {
                                        ((nextStopValue - (it + 1)) * 2f).coerceIn(0f, 1f)
                                     val prefillLength = prefillRatio * (height / 2 - width / 6)
                                     val beginY = (height / 2 + width / 6)
-                                    if (prefillRatio != 0f) drawLine(
-                                       color = filled,
-                                       start = Offset(width / 2, beginY),
-                                       end = Offset(width / 2, beginY + prefillLength),
-                                       strokeWidth = width / 16,
-                                    )
                                     if (prefillRatio != 1f) drawLine(
                                        color = notFilled,
                                        start = Offset(width / 2, beginY + prefillLength),
                                        end = Offset(width / 2, height),
                                        strokeWidth = width / 16,
+                                       cap = StrokeCap.Round,
+                                    )
+                                    if (prefillRatio != 0f) drawLine(
+                                       color = filled,
+                                       start = Offset(width / 2, beginY),
+                                       end = Offset(width / 2, beginY + prefillLength),
+                                       strokeWidth = width / 16,
+                                       cap = StrokeCap.Round,
                                     )
                                  }
                               }
 
                               val stopName = stop?.name.orLoading()
 
-                              if (it < nextStopIndex) Text(
-                                 text = stopName,
-                                 color = lerp(
-                                    MaterialTheme.colorScheme.onSurface,
-                                    MaterialTheme.colorScheme.surface,
-                                    fraction = .36f
-                                 ),
-                              ) else Column {
-                                 Text(stopName)
-                                 Text(
+                              Column {
+                                 val passed = it < nextStopIndex
+
+                                 val stopColor: Color
+                                 val timeColor: Color
+                                 if (passed) {
+                                    stopColor = lerp(
+                                       MaterialTheme.colorScheme.onSurface,
+                                       MaterialTheme.colorScheme.surface,
+                                       fraction = .36f
+                                    )
+                                    timeColor = stopColor
+                                 } else {
+                                    stopColor = Color.Unspecified
+                                    timeColor = MaterialTheme.colorScheme.primary
+                                 }
+                                 Text(stopName, color = stopColor)
+                                 if (!passed || isAbsoluteTime) Text(
                                     buildAnnotatedString {
                                        val t = offsetDeparture + delay - time / 1000
                                        if (!isAbsoluteTime && t < 3600) {
@@ -329,11 +342,21 @@ class TripDialogActivity : ComponentActivity() {
                                           } else append(departure.timeToString())
                                        }
                                     },
-                                    color = MaterialTheme.colorScheme.primary,
+                                    color = timeColor,
                                     fontWeight = FontWeight.Bold,
                                     style = MaterialTheme.typography.bodySmall,
                                  )
                               }
+
+                              if (isLive && it == (nextStopIndex - 1).coerceAtLeast(0))
+                                 HintIconButton(
+                                    Symbols.MyLocation,
+                                    contentDescription = null,
+                                    tooltipTitle = "GPS praćenje",
+                                    tooltipText = "Ovom vozilu moguće je pratiti lokaciju. " +
+                                          "Raspored prikazan ovdje prilagođen je prema " +
+                                          "lokaciji vozila."
+                                 )
                            },
                            modifier = Modifier
                               .fillMaxWidth()
@@ -373,10 +396,14 @@ class TripDialogActivity : ComponentActivity() {
       ): MeasureResult {
          val px48 = 48.dp.roundToPx()
 
+         val iconPlaceable = measurables.getOrNull(2)
+            ?.takeIf { constraints.maxWidth >= px48 * 3 }
+            ?.measure(Constraints.fixed(px48, min(px48, constraints.maxHeight)))
+
          val stopPlaceable = measurables[1].measure(
             constraints.copy(
-               minWidth = (constraints.minWidth - px48).coerceAtLeast(0),
-               maxWidth = (constraints.maxWidth - px48).coerceAtLeast(0),
+               minWidth = (constraints.minWidth - px48 * 2).coerceAtLeast(0),
+               maxWidth = (constraints.maxWidth - px48 * 2).coerceAtLeast(0),
             )
          )
 
@@ -384,9 +411,10 @@ class TripDialogActivity : ComponentActivity() {
 
          val canvasPlaceable = measurables[0].measure(Constraints.fixed(px48, height))
 
-         return layout(px48 + stopPlaceable.width, height) {
+         return layout(constraints.maxWidth, height) {
             canvasPlaceable.place(0, 0)
-            stopPlaceable.place(48.dp.roundToPx(), (height - stopPlaceable.height) / 2)
+            stopPlaceable.place(px48, (height - stopPlaceable.height) / 2)
+            iconPlaceable?.place(constraints.maxWidth - px48, (height - px48) / 2)
          }
       }
    }

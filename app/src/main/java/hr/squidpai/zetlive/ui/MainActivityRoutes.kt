@@ -2,7 +2,6 @@ package hr.squidpai.zetlive.ui
 
 import android.content.Intent
 import androidx.compose.animation.animateContentSize
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.layout.Arrangement
@@ -10,7 +9,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -32,6 +30,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableIntState
@@ -45,6 +44,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -67,55 +67,50 @@ import hr.squidpai.zetlive.orLoading
 import hr.squidpai.zetlive.timeToString
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun MainActivityRoutes() = Column(Modifier.fillMaxSize()) {
-   val routes = Schedule.instance.routes
-
+fun MainActivityRoutes(routes: Routes) = Column(Modifier.fillMaxSize()) {
    val inputState = rememberSaveable { mutableStateOf("") }
 
    val pinnedRoutes = Data.pinnedRoutes.toSet()
    val list = remember(routes) {
-      routes?.let {
-         mutableStateListOf<Route>().apply { addAll(it.filter(inputState.value.trim())) }
-      }
+      mutableStateListOf<Route>().apply { addAll(routes.filter(inputState.value.trim())) }
    }
 
-   if (routes != null && list != null) {
-      val lazyListState = rememberLazyListState()
+   val lazyListState = rememberLazyListState()
 
-      RouteFilterSearchBar(
-         inputState, routes, list, lazyListState,
-         modifier = Modifier
-            .fillMaxWidth()
-            .padding(8.dp)
-      )
+   RouteFilterSearchBar(
+      inputState, routes, list, lazyListState,
+      modifier = Modifier
+         .fillMaxWidth()
+         .padding(8.dp)
+   )
 
-      LazyColumn(state = lazyListState) {
-         if (inputState.value.isBlank())
-            for (pinnedRouteId in pinnedRoutes) {
-               val route = routes.list.get(key = pinnedRouteId) ?: continue
-               item(key = -pinnedRouteId) {
-                  RouteContent(
-                     route, pinned = true,
-                     modifier = Modifier
-                        .fillParentMaxWidth()
-                        .animateItemPlacement(),
-                  )
-               }
-            }
-
-         items(list.size, key = { list[it].id }) {
-            val route = list[it]
-            RouteContent(
-               route, pinned = route.id in pinnedRoutes,
-               modifier = Modifier
+   LazyColumn(state = lazyListState) {
+      if (inputState.value.isBlank())
+         for (pinnedRouteId in pinnedRoutes) {
+            val route = routes.list.get(key = pinnedRouteId) ?: continue
+            item(key = -pinnedRouteId) {
+               Modifier
                   .fillParentMaxWidth()
-                  .animateItemPlacement(),
-            )
+               RouteContent(
+                  route, pinned = true,
+                  modifier = Modifier
+                     .fillParentMaxWidth()
+                     .animateItem(),
+               )
+            }
          }
+
+      items(list.size, key = { list[it].id }) {
+         val route = list[it]
+         RouteContent(
+            route, pinned = route.id in pinnedRoutes,
+            modifier = Modifier
+               .fillParentMaxWidth()
+               .animateItem(),
+         )
       }
-   } else CircularLoadingBox()
+   }
 
 }
 
@@ -187,17 +182,8 @@ private fun RouteContent(route: Route, pinned: Boolean, modifier: Modifier) {
       Column {
          Row(
             modifier = Modifier
-               .defaultMinSize(minHeight = 48.dp)
-               .clickable(
-                  onClick = { setExpanded(!expanded) },
-                  /*onClick = {
-                    if (expanded) setExpanded(false)
-                    else context.startActivity(
-                      Intent(context, RouteScheduleActivity::class.java)
-                        .putExtra(RouteScheduleActivity.EXTRA_ROUTE, route.id)
-                    )
-                  },*/
-               ),
+               .clickable { setExpanded(!expanded) }
+               .minimumInteractiveComponentSize(),
             verticalAlignment = Alignment.CenterVertically,
          ) {
             val shortNameStyle = MaterialTheme.typography.titleMedium
@@ -224,7 +210,8 @@ private fun RouteContent(route: Route, pinned: Boolean, modifier: Modifier) {
          }
 
          if (expanded) {
-            val directionState = rememberSaveable { mutableIntStateOf(0) }
+            val directionState =
+               rememberSaveable { mutableIntStateOf(Data.getDirectionForRoute(route.id)) }
 
             Row(
                modifier = Modifier
@@ -258,17 +245,6 @@ private fun RouteContent(route: Route, pinned: Boolean, modifier: Modifier) {
 private fun ColumnScope.RouteLiveTravels(route: Route, directionState: MutableIntState) {
    val routeLiveSchedule = route.getLiveSchedule()
 
-   val (direction, setDirection) = directionState
-
-   DirectionRow(
-      commonHeadsign = routeLiveSchedule?.commonHeadsign,
-      direction, setDirection,
-      isRoundRoute = routeLiveSchedule != null &&
-            (if (routeLiveSchedule.noLiveMessage == null && routeLiveSchedule.first!!.isNotEmpty())
-               routeLiveSchedule.second!!.isEmpty()
-            else routeLiveSchedule.commonHeadsign.second.isEmpty()),
-   )
-
    if (routeLiveSchedule == null) {
       CircularProgressIndicator(
          Modifier
@@ -278,8 +254,22 @@ private fun ColumnScope.RouteLiveTravels(route: Route, directionState: MutableIn
       return
    }
 
+   val (direction, setDirection) = directionState
+
+   val isRoundRoute =
+      if (routeLiveSchedule.first!!.isNotEmpty()) routeLiveSchedule.second!!.isEmpty()
+      else routeLiveSchedule.commonHeadsign?.second?.isEmpty() ?: false
+
+   if (routeLiveSchedule.commonHeadsign != null)
+      DirectionRow(
+         routeId = route.id,
+         commonHeadsign = routeLiveSchedule.commonHeadsign,
+         direction, setDirection,
+         isRoundRoute,
+      )
+
    val liveTravels =
-      if (direction == 0) routeLiveSchedule.first
+      if (direction == 0 || isRoundRoute) routeLiveSchedule.first
       else routeLiveSchedule.second
 
    if (liveTravels.isNullOrEmpty()) {
@@ -302,8 +292,8 @@ fun LiveTravelSlider(routeScheduleEntry: RouteScheduleEntry, interactable: Boole
 
    val highlightNextStop = Data.highlightNextStop
 
-   val (_, sliderValue, trip, overriddenHeadsign, overriddenFirstStop, departureTime, timeOffset) =
-      routeScheduleEntry
+   val (_, sliderValue, trip, headsign, isHeadsignCommon, overriddenFirstStop, departureTime,
+      delayAmount, timeOffset) = routeScheduleEntry
    val isAtFirstStop = routeScheduleEntry.nextStopIndex == 0
    val highlightedStopIndex =
       if (highlightNextStop) routeScheduleEntry.nextStopIndex
@@ -319,7 +309,7 @@ fun LiveTravelSlider(routeScheduleEntry: RouteScheduleEntry, interactable: Boole
          },
    ) {
       val tint =
-         if (overriddenHeadsign != null || overriddenFirstStop.isValid() || specialLabel != null)
+         if (!isHeadsignCommon || overriddenFirstStop.isValid() || specialLabel != null)
             MaterialTheme.colorScheme.tertiary
          else MaterialTheme.colorScheme.primary
 
@@ -332,11 +322,10 @@ fun LiveTravelSlider(routeScheduleEntry: RouteScheduleEntry, interactable: Boole
 
       LaunchedEffect(Unit) {
          state.interactionSource.interactions.collect { interaction ->
-            if (interaction is DragInteraction.Stop) {
-               if (state.firstVisibleItemIndex == 1 && state.firstVisibleItemScrollOffset < 128) {
-                  state.scrollToItem(1, scrollOffset = 0)
-               }
-            }
+            if (interaction is DragInteraction.Stop &&
+               state.firstVisibleItemIndex == 1 &&
+               state.firstVisibleItemScrollOffset < 128
+            ) state.scrollToItem(1, scrollOffset = 0)
          }
       }
 
@@ -411,7 +400,7 @@ fun LiveTravelSlider(routeScheduleEntry: RouteScheduleEntry, interactable: Boole
       )
 
       if (isAtFirstStop ||
-         overriddenHeadsign != null ||
+         !isHeadsignCommon ||
          overriddenFirstStop.isValid() ||
          specialLabel != null
       )
@@ -421,12 +410,16 @@ fun LiveTravelSlider(routeScheduleEntry: RouteScheduleEntry, interactable: Boole
                .padding(horizontal = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
          ) {
-            if (isAtFirstStop)
+            if (isAtFirstStop) {
+               val isLate = delayAmount >= 10 * 60
                Text(
-                  if (departureTime >= 0) "kreće u ${departureTime.timeToString()}"
-                  else "kreće za ${(-departureTime - 1) / 60} min"
+                  (if (departureTime >= 0) "kreće u ${departureTime.timeToString()}"
+                  else "kreće za ${(-departureTime - 1) / 60} min")
+                     .let { if (isLate) "$it (kasni)" else it },
+                  color = if (isLate) MaterialTheme.colorScheme.error else Color.Unspecified,
+                  fontWeight = FontWeight.Medium.takeIf { isLate }
                )
-            else if (overriddenFirstStop.isValid())
+            } else if (overriddenFirstStop.isValid())
             // do not display the first stop if stopSequence == 1 because then it is already highlighted
                Text("polazište ${stops?.get(overriddenFirstStop)?.name.orLoading()}")
             else
@@ -435,8 +428,8 @@ fun LiveTravelSlider(routeScheduleEntry: RouteScheduleEntry, interactable: Boole
 
             specialLabel?.first?.let { Text(it) }
 
-            if (specialLabel?.second != null || overriddenHeadsign != null)
-               Text(specialLabel?.second ?: "smjer $overriddenHeadsign", textAlign = TextAlign.End)
+            if (specialLabel?.second != null || !isHeadsignCommon)
+               Text(specialLabel?.second ?: "smjer $headsign", textAlign = TextAlign.End)
          }
    }
 }
