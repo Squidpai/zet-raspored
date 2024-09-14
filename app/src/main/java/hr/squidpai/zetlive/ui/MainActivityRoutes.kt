@@ -56,8 +56,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import hr.squidpai.zetlive.Data
 import hr.squidpai.zetlive.alsoIf
+import hr.squidpai.zetlive.gtfs.ActualRouteLiveSchedule
 import hr.squidpai.zetlive.gtfs.Love
 import hr.squidpai.zetlive.gtfs.Route
+import hr.squidpai.zetlive.gtfs.RouteNoLiveSchedule
 import hr.squidpai.zetlive.gtfs.RouteScheduleEntry
 import hr.squidpai.zetlive.gtfs.Routes
 import hr.squidpai.zetlive.gtfs.Schedule
@@ -254,36 +256,35 @@ private fun ColumnScope.RouteLiveTravels(route: Route, directionState: MutableIn
       return
    }
 
-   val (direction, setDirection) = directionState
-
-   val isRoundRoute =
-      if (routeLiveSchedule.first!!.isNotEmpty()) routeLiveSchedule.second!!.isEmpty()
-      else routeLiveSchedule.commonHeadsign?.second?.isEmpty() ?: false
-
-   if (routeLiveSchedule.commonHeadsign != null)
-      DirectionRow(
-         routeId = route.id,
-         commonHeadsign = routeLiveSchedule.commonHeadsign,
-         direction, setDirection,
-         isRoundRoute,
-      )
-
-   val liveTravels =
-      if (direction == 0 || isRoundRoute) routeLiveSchedule.first
-      else routeLiveSchedule.second
-
-   if (liveTravels.isNullOrEmpty()) {
-      Text(
-         routeLiveSchedule.noLiveMessage ?: "Linija danas nema više polazaka.",
+   when (routeLiveSchedule) {
+      is RouteNoLiveSchedule -> Text(
+         routeLiveSchedule.noLiveMessage,
          Modifier
             .padding(vertical = 8.dp)
             .align(Alignment.CenterHorizontally)
       )
-      return
-   }
+      is ActualRouteLiveSchedule -> {
+         val (direction, setDirection) = directionState
 
-   for (entry in liveTravels)
-      LiveTravelSlider(entry)
+         val isRoundRoute =
+            if (routeLiveSchedule.first.isNotEmpty()) routeLiveSchedule.second.isEmpty()
+            else routeLiveSchedule.commonHeadsign.second.isEmpty()
+
+         DirectionRow(
+            routeId = route.id,
+            commonHeadsign = routeLiveSchedule.commonHeadsign,
+            direction, setDirection,
+            isRoundRoute,
+         )
+
+         val liveTravels =
+            if (direction == 0 || isRoundRoute) routeLiveSchedule.first
+            else routeLiveSchedule.second
+
+         for (entry in liveTravels)
+            LiveTravelSlider(entry)
+      }
+   }
 }
 
 @Composable

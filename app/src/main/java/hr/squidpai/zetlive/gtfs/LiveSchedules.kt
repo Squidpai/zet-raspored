@@ -31,19 +31,19 @@ data class RouteScheduleEntry(
    val timeOffset: Long,
 )
 
+sealed interface RouteLiveSchedule
+
 /**
  * A live schedule of a route. Contains all data used
  * to display all current trips of the given route.
- *
- * It is guaranteed that [first], [second] and [commonHeadsign] are not `null`
- * if and only if [noLiveMessage] is `null`.
  */
-class RouteLiveSchedule(
-   val first: List<RouteScheduleEntry>?,
-   val second: List<RouteScheduleEntry>?,
-   val commonHeadsign: Pair<String, String>?,
-   val noLiveMessage: String?,
-)
+class ActualRouteLiveSchedule(
+   val first: List<RouteScheduleEntry>,
+   val second: List<RouteScheduleEntry>,
+   val commonHeadsign: Pair<String, String>,
+) : RouteLiveSchedule
+
+class RouteNoLiveSchedule(val noLiveMessage: String) : RouteLiveSchedule
 
 /**
  * Calculates the live schedule of the given route and updates it every time
@@ -110,14 +110,13 @@ private fun Route.getLiveSchedule(
          timeOffset = data.timeOffset,
       )
    }
-   RouteLiveSchedule(
+   ActualRouteLiveSchedule(
       liveScheduleData.first.mapLiveScheduleData(),
       liveScheduleData.second.mapLiveScheduleData(),
       liveScheduleData.commonHeadsign,
-      noLiveMessage = null,
    )
 } catch (e: NoLiveScheduleException) {
-   RouteLiveSchedule(null, null, null, e.message)
+   RouteNoLiveSchedule(e.message ?: Love.NULL_SERVICE_ID_MESSAGE)
 }
 
 /**

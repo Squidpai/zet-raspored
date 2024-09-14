@@ -12,8 +12,8 @@ android {
       applicationId = "hr.squidpai.zetlive"
       minSdk = 26
       targetSdk = 35
-      versionCode = 8
-      versionName = "0.6"
+      versionCode = 9
+      versionName = "0.6.1"
 
       testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
       vectorDrawables {
