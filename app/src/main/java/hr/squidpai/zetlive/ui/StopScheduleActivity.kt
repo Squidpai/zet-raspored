@@ -62,7 +62,8 @@ import hr.squidpai.zetlive.gtfs.toStopId
 import hr.squidpai.zetlive.none
 import hr.squidpai.zetlive.orLoading
 import hr.squidpai.zetlive.timeToString
-import kotlin.math.absoluteValue
+import hr.squidpai.zetlive.ui.composables.CircularLoadingBox
+import hr.squidpai.zetlive.ui.composables.IconButton
 
 class StopScheduleActivity : ComponentActivity() {
 
@@ -181,11 +182,11 @@ class StopScheduleActivity : ComponentActivity() {
 
       val routesFiltered = remember { mutableStateListOf<Int>() }
       val filterEmpty =
-         routesFiltered.isEmpty() || routesAtStop.routes.none { it.absoluteValue in routesFiltered }
+         routesFiltered.isEmpty() || routesAtStop.routeIds.none { it in routesFiltered }
 
       LazyRow(Modifier.fillMaxWidth()) {
-         items(routesAtStop.routes.size) { i ->
-            val route = routesAtStop.routes[i].absoluteValue
+         items(routesAtStop.routeIds.size) { i ->
+            val route = routesAtStop.routeIds[i]
             val selected = route in routesFiltered
             FilterChip(
                selected = selected || filterEmpty,
@@ -197,14 +198,14 @@ class StopScheduleActivity : ComponentActivity() {
 
                      // if we've selected all routes, deselect them all
                      var containsAll = true
-                     routesAtStop.routes.forEach { r ->
-                        if (r.absoluteValue !in routesFiltered) {
+                     routesAtStop.routeIds.forEach { r ->
+                        if (r !in routesFiltered) {
                            containsAll = false
                            return@forEach
                         }
                      }
                      if (containsAll)
-                        routesAtStop.routes.forEach { routesFiltered -= it.absoluteValue }
+                        routesAtStop.routeIds.forEach { routesFiltered -= it }
                   }
                },
                label = {
@@ -230,7 +231,7 @@ class StopScheduleActivity : ComponentActivity() {
          routesAtStop,
          keepDeparted = true,
          maxSize = 40,
-         routesFiltered = null //routesFiltered.toList(),
+         routesFiltered = null,
       )
          ?: run {
             CircularLoadingBox()
@@ -241,7 +242,7 @@ class StopScheduleActivity : ComponentActivity() {
 
       val live =
          if (filterEmpty) liveSchedule.first
-         else liveSchedule.first?.filter { it.routeNumber in routesFiltered }
+         else liveSchedule.first?.filter { it.routeId in routesFiltered }
 
       if (live.isNullOrEmpty()) {
          Box(

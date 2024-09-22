@@ -13,6 +13,7 @@ import hr.squidpai.zetlive.to
 
 object Love {
 
+   @Suppress("unused")
    private const val TAG = "Love"
 
    private val stopLabels = buildIntObjectMap {
@@ -324,7 +325,7 @@ object Love {
             val saturdayServiceId =
                serviceIdTypes?.entries?.firstOrNull { it.value == ServiceIdType.SATURDAY }?.key
 
-            if (saturdayServiceId != null && trips != null && trips.none { it.serviceId == saturdayServiceId })
+            if (saturdayServiceId != null && trips?.none { it.serviceId == saturdayServiceId } == true)
                "Linija ne vozi vikendom i praznicima."
             else
                "Linija ne vozi nedjeljom i praznicima."

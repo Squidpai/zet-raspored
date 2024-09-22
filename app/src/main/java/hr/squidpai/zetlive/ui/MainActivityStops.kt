@@ -60,6 +60,7 @@ import hr.squidpai.zetlive.gtfs.getLiveSchedule
 import hr.squidpai.zetlive.gtfs.toParentStopId
 import hr.squidpai.zetlive.orLoading
 import hr.squidpai.zetlive.timeToString
+import hr.squidpai.zetlive.ui.composables.IconButton
 import kotlinx.coroutines.launch
 
 @Composable
@@ -370,7 +371,8 @@ private fun ColumnScope.StopLiveTravels(stop: Stop, routesAtStopMap: RoutesAtSto
          )
          Text(headsign, Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
          Text(
-            if (useRelative) "${relativeTime / 60} min" else absoluteTime.timeToString(),
+            if (useRelative) "${(relativeTime.coerceAtLeast(0)) / 60} min"
+            else absoluteTime.timeToString(),
             modifier = Modifier.padding(end = 4.dp),
             color = MaterialTheme.colorScheme.primary,
             fontWeight = FontWeight.Bold,
