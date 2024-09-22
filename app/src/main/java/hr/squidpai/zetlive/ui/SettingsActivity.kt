@@ -50,6 +50,8 @@ import hr.squidpai.zetlive.gtfs.StopId
 import hr.squidpai.zetlive.gtfs.Trip
 import hr.squidpai.zetlive.gtfs.feedInfo
 import hr.squidpai.zetlive.orLoading
+import hr.squidpai.zetlive.ui.composables.IconButton
+import hr.squidpai.zetlive.ui.composables.LiveTravelSlider
 import kotlinx.coroutines.launch
 
 class SettingsActivity : ComponentActivity() {

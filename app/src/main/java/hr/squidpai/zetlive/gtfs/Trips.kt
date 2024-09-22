@@ -171,6 +171,14 @@ class RoutesAtStop(
       last = flags and 2 != 0,
       routes = MutableIntList(routes.size).apply { plusAssign(routes) },
    )
+
+   val routeIds: IntList = MutableIntList().apply {
+      routes.forEach { route ->
+         val routeAbs = route.absoluteValue
+         if (routeAbs !in this)
+            add(routeAbs)
+      }
+   }
 }
 
 class MutableRoutesAtStop(
