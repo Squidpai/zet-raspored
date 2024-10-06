@@ -9,7 +9,16 @@ import java.util.zip.ZipFile
 class FeedInfo(
   val startDate: LocalDate,
   val version: String,
-)
+) {
+  constructor() : this(
+    startDate = LocalDate.ofEpochDay(0L),
+    version = "",
+  )
+
+  companion object {
+    val empty = FeedInfo()
+  }
+}
 
 /**
  * Creates a [FeedInfo] instance from the specified zip file.

@@ -333,8 +333,8 @@ object Love {
       }
    }
 
-   fun giveMeTheServiceIdTypes(schedule: Schedule): ServiceIdTypes? {
-      val serviceIds = schedule.calendarDates?.serviceIds ?: return null
+   fun giveMeTheServiceIdTypes(schedule: LoadedSchedule): ServiceIdTypes? {
+      val serviceIds = schedule.calendarDates.serviceIds
       // I've selected 108 as the route with only weekday travels
       val tripsOfRouteWeekdaysOnly = schedule.getTripsOfRoute(108).value?.list ?: return null
       // I've selected 159 as the route with weekday and saturday travels

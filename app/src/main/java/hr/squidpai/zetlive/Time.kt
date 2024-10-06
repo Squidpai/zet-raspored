@@ -5,6 +5,7 @@ package hr.squidpai.zetlive
 import android.icu.util.TimeZone
 
 const val MILLIS_IN_SECONDS = 1000
+const val MILLIS_IN_HOURS = 1000 * 60 * 60
 const val MILLIS_IN_DAY = 1000 * 60 * 60 * 24
 const val SECONDS_IN_DAY = 60 * 60 * 24
 const val SECONDS_IN_HOUR = 60 * 60

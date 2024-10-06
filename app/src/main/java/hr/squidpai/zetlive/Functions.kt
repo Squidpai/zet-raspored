@@ -6,7 +6,6 @@ import androidx.collection.IntObjectMap
 import androidx.collection.IntSet
 import androidx.collection.MutableIntIntMap
 import androidx.collection.MutableIntObjectMap
-import androidx.compose.runtime.State
 import androidx.compose.ui.Modifier
 import java.io.DataInputStream
 import java.io.DataOutputStream
@@ -37,10 +36,10 @@ const val LOADING_TEXT = "Učitavanje\u2026"
 inline fun String?.orLoading() = this ?: LOADING_TEXT
 
 /**
- * Concatenates this modifier with [block] if [condition] is `true`,
- * otherwise, returns just this modifier.
+ * Concatenates `this` with [block] if [condition] is `true`,
+ * otherwise, returns `this`.
  */
-inline fun Modifier.alsoIf(condition: Boolean, block: Modifier.() -> Modifier) =
+inline fun <T : R, R> T.alsoIf(condition: Boolean, block: T.() -> R) =
   if (condition) this.block() else this
 
 /**
@@ -51,13 +50,13 @@ inline fun Modifier.alsoIfNot(condition: Boolean, block: Modifier.() -> Modifier
   if (!condition) this.block() else this
 
 /**
- * Concatenates this modifier with [ifTrue] if [condition] is `true`,
- * otherwise, with [ifFalse].
+ * Concatenates `this` with [ifTrue] if [condition] is `true`,
+ * and with [ifFalse] otherwise.
  */
-inline fun Modifier.ifElse(
+inline fun <T : R, R> T.ifElse(
   condition: Boolean,
-  ifTrue: Modifier.() -> Modifier,
-  ifFalse: Modifier.() -> Modifier,
+  ifTrue: T.() -> R,
+  ifFalse: T.() -> R,
 ) = if (condition) this.ifTrue() else this.ifFalse()
 
 /**
@@ -163,12 +162,6 @@ fun String.extractInt(): Int {
   val num = this.replace(intExtractRegex, "")
   return if (num.isEmpty()) -1 else num.toLong().toInt()
 }
-
-private val nullState = object : State<Nothing?> {
-  override val value = null
-}
-
-fun <T> nullState(): State<T?> = nullState
 
 fun Any?.printIsNull(objName: String) = objName + (if (this == null) " is null" else " is not null")
 

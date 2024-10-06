@@ -31,7 +31,6 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
@@ -48,14 +47,14 @@ import hr.squidpai.zetlive.gtfs.ActualRouteLiveSchedule
 import hr.squidpai.zetlive.gtfs.Route
 import hr.squidpai.zetlive.gtfs.RouteNoLiveSchedule
 import hr.squidpai.zetlive.gtfs.Routes
+import hr.squidpai.zetlive.gtfs.Stops
 import hr.squidpai.zetlive.gtfs.getLiveSchedule
 import hr.squidpai.zetlive.ui.composables.DirectionRow
 import hr.squidpai.zetlive.ui.composables.IconButton
 import hr.squidpai.zetlive.ui.composables.LiveTravelSlider
-import kotlinx.coroutines.launch
 
 @Composable
-fun MainActivityRoutes(routes: Routes) = Column(Modifier.fillMaxSize()) {
+fun MainActivityRoutes(routes: Routes, stops: Stops) = Column(Modifier.fillMaxSize()) {
    val inputState = rememberSaveable { mutableStateOf("") }
 
    val pinnedRoutes = Data.pinnedRoutes.toSet()
@@ -80,7 +79,7 @@ fun MainActivityRoutes(routes: Routes) = Column(Modifier.fillMaxSize()) {
                Modifier
                   .fillParentMaxWidth()
                RouteContent(
-                  route, pinned = true,
+                  route, stops, pinned = true,
                   modifier = Modifier
                      .fillParentMaxWidth()
                      .animateItem(),
@@ -91,7 +90,7 @@ fun MainActivityRoutes(routes: Routes) = Column(Modifier.fillMaxSize()) {
       items(list.size, key = { list[it].id }) {
          val route = list[it]
          RouteContent(
-            route, pinned = route.id in pinnedRoutes,
+            route, stops, pinned = route.id in pinnedRoutes,
             modifier = Modifier
                .fillParentMaxWidth()
                .animateItem(),
@@ -111,8 +110,6 @@ private fun RouteFilterSearchBar(
 ) {
    val (input, setInput) = inputState
 
-   val coroutineScope = rememberCoroutineScope()
-
    val updateInput = updateInput@{ newInput: String ->
       if (newInput.length > 100) return@updateInput
       setInput(newInput)
@@ -121,7 +118,7 @@ private fun RouteFilterSearchBar(
       val oldInputTrimmed = input.trim()
 
       if (newInputTrimmed != oldInputTrimmed) {
-         coroutineScope.launch { lazyListState.scrollToItem(0, 0) }
+         lazyListState.requestScrollToItem(0)
 
          val newList =
             if (input in newInput) Routes.filter(list, newInputTrimmed)
@@ -154,7 +151,7 @@ private fun RouteFilterSearchBar(
 }
 
 @Composable
-private fun RouteContent(route: Route, pinned: Boolean, modifier: Modifier) {
+private fun RouteContent(route: Route, stops: Stops, pinned: Boolean, modifier: Modifier) {
    val (expanded, setExpanded) =
       rememberSaveable(key = "re${route.id}") { mutableStateOf(false) }
 
@@ -222,14 +219,14 @@ private fun RouteContent(route: Route, pinned: Boolean, modifier: Modifier) {
                }*/
             }
 
-            RouteLiveTravels(route, directionState)
+            RouteLiveTravels(route, stops, directionState)
          }
       }
    }
 }
 
 @Composable
-private fun ColumnScope.RouteLiveTravels(route: Route, directionState: MutableIntState) {
+private fun ColumnScope.RouteLiveTravels(route: Route, stops: Stops, directionState: MutableIntState) {
    val routeLiveSchedule = route.getLiveSchedule()
 
    if (routeLiveSchedule == null) {
@@ -267,7 +264,7 @@ private fun ColumnScope.RouteLiveTravels(route: Route, directionState: MutableIn
             else routeLiveSchedule.second
 
          for (entry in liveTravels)
-            LiveTravelSlider(entry)
+            LiveTravelSlider(entry, stops.list)
       }
    }
 }

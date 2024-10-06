@@ -105,4 +105,8 @@ class CalendarDates {
     override fun get(index: Int) = data.getOrNull(fromIndex + index)
   }
 
+  companion object {
+    val empty = CalendarDates()
+  }
+
 }

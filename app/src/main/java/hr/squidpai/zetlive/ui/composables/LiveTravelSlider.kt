@@ -29,23 +29,29 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import hr.squidpai.zetlive.Data
+import hr.squidpai.zetlive.SortedListMap
 import hr.squidpai.zetlive.alsoIf
 import hr.squidpai.zetlive.gtfs.Love
 import hr.squidpai.zetlive.gtfs.RouteScheduleEntry
-import hr.squidpai.zetlive.gtfs.Schedule
+import hr.squidpai.zetlive.gtfs.Stop
+import hr.squidpai.zetlive.gtfs.StopId
 import hr.squidpai.zetlive.gtfs.toStopId
 import hr.squidpai.zetlive.orLoading
 import hr.squidpai.zetlive.timeToString
 import hr.squidpai.zetlive.ui.TripDialogActivity
 
 @Composable
-fun LiveTravelSlider(routeScheduleEntry: RouteScheduleEntry, interactable: Boolean = true) {
+fun LiveTravelSlider(
+   routeScheduleEntry: RouteScheduleEntry,
+   stops: SortedListMap<StopId, Stop>,
+   interactable: Boolean = true
+) {
    val context = LocalContext.current
 
    val highlightNextStop = Data.highlightNextStop
 
    val (_, sliderValue, trip, headsign, isHeadsignCommon, overriddenFirstStop, departureTime,
-      delayAmount, timeOffset) = routeScheduleEntry
+      delayAmount, selectedDate) = routeScheduleEntry
    val isAtFirstStop = routeScheduleEntry.nextStopIndex == 0
    val highlightedStopIndex =
       if (highlightNextStop) routeScheduleEntry.nextStopIndex
@@ -57,15 +63,13 @@ fun LiveTravelSlider(routeScheduleEntry: RouteScheduleEntry, interactable: Boole
       Modifier
          .padding(vertical = 6.dp)
          .alsoIf(interactable) {
-            clickable { TripDialogActivity.selectTrip(context, trip, timeOffset) }
+            clickable { TripDialogActivity.show(context, trip, selectedDate) }
          },
    ) {
       val tint =
          if (!isHeadsignCommon || overriddenFirstStop.isValid() || specialLabel != null)
             MaterialTheme.colorScheme.tertiary
          else MaterialTheme.colorScheme.primary
-
-      val stops = Schedule.instance.stops?.list
 
       val firstVisibleItemIndex = if (highlightedStopIndex > 0) 1 else 0
       val state = rememberSaveable(highlightedStopIndex, saver = LazyListState.Saver) {
@@ -81,7 +85,7 @@ fun LiveTravelSlider(routeScheduleEntry: RouteScheduleEntry, interactable: Boole
          }
       }
 
-      if (stops != null) LazyRow(
+      LazyRow(
          modifier = Modifier.height(40.dp),
          state = state,
          horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -173,7 +177,7 @@ fun LiveTravelSlider(routeScheduleEntry: RouteScheduleEntry, interactable: Boole
                )
             } else if (overriddenFirstStop.isValid())
             // do not display the first stop if stopSequence == 1 because then it is already highlighted
-               Text("polazište ${stops?.get(overriddenFirstStop)?.name.orLoading()}")
+               Text("polazište ${stops[overriddenFirstStop]?.name.orLoading()}")
             else
             // blank box take up space
                Box(Modifier.size(0.dp))

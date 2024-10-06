@@ -53,7 +53,10 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import hr.squidpai.zetlive.LOADING_TEXT
+import hr.squidpai.zetlive.MILLIS_IN_DAY
 import hr.squidpai.zetlive.MILLIS_IN_SECONDS
+import hr.squidpai.zetlive.SECONDS_IN_DAY
+import hr.squidpai.zetlive.SECONDS_IN_HOUR
 import hr.squidpai.zetlive.get
 import hr.squidpai.zetlive.gtfs.Live
 import hr.squidpai.zetlive.gtfs.PreciseDelayByStop
@@ -64,11 +67,13 @@ import hr.squidpai.zetlive.gtfs.getArrivalLineRatio
 import hr.squidpai.zetlive.gtfs.getDelayByStop
 import hr.squidpai.zetlive.gtfs.toStopId
 import hr.squidpai.zetlive.localCurrentTimeMillis
-import hr.squidpai.zetlive.localEpochTime
+import hr.squidpai.zetlive.localEpochDate
 import hr.squidpai.zetlive.orLoading
 import hr.squidpai.zetlive.timeToString
 import hr.squidpai.zetlive.ui.composables.HintIconButton
 import hr.squidpai.zetlive.ui.composables.IconButton
+import hr.squidpai.zetlive.utcEpochDate
+import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 
@@ -77,20 +82,19 @@ class TripDialogActivity : ComponentActivity() {
    companion object {
       private const val TAG = "TripDialogActivity"
 
-      fun selectTrip(context: Context, trip: Trip, timeOffset: Long) {
+      fun show(context: Context, trip: Trip, selectedDate: Int) {
          context.startActivity(
             Intent(context, TripDialogActivity::class.java)
                .putExtra(EXTRA_ROUTE_ID, trip.routeId)
                .putExtra(EXTRA_TRIP_ID, trip.tripId)
-               .putExtra(EXTRA_TIME_OFFSET, timeOffset)
+               .putExtra(EXTRA_SELECTED_DATE, selectedDate)
          )
       }
    }
 
    private var routeId = -1
    private lateinit var tripId: TripId
-   private var timeOffset = 0L
-   //private lateinit var headsign: String
+   private var selectedDate = 0
 
    private val requestPermissionLauncher = registerForActivityResult(
       ActivityResultContracts.RequestPermission()
@@ -101,8 +105,8 @@ class TripDialogActivity : ComponentActivity() {
       } else
          Toast.makeText(
             this,
-            "Ne može se postaviti obavijest${Typography.mdash}odbijena je " +
-                  "dozvola za postavljanje obavijesti",
+            "Ne može se postaviti obavijest${Typography.mdash}" +
+                  "odbijena je dozvola za postavljanje obavijesti.",
             Toast.LENGTH_LONG
          ).show()
    }
@@ -127,7 +131,7 @@ class TripDialogActivity : ComponentActivity() {
          Intent(this, NotificationTrackerService::class.java)
             .putExtra(EXTRA_ROUTE_ID, routeId)
             .putExtra(EXTRA_TRIP_ID, tripId)
-            .putExtra(EXTRA_TIME_OFFSET, timeOffset)
+            .putExtra(EXTRA_SELECTED_DATE, selectedDate)
       )
    }
 
@@ -148,14 +152,16 @@ class TripDialogActivity : ComponentActivity() {
             return
          }
 
-      timeOffset = intent.getLongExtra(EXTRA_TIME_OFFSET, 0L)
+      selectedDate = intent.getIntExtra(EXTRA_SELECTED_DATE, 0)
+      if (selectedDate == 0)
+         selectedDate = localEpochDate().toInt()
 
       setContent {
          AppTheme {
             var isAbsoluteTime by remember { mutableStateOf(false) }
 
-            val schedule = Schedule.instance
-            val trips = schedule.getTripsOfRoute(routeId).value
+            val schedule = Schedule.instanceLoaded
+            val trips = schedule?.getTripsOfRoute(routeId)?.value
             val trip = trips?.list?.get(key = tripId)
 
             AlertDialog(
@@ -166,7 +172,7 @@ class TripDialogActivity : ComponentActivity() {
                   }
                },
                title = {
-                  val route = schedule.routes?.list?.get(key = routeId)
+                  val route = schedule?.routes?.list?.get(key = routeId)
 
                   Row(verticalAlignment = Alignment.CenterVertically) {
                      Text(
@@ -201,26 +207,34 @@ class TripDialogActivity : ComponentActivity() {
                   }
                },
                text = text@{
-                  val stops = Schedule.instance.stops
+                  val stops = schedule?.stops
 
                   if (stops == null || trip == null) {
                      CircularProgressIndicator()
                      return@text
                   }
 
-                  val stopTimeUpdate = trip.tripId.let { id ->
-                     Live.instance.findForTrip(id)?.tripUpdate?.stopTimeUpdateList
+                  val currentTimeMillis = localCurrentTimeMillis()
+                  val dateDifference = (currentTimeMillis / MILLIS_IN_DAY).toInt() - selectedDate
+
+                  val offsetTime = (currentTimeMillis % MILLIS_IN_DAY +
+                        dateDifference * MILLIS_IN_DAY).toInt() / MILLIS_IN_SECONDS
+
+                  val tripUpdate = trip.tripId.let { id ->
+                     Live.instance.findForTrip(id)?.tripUpdate
+                        ?.takeIf {
+                           abs(
+                              it.timestamp - (trip.departures.first() +
+                                    (utcEpochDate() - dateDifference) * SECONDS_IN_DAY)
+                           ) < 12 * SECONDS_IN_HOUR
+                        }
                   }
 
-                  val time =
-                     if (timeOffset != 0L) localCurrentTimeMillis() else localEpochTime().toLong()
-                  val timeOfDay = ((time - timeOffset) / MILLIS_IN_SECONDS).toInt()
-
-                  val delays = stopTimeUpdate.getDelayByStop()
+                  val delays = tripUpdate?.stopTimeUpdateList.getDelayByStop()
 
                   val isLive = delays is PreciseDelayByStop
 
-                  val nextStopIndex = trip.findNextStopIndex(timeOfDay, delays)
+                  val nextStopIndex = trip.findNextStopIndex(offsetTime, delays)
 
                   val nextStopValue = when (nextStopIndex) {
                      0 -> 0f
@@ -229,7 +243,7 @@ class TripDialogActivity : ComponentActivity() {
                         trip.departures,
                         nextStopIndex,
                         delays,
-                        timeOfDay
+                        offsetTime,
                      )
                   }
 
@@ -240,7 +254,6 @@ class TripDialogActivity : ComponentActivity() {
                      items(trip.stops.size) {
                         val stop = stops.list[trip.stops[it].toStopId()]
                         val departure = trip.departures[it]
-                        val offsetDeparture = departure + timeOffset / MILLIS_IN_SECONDS
                         val delay = delays[it]
 
                         Layout(
@@ -320,7 +333,7 @@ class TripDialogActivity : ComponentActivity() {
                                  Text(stopName, color = stopColor)
                                  if (!passed || isAbsoluteTime) Text(
                                     buildAnnotatedString {
-                                       val t = offsetDeparture + delay - time / 1000
+                                       val t = departure + delay - offsetTime
                                        if (!isAbsoluteTime && t < 3600) {
                                           if (t < 60)
                                              append("za 0 min")
@@ -330,7 +343,7 @@ class TripDialogActivity : ComponentActivity() {
                                              append(" min")
                                           }
                                        } else {
-                                          if (offsetDeparture / 60 != (offsetDeparture + delay) / 60) {
+                                          if (departure / 60 != (departure + delay) / 60) {
                                              withStyle(
                                                 SpanStyle(
                                                    textDecoration = TextDecoration.LineThrough,
@@ -402,10 +415,12 @@ class TripDialogActivity : ComponentActivity() {
             ?.takeIf { constraints.maxWidth >= px48 * 3 }
             ?.measure(Constraints.fixed(px48, min(px48, constraints.maxHeight)))
 
+         val stopWidthOffset = if (iconPlaceable != null) px48 * 2 else px48
+
          val stopPlaceable = measurables[1].measure(
             constraints.copy(
-               minWidth = (constraints.minWidth - px48 * 2).coerceAtLeast(0),
-               maxWidth = (constraints.maxWidth - px48 * 2).coerceAtLeast(0),
+               minWidth = (constraints.minWidth - stopWidthOffset).coerceAtLeast(0),
+               maxWidth = (constraints.maxWidth - stopWidthOffset).coerceAtLeast(0),
             )
          )
 

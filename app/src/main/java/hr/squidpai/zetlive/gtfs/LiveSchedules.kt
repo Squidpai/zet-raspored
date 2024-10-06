@@ -27,7 +27,7 @@ data class RouteScheduleEntry(
    val overriddenFirstStop: StopId,
    val departureTime: Int,
    val delayAmount: Int,
-   val timeOffset: Long,
+   val selectedDate: Int,
 )
 
 sealed interface RouteLiveSchedule
@@ -50,10 +50,10 @@ class RouteNoLiveSchedule(val noLiveMessage: String) : RouteLiveSchedule
  */
 @Composable
 fun Route.getLiveSchedule(): RouteLiveSchedule? {
-   val schedule = Schedule.instance
+   val schedule = Schedule.instanceLoaded ?: return null
 
    val trips = schedule.getTripsOfRoute(id).value ?: return null
-   val calendarDates = schedule.calendarDates ?: return null
+   val calendarDates = schedule.calendarDates
 
    val live = Live.instance
 
@@ -61,7 +61,7 @@ fun Route.getLiveSchedule(): RouteLiveSchedule? {
       val currentMillis = localCurrentTimeMillis()
       val time = (currentMillis % MILLIS_IN_DAY).toInt() / MILLIS_IN_SECONDS
       val date = currentMillis / MILLIS_IN_DAY
-      getLiveSchedule(trips, calendarDates, live, currentMillis, time, date, schedule.serviceIdTypes)
+      getLiveSchedule(trips, calendarDates, live, time, date, schedule.serviceIdTypes)
    }
 }
 
@@ -72,7 +72,6 @@ private fun Route.getLiveSchedule(
    trips: Trips,
    calendarDates: CalendarDates,
    live: Live,
-   currentMillis: Long,
    time: Int,
    date: Long,
    serviceIdTypes: ServiceIdTypes?,
@@ -101,13 +100,14 @@ private fun Route.getLiveSchedule(
             .takeIf { it != liveScheduleData.commonFirstStop?.get(data.trip.directionId) },
          // departureTime is only used if nextStopIndex == 0
          departureTime = (data.trip.departures[0] + delay).let { departure ->
-            val relativeTime = departure + (data.timeOffset - currentMillis).div(MILLIS_IN_SECONDS).toInt()
+            val dateDifference = (date - data.selectedDate).toInt()
+            val relativeTime = departure - (time + dateDifference * SECONDS_IN_DAY)
             if (relativeTime <= 0) -1
             else if (relativeTime <= 15 * 60) -relativeTime - 1
             else departure
          },
          delayAmount = delay,
-         timeOffset = data.timeOffset,
+         selectedDate = data.selectedDate,
       )
    }
    ActualRouteLiveSchedule(
@@ -131,6 +131,7 @@ data class StopScheduleEntry(
    val relativeTime: Int,
    val useRelative: Boolean,
    val departed: Boolean,
+   val selectedDate: Int,
 )
 
 /**
@@ -162,10 +163,10 @@ fun Stop.getLiveSchedule(
    maxSize: Int,
    routesFiltered: List<Int>? = null,
 ): StopLiveSchedule? {
-   val schedule = Schedule.instance
+   val schedule = Schedule.instanceLoaded ?: return null
 
-   val routes = schedule.routes ?: return null
-   val calendarDates = schedule.calendarDates ?: return null
+   val routes = schedule.routes
+   val calendarDates = schedule.calendarDates
 
    val live = Live.instance
 
@@ -239,9 +240,10 @@ private fun Stop.getLiveSchedule(
          headsign = data.headsign,
          trip = data.trip,
          absoluteTime = departureTime,
-         relativeTime = departureTime + (data.timeOffset - currentMillis).div(MILLIS_IN_SECONDS).toInt(),
+         relativeTime = departureTime - (time + (date - data.selectedDate).toInt() * SECONDS_IN_DAY),
          useRelative = useRelative,
-         departed = data.nextStopIndex > stopIndex
+         departed = data.nextStopIndex > stopIndex,
+         selectedDate = data.selectedDate,
       )
    }
 
@@ -279,7 +281,7 @@ private data class RouteScheduleData(
    val headsign: String,
    val isHeadsignCommon: Boolean,
    val delayByStop: DelayByStop,
-   val timeOffset: Long,
+   val selectedDate: Int,
 )
 
 private data class RouteLiveScheduleData(
@@ -348,7 +350,7 @@ private fun Route.getLiveScheduleData(
             if (usedCommonHeadsign == null) headsign == null
             else (headsign ?: commonHeadsign) == usedCommonHeadsign,
             delayByStop = delayByStop,
-            timeOffset = MILLIS_IN_DAY * if (isYesterday) date - 1 else date,
+            selectedDate = (if (isYesterday) date - 1 else date).toInt(),
          )
 
       val offsetTime = if (isYesterday) time + SECONDS_IN_DAY else time

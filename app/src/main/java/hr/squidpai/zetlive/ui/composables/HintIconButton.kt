@@ -1,5 +1,6 @@
 package hr.squidpai.zetlive.ui.composables
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -27,6 +28,8 @@ fun HintIconButton(
    tooltipText: String,
    modifier: Modifier = Modifier,
    iconTint: Color = MaterialTheme.colorScheme.secondary,
+   showClickIndication: Boolean = false,
+   action: (@Composable () -> Unit)? = null,
 ) {
    val state = rememberTooltipState(isPersistent = true)
    TooltipBox(
@@ -34,6 +37,7 @@ fun HintIconButton(
       tooltip = {
          RichTooltip(
             title = { Text(tooltipTitle) },
+            action = action,
             colors = TooltipDefaults.inverseRichTooltipColors(),
          ) {
             Text(tooltipText)
@@ -50,12 +54,16 @@ fun HintIconButton(
          contentDescription,
          modifier = Modifier
             .minimumInteractiveComponentSize()
-            .pointerInput(Unit) {
-               while (true) {
-                  detectTapGestures {
-                     if (!state.isVisible)
-                        scope.launch { state.show() }
-                  }
+            .run {
+               val onClick: () -> Unit = {
+                  if (!state.isVisible)
+                     scope.launch { state.show() }
+               }
+
+               if (showClickIndication) clickable(onClick = onClick)
+               else pointerInput(Unit) {
+                  while (true)
+                     detectTapGestures { onClick() }
                }
             },
          iconTint,

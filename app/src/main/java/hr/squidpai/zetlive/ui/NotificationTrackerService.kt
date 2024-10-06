@@ -18,8 +18,11 @@ import androidx.collection.IntObjectMap
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.getSystemService
+import hr.squidpai.zetlive.MILLIS_IN_DAY
 import hr.squidpai.zetlive.MILLIS_IN_SECONDS
 import hr.squidpai.zetlive.R
+import hr.squidpai.zetlive.SECONDS_IN_DAY
+import hr.squidpai.zetlive.SECONDS_IN_HOUR
 import hr.squidpai.zetlive.associateWith
 import hr.squidpai.zetlive.get
 import hr.squidpai.zetlive.gtfs.Live
@@ -28,11 +31,13 @@ import hr.squidpai.zetlive.gtfs.Schedule
 import hr.squidpai.zetlive.gtfs.Trip
 import hr.squidpai.zetlive.gtfs.getArrivalLineRatio
 import hr.squidpai.zetlive.gtfs.getDelayByStop
+import hr.squidpai.zetlive.gtfs.getDelayByStopForTrip
 import hr.squidpai.zetlive.gtfs.toStopId
 import hr.squidpai.zetlive.localCurrentTimeMillis
-import hr.squidpai.zetlive.localEpochTime
 import hr.squidpai.zetlive.orLoading
 import hr.squidpai.zetlive.timeToString
+import hr.squidpai.zetlive.utcEpochDate
+import kotlin.math.abs
 
 
 class NotificationTrackerService : Service(), Live.UpdateListener {
@@ -56,13 +61,10 @@ class NotificationTrackerService : Service(), Live.UpdateListener {
    }
 
    private lateinit var notificationBuilder: NotificationCompat.Builder
-   private var timeOffset = 0L
+   private var selectedDate = 0
    private lateinit var trip: Trip
    private lateinit var stopNames: IntObjectMap<String>
 
-   /*private var overriddenFirstStopLabel: String? = null
-   private var specialLabel: String? = null
-   private var headsignLabel: String? = null*/
    private lateinit var titleText: String
 
    override fun onUpdated(live: Live) {
@@ -72,12 +74,21 @@ class NotificationTrackerService : Service(), Live.UpdateListener {
       val stopNames = stopNames
       val view = RemoteViews(packageName, R.layout.layout_notification_tracker)
 
-      val time = if (timeOffset != 0L) localCurrentTimeMillis() else localEpochTime().toLong()
-      val timeOfDay = ((time - timeOffset) / MILLIS_IN_SECONDS).toInt()
+      val currentTimeMillis = localCurrentTimeMillis()
+      val dateDifference = (currentTimeMillis / MILLIS_IN_DAY).toInt() - selectedDate
 
-      val delays = live.findForTrip(trip.tripId)?.tripUpdate?.stopTimeUpdateList.getDelayByStop()
+      val offsetTime = (currentTimeMillis % MILLIS_IN_DAY +
+            dateDifference * MILLIS_IN_DAY).toInt() / MILLIS_IN_SECONDS
 
-      val nextStopIndex = trip.findNextStopIndex(timeOfDay, delays)
+      val delays = live.findForTrip(trip.tripId)?.tripUpdate
+         ?.takeIf {
+            abs(
+               it.timestamp - (trip.departures.first() +
+                     (utcEpochDate() - dateDifference) * SECONDS_IN_DAY)
+            ) < 12 * SECONDS_IN_HOUR
+         }?.stopTimeUpdateList.getDelayByStop()
+
+      val nextStopIndex = trip.findNextStopIndex(offsetTime, delays)
 
       val nextStopRatio = when (nextStopIndex) {
          0 -> 0f
@@ -86,7 +97,7 @@ class NotificationTrackerService : Service(), Live.UpdateListener {
             trip.departures,
             nextStopIndex,
             delays,
-            timeOfDay
+            offsetTime,
          )) / trip.departures.size
       }
       view.setProgressBar(
@@ -129,11 +140,13 @@ class NotificationTrackerService : Service(), Live.UpdateListener {
       view.setTextViewText(R.id.titleText, titleText)
 
       if (nextStopIndex == 0) {
-         val departureTime = trip.departures[0].let { departure ->
-            if (departure <= timeOfDay) -1
-            else if (departure - timeOfDay <= 15 * 60) timeOfDay - departure - 1
-            else departure
-         }
+         val departureTime =
+            (trip.departures[0] + live.getDelayByStopForTrip(trip.tripId)[0]).let { departure ->
+               val relativeTime = departure - offsetTime
+               if (relativeTime <= 0) -1
+               else if (relativeTime <= 15 * 60) -relativeTime - 1
+               else departure
+            }
 
          view.setViewVisibility(R.id.firstStopText, View.VISIBLE)
          view.setTextViewText(
@@ -169,7 +182,7 @@ class NotificationTrackerService : Service(), Live.UpdateListener {
       intent!! // guaranteed to not be null because of the START_REDELIVER_INTENT return result
       val routeId = intent.getIntExtra(EXTRA_ROUTE_ID, -1)
       val tripId = intent.getStringExtra(EXTRA_TRIP_ID)
-      timeOffset = intent.getLongExtra(EXTRA_TIME_OFFSET, 0L)
+      selectedDate = intent.getIntExtra(EXTRA_SELECTED_DATE, 0)
 
       if (routeId == -1 || tripId == null) {
          if (routeId == -1)
@@ -181,7 +194,11 @@ class NotificationTrackerService : Service(), Live.UpdateListener {
          return START_REDELIVER_INTENT
       }
 
-      val schedule = Schedule.instance
+      val schedule = Schedule.instanceLoaded
+         ?: run {
+            Log.w(TAG, "onStartCommand: schedule not loaded")
+            return START_REDELIVER_INTENT
+         }
       val trips = schedule.getTripsOfRoute(routeId).value
       trip = trips?.list?.get(tripId)
          ?: run {
@@ -192,8 +209,8 @@ class NotificationTrackerService : Service(), Live.UpdateListener {
          ?.get(trip.directionId) ?: run {
          Log.w(TAG, "onStartCommand: trip headsign not found")
       }
-      val stopsList = schedule.stops?.list
-      stopNames = trip.stops.associateWith { stopsList?.get(it.toStopId())?.name.orLoading() }
+      val stopsList = schedule.stops.list
+      stopNames = trip.stops.associateWith { stopsList[it.toStopId()]?.name.orLoading() }
 
       val deleteIntent = PendingIntent.getBroadcast(
          /* context = */ this,
@@ -221,7 +238,7 @@ class NotificationTrackerService : Service(), Live.UpdateListener {
                   .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                   .putExtra(EXTRA_ROUTE_ID, routeId)
                   .putExtra(EXTRA_TRIP_ID, tripId)
-                  .putExtra(EXTRA_TIME_OFFSET, timeOffset),
+                  .putExtra(EXTRA_SELECTED_DATE, selectedDate),
                /* flags = */ PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
             )
          )

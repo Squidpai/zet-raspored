@@ -32,7 +32,6 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
@@ -61,7 +60,6 @@ import hr.squidpai.zetlive.gtfs.toParentStopId
 import hr.squidpai.zetlive.orLoading
 import hr.squidpai.zetlive.timeToString
 import hr.squidpai.zetlive.ui.composables.IconButton
-import kotlinx.coroutines.launch
 
 @Composable
 fun MainActivityStops(groupedStops: SortedListMap<StopId, GroupedStop>) =
@@ -121,8 +119,6 @@ private fun StopFilterSearchBar(
 ) {
    val (input, setInput) = inputState
 
-   val coroutineScope = rememberCoroutineScope()
-
    val updateInput = updateInput@{ newInput: String ->
       if (newInput.length > 100)
          return@updateInput
@@ -133,7 +129,7 @@ private fun StopFilterSearchBar(
       val oldInputTrimmed = input.trim()
 
       if (newInputTrimmed != oldInputTrimmed) {
-         coroutineScope.launch { lazyListState.scrollToItem(0, 0) }
+         lazyListState.requestScrollToItem(0)
 
          val newList =
             if (input in newInput) list.filter(newInputTrimmed)
@@ -187,7 +183,11 @@ fun GroupedStop.labeledStop(routesAtStopMap: RoutesAtStopMap?) = childStops
    .sorted()
 
 @Composable
-private fun StopContent(groupedStop: GroupedStop, pinned: Boolean, modifier: Modifier) {
+private fun StopContent(
+   groupedStop: GroupedStop,
+   pinned: Boolean,
+   modifier: Modifier,
+) {
    val (expanded, setExpanded) =
       rememberSaveable(key = "st${groupedStop.parentStop.id.value}") { mutableStateOf(false) }
 
@@ -198,8 +198,7 @@ private fun StopContent(groupedStop: GroupedStop, pinned: Boolean, modifier: Mod
       tonalElevation = if (expanded) 2.dp else 0.dp,
    ) {
       Column {
-         val schedule = Schedule.instance
-         val routesAtStopMap = schedule.routesAtStopMap
+         val routesAtStopMap = Schedule.instanceLoaded?.routesAtStopMap
 
          Row(
             modifier = Modifier
@@ -354,29 +353,27 @@ private fun ColumnScope.StopLiveTravels(stop: Stop, routesAtStopMap: RoutesAtSto
 
    val context = LocalContext.current
 
-   for ((routeNumber, headsign, trip, absoluteTime, relativeTime, useRelative) in live) {
-      Row(
-         Modifier
-            .clickable { TripDialogActivity.selectTrip(context, trip, 0L) }
-            .padding(vertical = 4.dp),
-         verticalAlignment = Alignment.CenterVertically
-      ) {
-         val routeStyle = MaterialTheme.typography.titleMedium
-         Text(
-            text = routeNumber.toString(),
-            modifier = Modifier.width(with(LocalDensity.current) { (routeStyle.fontSize * 3.5f).toDp() }),
-            color = MaterialTheme.colorScheme.primary,
-            textAlign = TextAlign.Center,
-            style = routeStyle,
-         )
-         Text(headsign, Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-         Text(
-            if (useRelative) "${(relativeTime.coerceAtLeast(0)) / 60} min"
-            else absoluteTime.timeToString(),
-            modifier = Modifier.padding(end = 4.dp),
-            color = MaterialTheme.colorScheme.primary,
-            fontWeight = FontWeight.Bold,
-         )
-      }
+   for (entry in live) Row(
+      Modifier
+         .clickable { TripDialogActivity.show(context, entry.trip, entry.selectedDate) }
+         .padding(vertical = 4.dp),
+      verticalAlignment = Alignment.CenterVertically
+   ) {
+      val routeStyle = MaterialTheme.typography.titleMedium
+      Text(
+         text = entry.routeId.toString(),
+         modifier = Modifier.width(with(LocalDensity.current) { (routeStyle.fontSize * 3.5f).toDp() }),
+         color = MaterialTheme.colorScheme.primary,
+         textAlign = TextAlign.Center,
+         style = routeStyle,
+      )
+      Text(entry.headsign, Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+      Text(
+         if (entry.useRelative) "${(entry.relativeTime.coerceAtLeast(0)) / 60} min"
+         else entry.absoluteTime.timeToString(),
+         modifier = Modifier.padding(end = 4.dp),
+         color = MaterialTheme.colorScheme.primary,
+         fontWeight = FontWeight.Bold,
+      )
    }
 }

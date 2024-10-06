@@ -1,48 +1,26 @@
 package hr.squidpai.zetlive.gtfs
 
 import android.util.Log
-import androidx.collection.MutableIntObjectMap
-import androidx.compose.runtime.MutableState
-import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import hr.squidpai.zetlive.decrementInt
 import hr.squidpai.zetlive.localEpochDate
-import hr.squidpai.zetlive.nullState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.plus
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
 import java.net.MalformedURLException
 import java.net.URL
 import java.nio.channels.Channels
-import java.util.zip.ZipException
 import java.util.zip.ZipFile
 
 sealed interface Schedule {
-
-   val feedInfo: FeedInfo?
-
-   val routes: Routes?
-
-   val stops: Stops?
-
-   val calendarDates: CalendarDates?
-
-   fun getTripsOfRoute(routeId: RouteId): State<Trips?>
-
-   val routesAtStopMap: RoutesAtStopMap?
-
-   val serviceIdTypes: ServiceIdTypes?
 
    companion object {
       private const val TAG = "ScheduleInit"
@@ -69,6 +47,8 @@ sealed interface Schedule {
 
       var instance by mutableStateOf<Schedule>(EmptySchedule())
          private set
+
+      val instanceLoaded get() = instance as? LoadedSchedule
 
       var lastCheckedLatestVersion by mutableStateOf<String?>(null)
          private set
@@ -97,10 +77,10 @@ sealed interface Schedule {
                   instance = LoadedSchedule(parentScope, originalZipFile, stopTimesDirectory)
                } catch (e: Exception) {
                   Log.e(TAG, "init: an error occurred while loading the schedule", e)
-               }
 
-            if (oldInstance.errorType != null)
-               instance = EmptySchedule()
+                  if (oldInstance.errorType != null)
+                     instance = EmptySchedule()
+               }
          }
 
          parentScope.launch {
@@ -151,17 +131,26 @@ sealed interface Schedule {
          }
       }
 
+      private data class DownloadResult(
+         val newFeedInfo: FeedInfo?,
+         val errorType: ErrorType?,
+      ) {
+         constructor(feedInfo: FeedInfo?) : this(feedInfo, errorType = null)
+
+         constructor(errorType: ErrorType) : this(newFeedInfo = null, errorType)
+      }
+
       private fun download(
          link: String,
          cachedVersion: String?,
          newZipFile: File,
          newStopTimes: File,
-      ): Pair<FeedInfo?, ErrorType?> {
+      ): DownloadResult {
          val url = try {
             URL(link).also { Log.d(TAG, "URL initialized successfully.") }
          } catch (e: MalformedURLException) {
             Log.w(TAG, "Malformed URL.", e)
-            return null to ErrorType.MALFORMED_URL
+            return DownloadResult(ErrorType.MALFORMED_URL)
          }
 
          val connection = try {
@@ -172,13 +161,13 @@ sealed interface Schedule {
             }
          } catch (e: IOException) {
             Log.w(TAG, "IOException occurred while opening connection.", e)
-            return null to ErrorType.OPENING_CONNECTION
+            return DownloadResult(ErrorType.OPENING_CONNECTION)
          }
 
          val fieldValue = connection.getHeaderField("Content-Disposition")
             ?: run { // no content, do not download anything
                Log.d(TAG, "No content, not downloading.")
-               return null to ErrorType.NO_CONTENT
+               return DownloadResult(ErrorType.NO_CONTENT)
             }
 
          Log.d(TAG, "fieldValue exists: $fieldValue")
@@ -187,7 +176,7 @@ sealed interface Schedule {
          if (index == -1) {
             Log.d(TAG, "No filename")
             // no file name, do not download
-            return null to ErrorType.NO_FILENAME
+            return DownloadResult(ErrorType.NO_FILENAME)
          }
          val newVersion = fieldValue.substring(index + 9).replace("\"", "").feedVersion
          lastCheckedLatestVersion = newVersion
@@ -203,9 +192,10 @@ sealed interface Schedule {
 
                   // do not download if the new schedule is already up-to-date.
                   if (newVersion == newFeedInfo.version)
-                     return newFeedInfo to ErrorType.UP_TO_DATE
+                     return DownloadResult(newFeedInfo, ErrorType.UP_TO_DATE)
                } catch (_: IOException) {
-                  // new schedule is invalid
+                  // new schedule is invalid, delete it
+                  newZipFile.delete()
                }
             }
 
@@ -218,7 +208,7 @@ sealed interface Schedule {
                      output.channel.transferFrom(
                         Channels.newChannel(inputStream),
                         0L,
-                        Long.MAX_VALUE
+                        Long.MAX_VALUE,
                      )
                   }
                }
@@ -237,10 +227,10 @@ sealed interface Schedule {
             }
          } else {
             Log.d(TAG, "Schedule already up-to-date.")
-            return null to ErrorType.UP_TO_DATE
+            return DownloadResult(ErrorType.UP_TO_DATE)
          }
 
-         return newFeedInfo to null
+         return DownloadResult(newFeedInfo)
       }
 
       fun update(filesDir: File, link: String = LINK): Deferred<ErrorType?> {
@@ -257,8 +247,8 @@ sealed interface Schedule {
 
                val downloadResult =
                   download(link, originalSchedule?.feedInfo?.version, newZipFile, newStopTimes)
-               var newFeedInfo = downloadResult.first
-               errorType = downloadResult.second
+               var newFeedInfo = downloadResult.newFeedInfo
+               errorType = downloadResult.errorType
 
                if (!newZipFile.isFile) {
                   Log.d(TAG, "No new schedule found.")
@@ -271,6 +261,7 @@ sealed interface Schedule {
                      newFeedInfo = newZipFile.feedInfo
                   } catch (e: IOException) {
                      Log.d(TAG, "Zip file invalid: $e")
+                     newZipFile.delete()
                      return@downloading
                   }
 
@@ -295,9 +286,13 @@ sealed interface Schedule {
                   }
 
                   Log.d(TAG, "Loading new schedule...")
-                  // new schedule isn't loaded. load it and then replace the old one with it
-                  val builder = ScheduleBuilder(newZipFile, newStopTimes)
-                  replaceSchedule(filesDir, newZipFile, newStopTimes, builder)
+                  try {
+                     // new schedule isn't loaded. load it and then replace the old one with it
+                     val builder = ScheduleBuilder(newZipFile, newStopTimes)
+                     replaceSchedule(filesDir, newZipFile, newStopTimes, builder)
+                  } catch (e: IOException) {
+                     Log.e(TAG, "ScheduleBuilder failed", e)
+                  }
                   return@downloading
                }
                Log.d(TAG, "New schedule hasn't started yet.")
@@ -340,7 +335,11 @@ sealed interface Schedule {
                // new schedule hasn't started yet, load it behind the scenes
                if (!TripsLoader.tripsLoaded(newStopTimes)) {
                   Log.d(TAG, "Loading new schedule behind the scenes.")
-                  TripsLoader.loadTrips(newZipFile, newStopTimes, TripsLoader.PriorityLevel.Hidden)
+                  try {
+                     TripsLoader.loadTrips(newZipFile, newStopTimes, TripsLoader.PriorityLevel.Hidden)
+                  } catch (e: IOException) {
+                     Log.e(TAG, "Failed to load new trips hidden", e)
+                  }
                }
 
             }
@@ -355,16 +354,16 @@ sealed interface Schedule {
          newStopTimes: File,
          builder: ScheduleBuilder? = null
       ) {
+         (instance as? LoadedSchedule)?.cancel()
+
          val originalZipFile = File(filesDir, SCHEDULE_NAME)
          val originalStopTimes = File(filesDir, STOP_TIMES)
          originalZipFile.delete()
          originalStopTimes.deleteRecursively()
          newZipFile.renameTo(originalZipFile)
          newStopTimes.renameTo(originalStopTimes)
-         val oldSchedule = instance as? LoadedSchedule
          try {
             instance = LoadedSchedule(parentScope, originalZipFile, originalStopTimes, builder)
-            oldSchedule?.cancel()
          } catch (e: Exception) {
             Log.e(TAG, "replaceSchedule: failed to init schedule", e)
          }
@@ -406,141 +405,9 @@ class ScheduleBuilder(zipFile: File, stopTimesDirectory: File) {
    }
 }
 
-/** The actual schedule implementation containing all schedule data. */
-class LoadedSchedule(
-   parentScope: CoroutineScope,
-   val zipFile: File,
-   val stopTimesDirectory: File,
-   scheduleBuilder: ScheduleBuilder? = null,
-) : Schedule {
-
-   private val scope = parentScope + Job()
-
-   override var feedInfo by mutableStateOf<FeedInfo?>(null)
-
-   override var routes by mutableStateOf(Routes.empty)
-
-   override var stops by mutableStateOf(Stops.empty)
-
-   override var calendarDates by mutableStateOf<CalendarDates?>(null)
-
-   override var routesAtStopMap by mutableStateOf<RoutesAtStopMap?>(null)
-
-   private var _serviceIdTypes by mutableStateOf<ServiceIdTypes?>(null)
-
-   private val fieldLock = Any()
-
-   init {
-      try {
-         ZipFile(zipFile).use { zip ->
-            feedInfo = zip.feedInfo
-            routes = scheduleBuilder?.routes ?: Routes(zip)
-            stops = Stops(zip)
-            calendarDates = CalendarDates(zip)
-         }
-      } catch (e: ZipException) {
-         // zip file is probably corrupted, delete it
-         zipFile.delete()
-         stopTimesDirectory.deleteRecursively()
-         throw e
-      }
-      scope.launch {
-         if (scheduleBuilder == null) {
-            // stop times and routesAtStopMap are
-            // already loaded with scheduleBuilder
-
-            routesAtStopMap = TripsLoader.getRoutesAtStopMap(stopTimesDirectory)
-            if (!TripsLoader.tripsLoaded(stopTimesDirectory))
-               loadStopTimesAsync(TripsLoader.PriorityLevel.Foreground)
-         } else {
-            routesAtStopMap = scheduleBuilder.routesAtStopMap
-         }
-      }
-   }
-
-   fun cancel() = scope.cancel()
-
-   override val serviceIdTypes: ServiceIdTypes?
-      get() {
-         val serviceIdTypes = _serviceIdTypes
-
-         if (serviceIdTypes != null)
-            return serviceIdTypes
-
-         val loaded = TripsLoader.loadServiceIdTypes(stopTimesDirectory)
-
-         if (loaded != null)
-            return loaded.also { _serviceIdTypes = it }
-
-         val given = Love.giveMeTheServiceIdTypes(this)
-
-         if (given != null)
-            return given.also {
-               _serviceIdTypes = it
-               TripsLoader.saveServiceIdTypes(stopTimesDirectory, it)
-            }
-
-         return null
-      }
-
-   private val tripsCache = MutableIntObjectMap<State<Trips?>>()
-
-   @Synchronized
-   override fun getTripsOfRoute(routeId: RouteId) =
-      tripsCache.getOrPut(routeId) {
-         val stopTimes = TripsLoader.getTripsOfRoute(stopTimesDirectory, routeId)
-
-         if (stopTimes == null)
-            loadStopTimesAsync(TripsLoader.PriorityLevel.Hidden)
-
-         mutableStateOf(stopTimes)
-      }
-
-   private var loadingStopTimes = false
-
-   private fun loadStopTimesAsync(priorityLevel: TripsLoader.PriorityLevel) {
-      synchronized(fieldLock) {
-         if (loadingStopTimes) return
-         loadingStopTimes = true
-      }
-
-      scope.launch {
-         try {
-            TripsLoader.loadTrips(zipFile, stopTimesDirectory, priorityLevel)
-
-            tripsCache.forEach { routeId, state ->
-               (state as MutableState).value =
-                  TripsLoader.getTripsOfRoute(stopTimesDirectory, routeId)
-            }
-
-            routesAtStopMap = TripsLoader.getRoutesAtStopMap(stopTimesDirectory)
-         } finally {
-            loadingStopTimes = false
-         }
-      }
-   }
-
-}
-
 /**
  * A default schedule used in place of the actual schedule.
  * Displayed before the actual schedule is loaded (in which case [errorType] is `null`) or
  * if an error occurs while loading the schedule.
  */
-data class EmptySchedule(val errorType: Schedule.ErrorType? = null) : Schedule {
-
-   override val feedInfo = null
-
-   override val routes = null
-
-   override val stops = null
-
-   override val calendarDates = null
-
-   override val serviceIdTypes = null
-
-   override fun getTripsOfRoute(routeId: RouteId) = nullState<Trips>()
-
-   override val routesAtStopMap = null
-
-}
+data class EmptySchedule(val errorType: Schedule.ErrorType? = null) : Schedule

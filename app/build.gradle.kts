@@ -12,8 +12,8 @@ android {
       applicationId = "hr.squidpai.zetlive"
       minSdk = 26
       targetSdk = 35
-      versionCode = 11
-      versionName = "0.6.2"
+      versionCode = 12
+      versionName = "0.7"
 
       testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
       vectorDrawables {
@@ -56,6 +56,8 @@ dependencies {
    implementation("androidx.compose.ui:ui-graphics:1.7.2")
    implementation("androidx.compose.ui:ui-tooling-preview:1.7.2")
    implementation("androidx.compose.material3:material3:1.3.0")
+   implementation("com.google.android.play:app-update:2.1.0")
+   implementation("com.google.android.play:app-update-ktx:2.1.0")
    implementation("com.opencsv:opencsv:5.9")
    implementation("org.mobilitydata:gtfs-realtime-bindings:0.0.8")
    testImplementation("junit:junit:4.13.2")

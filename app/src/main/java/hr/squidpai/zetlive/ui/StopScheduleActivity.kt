@@ -88,12 +88,12 @@ class StopScheduleActivity : ComponentActivity() {
       enableEdgeToEdge()
       setContent {
          AppTheme {
-            val schedule = Schedule.instance
+            val schedule = Schedule.instanceLoaded
 
             val groupedStop =
-               schedule.stops?.groupedStops?.get(stopId.stationNumber.toParentStopId())
+               schedule?.stops?.groupedStops?.get(stopId.stationNumber.toParentStopId())
 
-            val routesAtStopMap = schedule.routesAtStopMap
+            val routesAtStopMap = schedule?.routesAtStopMap
 
             Scaffold(
                topBar = { MyTopAppBar(groupedStop?.parentStop?.name.orLoading()) },
@@ -278,41 +278,44 @@ class StopScheduleActivity : ComponentActivity() {
          },
       ) {
          items(live.size) {
-            val (
-               routeNumber, headsign, stopTime, absoluteTime, relativeTime,
-               useRelative, departed,
-            ) = live[it]
+            val entry = live[it]
 
             Row(
                Modifier
                   .clickable {
-                     TripDialogActivity.selectTrip(this@StopScheduleActivity, stopTime, 0L)
+                     TripDialogActivity.show(
+                        this@StopScheduleActivity,
+                        entry.trip,
+                        entry.selectedDate,
+                     )
                   }
                   .padding(vertical = 8.dp),
-               verticalAlignment = Alignment.CenterVertically
+               verticalAlignment = Alignment.CenterVertically,
             ) {
                val routeStyle = MaterialTheme.typography.titleMedium
                Text(
-                  text = routeNumber.toString(),
-                  modifier = Modifier.width(with(LocalDensity.current) { (routeStyle.fontSize * 3.5f).toDp() }),
-                  color = if (!departed) MaterialTheme.colorScheme.primary else departedColor,
+                  text = entry.routeId.toString(),
+                  modifier = Modifier.width(with(LocalDensity.current) {
+                     (routeStyle.fontSize * 3.5f).toDp()
+                  }),
+                  color = if (!entry.departed) MaterialTheme.colorScheme.primary else departedColor,
                   textAlign = TextAlign.Center,
                   style = routeStyle,
                )
                Text(
-                  headsign,
+                  entry.headsign,
                   Modifier.weight(1f),
-                  color = if (!departed) Color.Unspecified else departedColor,
+                  color = if (!entry.departed) Color.Unspecified else departedColor,
                   maxLines = 1,
                   overflow = TextOverflow.Ellipsis,
                )
                Text(
-                  if (departed) "otišao"
-                  else if (useRelative) "${relativeTime / 60} min"
-                  else absoluteTime.timeToString(),
+                  if (entry.departed) "otišao"
+                  else if (entry.useRelative) "${entry.relativeTime / 60} min"
+                  else entry.absoluteTime.timeToString(),
                   modifier = Modifier.padding(end = 4.dp),
-                  color = if (!departed) MaterialTheme.colorScheme.primary else departedColor,
-                  fontWeight = FontWeight.Bold.takeUnless { departed },
+                  color = if (!entry.departed) MaterialTheme.colorScheme.primary else departedColor,
+                  fontWeight = FontWeight.Bold.takeUnless { entry.departed },
                )
             }
          }

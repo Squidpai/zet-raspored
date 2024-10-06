@@ -43,11 +43,6 @@ class Stops(val list: SortedListMap<StopId, Stop>) {
       currentGroup.stopType = if (currentGroup.childStops.any { it.code < 10 }) StopType.Tram else StopType.Bus
     }
   }.asSortedListMap { it.parentStop.id }
-
-  companion object {
-    val empty = Stops()
-  }
-
 }
 
 fun List<GroupedStop>.filter(trimmedInput: String): List<GroupedStop> {
@@ -149,7 +144,7 @@ inline fun Int.toParentStopId() = StopId(this, 0)
 @Suppress("NOTHING_TO_INLINE")
 inline fun Int.toStopId() = StopId(this)
 
-class Stop(
+data class Stop(
   val id: StopId,
   val code: Int,
   val name: String,
@@ -157,6 +152,9 @@ class Stop(
   val longitude: Float,
   val parentId: Int,
 ) {
+
+  override fun toString() =
+    "Stop(${id.value}.toStopId(), $code, \"$name\", ${latitude}f, ${longitude}f, $parentId)"
 
   fun getLabel(routesAtStopMap: RoutesAtStopMap?) =
     Love.giveMeTheLabelForStop(id) ?: getLabelFrom(routesAtStopMap?.get(id.value))

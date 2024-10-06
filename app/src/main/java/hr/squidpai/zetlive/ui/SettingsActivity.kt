@@ -46,10 +46,13 @@ import hr.squidpai.zetlive.Data
 import hr.squidpai.zetlive.gtfs.LoadedSchedule
 import hr.squidpai.zetlive.gtfs.RouteScheduleEntry
 import hr.squidpai.zetlive.gtfs.Schedule
+import hr.squidpai.zetlive.gtfs.Stop
 import hr.squidpai.zetlive.gtfs.StopId
 import hr.squidpai.zetlive.gtfs.Trip
 import hr.squidpai.zetlive.gtfs.feedInfo
+import hr.squidpai.zetlive.gtfs.toStopId
 import hr.squidpai.zetlive.orLoading
+import hr.squidpai.zetlive.toSortedListMap
 import hr.squidpai.zetlive.ui.composables.IconButton
 import hr.squidpai.zetlive.ui.composables.LiveTravelSlider
 import kotlinx.coroutines.launch
@@ -57,7 +60,6 @@ import kotlinx.coroutines.launch
 class SettingsActivity : ComponentActivity() {
 
    companion object {
-
       val sampleRouteScheduleEntry = RouteScheduleEntry(
          nextStopIndex = 7,
          sliderValue = 6.25f,
@@ -84,8 +86,35 @@ class SettingsActivity : ComponentActivity() {
          overriddenFirstStop = StopId.Invalid,
          departureTime = -1,
          delayAmount = 0,
-         timeOffset = 0L,
+         selectedDate = 0,
       )
+
+      val sampleStops =
+         listOf(
+            /*Stop(6422529.toStopId(), 1, "Črnomerec", 45.815002f, 15.934932f, 98),
+            Stop(6553601.toStopId(), 1, "Sveti Duh", 45.813297f, 15.943123f, 100),
+            Stop(6619137.toStopId(), 1, "Mandaličina", 45.812428f, 15.948326f, 101),
+            Stop(6684673.toStopId(), 1, "Slovenska", 45.812458f, 15.951965f, 102),
+            Stop(6750209.toStopId(), 1, "Trg dr. F. Tuđmana", 45.81311f, 15.956823f, 103),
+            Stop(11075585.toStopId(), 1, "Britanski trg", 45.81233f, 15.963088f, 169),*/
+            Stop(6881281.toStopId(), 1, "Frankopanska", 45.813465f, 15.969438f, 105),
+            Stop(6946817.toStopId(), 1, "Trg J. Jelačića", 45.812904f, 15.977312f, 106),
+            Stop(7012356.toStopId(), 4, "Zrinjevac", 45.808884f, 15.977743f, 107),
+            Stop(7143425.toStopId(), 1, "Glavni kolodvor", 45.805214f, 15.979278f, 109),
+            Stop(7274497.toStopId(), 1, "Branimirova", 45.805443f, 15.983765f, 111),
+            Stop(7340033.toStopId(), 1, "Branim. tržnica", 45.80614f, 15.99198f, 112),
+            /*Stop(7405572.toStopId(), 4, "Autobusni kol.", 45.803726f, 15.993918f, 113),
+            Stop(7471108.toStopId(), 4, "Držićeva", 45.80039f, 15.995899f, 114),
+            Stop(7536644.toStopId(), 4, "Slavonska", 45.79687f, 15.998658f, 115),
+            Stop(11206660.toStopId(), 4, "Folnegovićevo", 45.79224f, 16.002188f, 171),
+            Stop(113311748.toStopId(), 4, "Borovje", 45.788567f, 16.004211f, 1729),
+            Stop(7667716.toStopId(), 4, "Most mladosti", 45.78189f, 16.00128f, 117),
+            Stop(12124164.toStopId(), 4, "Zapruđe", 45.77896f, 16.00186f, 185),
+            Stop(12124162.toStopId(), 2, "Zapruđe", 45.778072f, 15.999797f, 185),
+            Stop(11993090.toStopId(), 2, "Utrina", 45.777977f, 15.995805f, 183),
+            Stop(11862018.toStopId(), 2, "Središće", 45.777817f, 15.989334f, 181),
+            Stop(117571596.toStopId(), 12, "Sopot", 45.77772f, 15.984625f, 1794),*/
+         ).toSortedListMap { it.id }
    }
 
    override fun onCreate(savedInstanceState: Bundle?) {
@@ -166,7 +195,7 @@ class SettingsActivity : ComponentActivity() {
                }
                Text("Primjer", style = MaterialTheme.typography.labelLarge)
 
-               LiveTravelSlider(sampleRouteScheduleEntry, interactable = false)
+               LiveTravelSlider(sampleRouteScheduleEntry, sampleStops, interactable = false)
             }
          }
       )
@@ -178,8 +207,7 @@ class SettingsActivity : ComponentActivity() {
       var showDialog by remember { mutableStateOf(false) }
 
       val schedule = Schedule.instance
-      val feedInfo = schedule.feedInfo
-      val isInitialized = schedule is LoadedSchedule
+      val feedInfo = (schedule as? LoadedSchedule)?.feedInfo
 
       Column(
          modifier = Modifier
@@ -188,7 +216,7 @@ class SettingsActivity : ComponentActivity() {
       ) {
          Text("Informacije o rasporedu", style = MaterialTheme.typography.titleLarge)
          Text(
-            if (isInitialized) "Verzija: ${feedInfo?.version.orLoading()}"
+            if (feedInfo != null) "Verzija: ${feedInfo.version}"
             else "Nema preuzetog rasporeda",
             color = lerp(LocalContentColor.current, MaterialTheme.colorScheme.background, .20f),
             fontSize = 12.sp,
@@ -205,10 +233,10 @@ class SettingsActivity : ComponentActivity() {
          title = { Text("Informacije o rasporedu") },
          text = {
             Column(Modifier.fillMaxWidth()) {
-               if (isInitialized) {
+               if (schedule is LoadedSchedule) {
                   val latestVersion = Schedule.lastCheckedLatestVersion
                   val startDate = feedInfo?.startDate
-                  val lastDate = schedule.calendarDates?.lastDate
+                  val lastDate = schedule.calendarDates.lastDate
                   val newScheduleFeedInfo = try {
                      Schedule.getNewScheduleFile(filesDir).feedInfo
                   } catch (e: Exception) {

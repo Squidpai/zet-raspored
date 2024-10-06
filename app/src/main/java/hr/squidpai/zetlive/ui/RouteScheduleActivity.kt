@@ -60,9 +60,9 @@ import hr.squidpai.zetlive.MILLIS_IN_SECONDS
 import hr.squidpai.zetlive.SECONDS_IN_DAY
 import hr.squidpai.zetlive.any
 import hr.squidpai.zetlive.get
+import hr.squidpai.zetlive.gtfs.CalendarDates
 import hr.squidpai.zetlive.gtfs.Live
 import hr.squidpai.zetlive.gtfs.Love
-import hr.squidpai.zetlive.gtfs.Route
 import hr.squidpai.zetlive.gtfs.RouteId
 import hr.squidpai.zetlive.gtfs.Schedule
 import hr.squidpai.zetlive.gtfs.ServiceId
@@ -133,15 +133,29 @@ class RouteScheduleActivity : ComponentActivity() {
       enableEdgeToEdge()
       setContent {
          AppTheme {
-            val schedule = Schedule.instance
+            val schedule = Schedule.instanceLoaded
 
-            val route = schedule.routes?.list?.get(key = routeId)
-            val trips = schedule.getTripsOfRoute(routeId).value
+            val route = schedule?.routes?.list?.get(key = routeId)
 
-            val serviceIdTypes = schedule.serviceIdTypes
-
-            Scaffold(topBar = { MyTopAppBar(route) }) { padding ->
-               MyContent(routeId, trips, serviceIdTypes, Modifier.padding(padding))
+            Scaffold(topBar = {
+               MyTopAppBar(
+                  when {
+                     route != null -> "${route.shortName} ${route.longName}"
+                     schedule == null -> "$routeId $LOADING_TEXT"
+                     else -> routeId.toString()
+                  }
+               )
+            }) { padding ->
+               if (schedule != null)
+                  MyContent(
+                     routeId = routeId,
+                     stops = schedule.stops,
+                     trips = schedule.getTripsOfRoute(routeId).value,
+                     serviceIdTypes = schedule.serviceIdTypes,
+                     calendarDates = schedule.calendarDates,
+                     modifier = Modifier.padding(padding),
+                  )
+               else CircularLoadingBox(Modifier.padding(padding))
             }
          }
       }
@@ -159,10 +173,10 @@ class RouteScheduleActivity : ComponentActivity() {
 
    @OptIn(ExperimentalMaterial3Api::class)
    @Composable
-   private fun MyTopAppBar(route: Route?) = TopAppBar(
+   private fun MyTopAppBar(titleText: String) = TopAppBar(
       title = {
          Text(
-            if (route != null) "${route.shortName} ${route.longName}" else LOADING_TEXT,
+            titleText,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
          )
@@ -181,23 +195,23 @@ class RouteScheduleActivity : ComponentActivity() {
    @Composable
    private fun MyContent(
       routeId: RouteId,
+      stops: Stops,
       trips: Trips?,
       serviceIdTypes: ServiceIdTypes?,
+      calendarDates: CalendarDates,
       modifier: Modifier = Modifier,
    ) = Column(modifier) {
-      val calendarDates = Schedule.instance.calendarDates
-
-      val yesterdayServiceId = calendarDates?.get(todaysDate - 1)
+      val yesterdayServiceId = calendarDates[todaysDate - 1]
       val isYesterdayUnfinished = trips != null && yesterdayServiceId != null &&
             trips.list.any {
                it.serviceId == yesterdayServiceId &&
                      it.departures.last() - 1 * SECONDS_IN_DAY > todaysTime / MILLIS_IN_SECONDS
             }
       val todayTabOffset = if (isYesterdayUnfinished) 2 else 1
-      val serviceIds = calendarDates?.relativeSubRange(
+      val serviceIds = calendarDates.relativeSubRange(
          todaysDate,
          if (isYesterdayUnfinished) -2..7 else -1..7
-      ).orEmpty()
+      )
 
       val pagerState = rememberPagerState(initialPage = 1) {
          if (isYesterdayUnfinished) 10 else 9
@@ -214,8 +228,6 @@ class RouteScheduleActivity : ComponentActivity() {
          },
          serviceIdTypes,
       )
-
-      val stops = Schedule.instance.stops
 
       HorizontalPager(pagerState, verticalAlignment = Alignment.Top) {
          val serviceId = serviceIds.getOrNull(it)
@@ -313,8 +325,6 @@ class RouteScheduleActivity : ComponentActivity() {
             val stopId = trip.stops.first().toStopId()
 
             val stop = if (stopId != commonFirstStop) stops?.list?.get(stopId) else null
-
-            Log.d(TAG, "stopId = $stopId, commonFirstStop = $commonFirstStop, stop = $stop")
 
             if (i == firstOfNextDay) {
                HorizontalDivider(Modifier.padding(horizontal = 4.dp))
@@ -490,7 +500,11 @@ class RouteScheduleActivity : ComponentActivity() {
             )
          },
          modifier = modifier.clickable {
-            TripDialogActivity.selectTrip(this, trip, selectedDate * MILLIS_IN_DAY)
+            TripDialogActivity.show(
+               this,
+               trip,
+               selectedDate = selectedDate.toInt(),
+            )
          },
          measurePolicy = TripRowMeasurePolicy,
       )
@@ -505,48 +519,26 @@ class RouteScheduleActivity : ComponentActivity() {
       onSetSelectedTabIndex: (Int) -> Unit,
       serviceIdTypes: ServiceIdTypes?,
       modifier: Modifier = Modifier,
-   ) {
-      // refresh service id on change of calendarDates
-      /*LaunchedEffect(calendarDates) {
-         onSetServiceId(
-            SelectedServiceState(
-               serviceId = serviceIds.getOrNull(selectedTabIndex),
-               date = todaysDate + selectedTabIndex - todayTabOffset,
-               index = selectedTabIndex,
-            )
+   ) = PrimaryScrollableTabRow(
+      selectedTabIndex, modifier,
+      indicator = {
+         TabRowDefaults.PrimaryIndicator(
+            Modifier.tabIndicatorOffset(selectedTabIndex, matchContentSize = true),
+            width = Dp.Unspecified,
+            color = (serviceIdTypes?.get(serviceIds[selectedTabIndex])
+               ?: ServiceIdType.WEEKDAY).contentColor
          )
-      }*/
+      }
+   ) {
+      serviceIds.forEachIndexed { i, serviceId ->
+         val type = serviceIdTypes?.get(serviceId) ?: ServiceIdType.WEEKDAY
 
-      PrimaryScrollableTabRow(
-         selectedTabIndex, modifier,
-         indicator = {
-            TabRowDefaults.PrimaryIndicator(
-               Modifier.tabIndicatorOffset(selectedTabIndex, matchContentSize = true),
-               width = Dp.Unspecified,
-               color = (serviceIdTypes?.get(serviceIds[selectedTabIndex])
-                  ?: ServiceIdType.WEEKDAY).contentColor
-            )
-         }
-      ) {
-         serviceIds.forEachIndexed { i, serviceId ->
-            val type = serviceIdTypes?.get(serviceId) ?: ServiceIdType.WEEKDAY
-
-            Tab(
-               selected = selectedTabIndex == i,
-               onClick = {
-                  onSetSelectedTabIndex(i)
-                  /*onSetServiceId(
-                     SelectedServiceState(
-                        serviceId = serviceId,
-                        date = todaysDate + i - todayTabOffset,
-                        index = i,
-                     )
-                  )*/
-               },
-               text = { Text(getLabel(i - todayTabOffset)) },
-               selectedContentColor = type.contentColor,
-            )
-         }
+         Tab(
+            selected = selectedTabIndex == i,
+            onClick = { onSetSelectedTabIndex(i) },
+            text = { Text(getLabel(i - todayTabOffset)) },
+            selectedContentColor = type.contentColor,
+         )
       }
    }
 
