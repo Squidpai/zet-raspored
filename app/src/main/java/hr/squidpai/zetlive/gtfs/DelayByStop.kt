@@ -47,7 +47,7 @@ fun List<GtfsRealtime.TripUpdate.StopTimeUpdate>?.getDelayByStop() =
  * Returns a specific [DelayByStop] instance appropriate for the given [tripId].
  */
 fun Live?.getDelayByStopForTrip(tripId: TripId) =
-  this?.findForTrip(tripId)?.tripUpdate?.stopTimeUpdateList.getDelayByStop()
+  this?.findForTripIgnoringServiceId(tripId)?.tripUpdate?.stopTimeUpdateList.getDelayByStop()
 
 /**
  * Calculates the estimated amount the route has traveled between the current and the next stop

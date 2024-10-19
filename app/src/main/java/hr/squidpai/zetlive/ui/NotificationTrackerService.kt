@@ -80,7 +80,7 @@ class NotificationTrackerService : Service(), Live.UpdateListener {
       val offsetTime = (currentTimeMillis % MILLIS_IN_DAY +
             dateDifference * MILLIS_IN_DAY).toInt() / MILLIS_IN_SECONDS
 
-      val delays = live.findForTrip(trip.tripId)?.tripUpdate
+      val delays = live.findForTripIgnoringServiceId(trip.tripId)?.tripUpdate
          ?.takeIf {
             abs(
                it.timestamp - (trip.departures.first() +

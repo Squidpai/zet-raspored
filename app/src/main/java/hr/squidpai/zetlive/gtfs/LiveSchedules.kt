@@ -355,20 +355,19 @@ private fun Route.getLiveScheduleData(
 
       val offsetTime = if (isYesterday) time + SECONDS_IN_DAY else time
 
-      if (live.feedMessage != null) {
-         live.forEachOfRoute(this.id) {
-            val tripId = it.tripUpdate.trip.tripId
-            val next = trips.list[tripId]
-            if (next?.directionId == directionId) {
-               val delayByStop = it.tripUpdate.stopTimeUpdateList.getDelayByStop()
-               val nextStop = next.findNextStopIndexToday(offsetTime, delayByStop)
-               if (0 < nextStop && nextStop < next.stops.size) {
-                  list += next.toEntry(nextStop, delayByStop)
-               }
+      live.forEachOfRoute(this.id) {
+         val tripId = it.tripUpdate.trip.tripId
+         val next = trips.list[tripId]
+         if (next?.directionId == directionId) {
+            val delayByStop = it.tripUpdate.stopTimeUpdateList.getDelayByStop()
+            val nextStop = next.findNextStopIndexToday(offsetTime, delayByStop)
+            if (0 < nextStop && nextStop < next.stops.size) {
+               list += next.toEntry(nextStop, delayByStop)
             }
          }
-         list.sortBy { -it.nextStopIndex }
       }
+      list.sortBy { -it.nextStopIndex }
+
 
       val firstAfter: Trip
       while (true) {

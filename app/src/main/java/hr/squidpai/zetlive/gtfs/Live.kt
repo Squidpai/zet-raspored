@@ -24,12 +24,21 @@ class Live private constructor(
    fun findForTrip(tripId: TripId) =
       feedMessage?.entityList?.find { it.tripUpdate.trip.tripId == tripId }
 
+   fun findForTripIgnoringServiceId(tripId: TripId): GtfsRealtime.FeedEntity? {
+      val entityList = feedMessage?.entityList ?: return null
+      val underscoreIndex = tripId.indexOf('_', startIndex = 2)
+      if (underscoreIndex == -1)
+         return null
+      val tripIdWithoutServiceId = tripId.substring(underscoreIndex)
+      return entityList.find { it.tripUpdate.trip.tripId.endsWith(tripIdWithoutServiceId) }
+   }
+
    /**
     * Performs [action] on each element whose routeId matches [routeId].
     */
    inline fun forEachOfRoute(routeId: RouteId, action: (GtfsRealtime.FeedEntity) -> Unit) {
       feedMessage?.entityList?.forEach { entity ->
-         if (entity.tripUpdate.trip.routeId.toInt() == routeId) {
+         if (entity.tripUpdate.trip.routeId.toIntOrNull() == routeId) {
             action(entity)
          }
       }

@@ -221,7 +221,7 @@ class TripDialogActivity : ComponentActivity() {
                         dateDifference * MILLIS_IN_DAY).toInt() / MILLIS_IN_SECONDS
 
                   val tripUpdate = trip.tripId.let { id ->
-                     Live.instance.findForTrip(id)?.tripUpdate
+                     Live.instance.findForTripIgnoringServiceId(id)?.tripUpdate
                         ?.takeIf {
                            abs(
                               it.timestamp - (trip.departures.first() +
