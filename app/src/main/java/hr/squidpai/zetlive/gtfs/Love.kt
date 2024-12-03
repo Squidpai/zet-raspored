@@ -238,16 +238,18 @@ object Love {
          "po Jadranskoj aveniji" to null ifStop "635_23", // Jadranska av.-Arena (sjeverno)
          null to "po Jadranskoj aveniji" ifStop "635_24", // Jadranska av.-Arena (juzno)
       ],
-      140[null to "preko A.K.Snježna Kraljica" ifStop "1727_23"], // A.K.Snjezna Kraljica
+      140[null to "preko A.K. Snježna Kraljica" ifStop "1727_23"], // A.K.Snjezna Kraljica
       162["ne vozi preko Gajana" to null unlessStop "719_24"], // Gajani
       172[
-         null to "Terminal" ifStop "161_22", // Zapresic (peron 7)
+         // Every trip stops at that stop, so the label is unnecessary
+         //null to "Terminal" ifStop "161_22", // Zapresic (peron 7)
          "staje na Vrapčanskoj" to null ifStop "135_22", // Vrapcanska (zapadno)
       ],
-      174[
+      // Every trip stops at that stop, so the label is unnecessary
+      /*174[
          null to "preko Kupljenskog Hruševca" ifStop "1916_21", // Hrusevecka (istocno)
          "preko Kupljenskog Hruševca" to null ifStop "1916_22", // Hrusevecka (istocno)
-      ],
+      ],*/
       182[null to "preko Groblja Zaprešić" ifStop "1641_22"], // Groblje Zapresic
       212[null to "ne vozi preko Selčine" unlessStop "1028_21"], // Trg Lovre Matacica
       220["preko Travnog" to null ifStop "1093_23"], // Božidara Magovca 111
@@ -256,29 +258,31 @@ object Love {
          null to "preko Sloboštine" ifStop "1086_21", // Slobostina (istocno)
       ],
       268[
-         "preko S.R.Njemačke" to null ifStop "565_24", // Islandska (juzno)
-         null to "preko S.R.Njemačke" ifStop "565_22", // Islandska (zapadno)
+         "preko S.R. Njemačke" to null ifStop "565_24", // Islandska (juzno)
+         null to "preko S.R. Njemačke" ifStop "565_22", // Islandska (zapadno)
       ],
       269[
          "staje na Maksimirskim naseljima" to null ifStop "1133_21", // Maksimirska naselja (istocno)
          null to "staje na Maksimirskim naseljima" ifStop "1133_22", // Maksimirska naselja (zapadno)
       ],
-      276[null to "preko \"IKEA\"" ifStop "1889_23"], // IKEA
+      276[null to "preko IKEA-e" ifStop "1889_23"], // IKEA
       284[
          null to "preko Sesvetske Selnice" ifStop "1404_23", // Ferde Kocha (sjeverno)
          "preko Sesvetske Selnice" to null ifStop "1404_24", // Ferde Kocha (juzno)
       ],
-      302[null to "preko Ključić brda" ifStop "1839_22"], // Kljucic brdo
+      // These lines no longer exist
+      /*302[null to "preko Ključić brda" ifStop "1839_22"], // Kljucic brdo
       304[
          null to "preko Sisačke ceste" ifStop "874_21", // Sisacka - Mraclinska (istocno)
          "preko Sisačke ceste" to null ifStop "874_22", // Sisacka - Mraclinska (zapadno)
-      ],
+      ],*/
       307[null to "preko Sasa" ifStop "943_23"], // Sasi, okretiste (sjeverno)
-      321[
+      // These lines no longer exist
+      /*321[
          null to "preko Sasa" ifStop "943_23", // Sasi, okretiste (sjeverno)
          null to "preko Zabrebačke" ifStop "1201_22", // Zagrebacka 42
       ],
-      335["ne vozi preko Kurilovca" to null unlessStop "1298_22"], // Kolodvorska 76
+      335["ne vozi preko Kurilovca" to null unlessStop "1298_22"], // Kolodvorska 76*/
    )
 
    fun giveMeTheSpecialTripLabel(trip: Trip): Pair<String?, String?>? =
