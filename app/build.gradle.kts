@@ -60,6 +60,7 @@ dependencies {
    implementation("com.google.android.play:app-update-ktx:2.1.0")
    implementation("com.opencsv:opencsv:5.9")
    implementation("org.mobilitydata:gtfs-realtime-bindings:0.0.8")
+   implementation("androidx.lifecycle:lifecycle-process:2.8.7")
    testImplementation("junit:junit:4.13.2")
    androidTestImplementation("androidx.test.ext:junit:1.2.1")
    androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
