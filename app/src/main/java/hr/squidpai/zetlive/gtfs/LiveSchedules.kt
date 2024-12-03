@@ -82,7 +82,8 @@ private fun Route.getLiveSchedule(
 
    fun List<RouteScheduleData>.mapLiveScheduleData() = map { data ->
       val delay =
-         if (data.nextStopIndex == 0) live.getDelayByStopForTrip(data.trip.tripId)[0] else 0
+         if (data.nextStopIndex == 0) live.getDelayByStopForTrip(data.trip.tripId)[0]
+         else 0
 
       RouteScheduleEntry(
          nextStopIndex = data.nextStopIndex,
