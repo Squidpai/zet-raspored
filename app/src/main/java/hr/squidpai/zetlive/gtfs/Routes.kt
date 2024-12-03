@@ -39,7 +39,7 @@ value class Routes(val list: SortedListMap<RouteId, Route>) {
 
 }
 
-typealias RouteId = Int
+typealias RouteId = Int // TODO change it to string
 
 class Route(
   val id: RouteId,
