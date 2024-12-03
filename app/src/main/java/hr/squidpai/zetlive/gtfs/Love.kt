@@ -209,6 +209,7 @@ object Love {
       StopId(1402, 22) to DOWN, // Jelkovecka
    )
 
+   @Suppress("unused") // Used for testing the icon info, TODO should probably be moved someplace else...
    fun testLabels(stops: Stops, routesAtStops: RoutesAtStopMap) {
       for (stop in stops.list) {
          if (stop.code !in 0..4 && stop.code !in 21..24 && stop.id.value !in stopLabels && stop.id.value !in iconInfo) {
