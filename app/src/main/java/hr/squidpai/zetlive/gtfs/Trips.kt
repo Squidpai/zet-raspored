@@ -54,7 +54,7 @@ data class Trip(
    }
 
    fun joinStopsToString(
-      stopsList: SortedListMap<StopId, Stop>,
+      stopsList: Map<StopId, Stop>,
       beginIndex: Int = 0,
       endIndex: Int = stops.size,
       prefix: CharSequence? = null,
