@@ -177,13 +177,15 @@ private class EmptySavedStateRegistryOwner : SavedStateRegistryOwner {
 
    override val lifecycle: Lifecycle
       get() =
+         // lifecycleOwner for some reason can be null sometimes
+         @Suppress("UNNECESSARY_SAFE_CALL")
          object : Lifecycle() {
             override fun addObserver(observer: LifecycleObserver) {
-               lifecycleOwner.lifecycle.addObserver(observer)
+               lifecycleOwner?.lifecycle?.addObserver(observer)
             }
 
             override fun removeObserver(observer: LifecycleObserver) {
-               lifecycleOwner.lifecycle.removeObserver(observer)
+               lifecycleOwner?.lifecycle?.removeObserver(observer)
             }
 
             override val currentState = State.INITIALIZED
