@@ -18,7 +18,8 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:gravity="center_vertical"
-        android:orientation="horizontal">
+        android:orientation="horizontal"
+        android:paddingVertical="4dp">
 
         <TextView
             android:id="@+id/currentStopText"
@@ -58,11 +59,18 @@
             android:scrollHorizontally="true" />
     </LinearLayout>
 
-    <ProgressBar
+    <!--ProgressBar
         android:id="@+id/liveTravelSlider"
         style="?android:attr/progressBarStyleHorizontal"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content" />
+        android:layout_height="wrap_content" /-->
+
+    <!-- The content_description attribute will be set programmatically. -->
+    <ImageView
+        android:id="@+id/sliderImage"
+        android:layout_width="match_parent"
+        android:layout_height="8dp"
+        tools:ignore="ContentDescription" />
 
     <TextView
         android:id="@+id/firstStopText"
