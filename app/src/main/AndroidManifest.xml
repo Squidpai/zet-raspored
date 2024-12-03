@@ -37,11 +37,13 @@
         <service
             android:name=".ui.NotificationTrackerService"
             android:exported="false"
+            android:configChanges="colorMode|orientation|screenLayout"
             android:foregroundServiceType="specialUse">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="The user can select to track a specific bus or tram via the
-                status bar. If they choose to stop, they can simply swipe the notification away." />
+                status bar. If they choose to stop, they can simply press the 'Stop tracking'
+                ('Prestani pratiti') button or, if possible, swipe the notification away." />
         </service>
         <receiver
             android:name=".ui.NotificationTrackerService$NotificationRemoveReceiver"
