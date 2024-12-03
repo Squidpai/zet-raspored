@@ -334,7 +334,7 @@ class TripDialogActivity : ComponentActivity() {
                                  if (!passed || isAbsoluteTime) Text(
                                     buildAnnotatedString {
                                        val t = departure + delay - offsetTime
-                                       if (!isAbsoluteTime && t < 3600) {
+                                       if (!isAbsoluteTime && t < 900) {
                                           if (t < 60)
                                              append("za 0 min")
                                           else {
