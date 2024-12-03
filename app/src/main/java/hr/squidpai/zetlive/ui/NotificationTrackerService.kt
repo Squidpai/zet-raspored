@@ -60,8 +60,6 @@ class NotificationTrackerService : Service(), Live.UpdateListener {
    companion object {
       private const val TAG = "NotificationTrackerService"
 
-      private const val MAX_SLIDER_VALUE = 100_000_000
-
       private const val CHANNEL_ID = "trackingChannel"
 
       const val ACTION_REMOVE_NOTIFICATION = "hr.squidpai.zetlive.REMOVE_NOTIFICATION"
