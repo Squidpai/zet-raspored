@@ -24,7 +24,7 @@ data class RouteScheduleEntry(
    val trip: Trip,
    val headsign: String,
    val isHeadsignCommon: Boolean,
-   val overriddenFirstStop: StopId,
+   val isFirstStopCommon: Boolean,
    val departureTime: Int,
    val delayAmount: Int,
    val selectedDate: Int,
@@ -96,8 +96,8 @@ private fun Route.getLiveSchedule(
          trip = data.trip,
          headsign = data.headsign,
          isHeadsignCommon = data.isHeadsignCommon,
-         overriddenFirstStop = data.trip.stops[0].toStopId()
-            .takeIf { it != liveScheduleData.commonFirstStop?.get(data.trip.directionId) },
+         isFirstStopCommon = data.trip.stops[0].toStopId() ==
+               liveScheduleData.commonFirstStop?.get(data.trip.directionId),
          // departureTime is only used if nextStopIndex == 0
          departureTime = (data.trip.departures[0] + delay).let { departure ->
             val dateDifference = (date - data.selectedDate).toInt()
