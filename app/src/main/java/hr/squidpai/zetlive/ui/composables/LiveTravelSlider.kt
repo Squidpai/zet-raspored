@@ -1,5 +1,6 @@
 package hr.squidpai.zetlive.ui.composables
 
+import androidx.collection.IntList
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.layout.Arrangement
@@ -27,15 +28,15 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import hr.squidpai.zetlive.Data
-import hr.squidpai.zetlive.SortedListMap
-import hr.squidpai.zetlive.alsoIf
 import hr.squidpai.zetlive.gtfs.Love
 import hr.squidpai.zetlive.gtfs.RouteScheduleEntry
 import hr.squidpai.zetlive.gtfs.Stop
 import hr.squidpai.zetlive.gtfs.StopId
 import hr.squidpai.zetlive.gtfs.toStopId
+import hr.squidpai.zetlive.map
 import hr.squidpai.zetlive.orLoading
 import hr.squidpai.zetlive.timeToString
 import hr.squidpai.zetlive.ui.TripDialogActivity
@@ -43,39 +44,72 @@ import hr.squidpai.zetlive.ui.TripDialogActivity
 @Composable
 fun LiveTravelSlider(
    routeScheduleEntry: RouteScheduleEntry,
-   stops: SortedListMap<StopId, Stop>,
-   interactable: Boolean = true
+   stops: Map<StopId, Stop>,
 ) {
    val context = LocalContext.current
 
-   val highlightNextStop = Data.highlightNextStop
+   val (nextStopIndex, sliderValue, trip, headsign, isHeadsignCommon, isFirstStopCommon,
+      departureTime, delayAmount, selectedDate) = routeScheduleEntry
 
-   val (_, sliderValue, trip, headsign, isHeadsignCommon, overriddenFirstStop, departureTime,
-      delayAmount, selectedDate) = routeScheduleEntry
-   val isAtFirstStop = routeScheduleEntry.nextStopIndex == 0
-   val highlightedStopIndex =
-      if (highlightNextStop) routeScheduleEntry.nextStopIndex
-      else routeScheduleEntry.nextStopIndex - 1
-
+   val isAtFirstStop = nextStopIndex == 0
    val specialLabel = Love.giveMeTheSpecialTripLabel(trip)
+   val isLate = delayAmount >= 10 * 60
 
-   Column(
-      Modifier
+   LiveTravelSlider(
+      nextStopIndex = nextStopIndex,
+      sliderValue = sliderValue,
+      stopNames = trip.stops.map { stops[it.toStopId()]?.name.orLoading() },
+      departures = trip.departures,
+      modifier = Modifier
          .padding(vertical = 6.dp)
-         .alsoIf(interactable) {
-            clickable { TripDialogActivity.show(context, trip, selectedDate) }
-         },
-   ) {
-      val tint =
-         if (!isHeadsignCommon || overriddenFirstStop.isValid() || specialLabel != null)
-            MaterialTheme.colorScheme.tertiary
-         else MaterialTheme.colorScheme.primary
+         .clickable { TripDialogActivity.show(context, trip, selectedDate) },
+      bottomStartLabel = if (isAtFirstStop) {
+         (if (departureTime >= 0) "kreće u ${departureTime.timeToString()}"
+         else "kreće za ${(-departureTime - 1) / 60} min")
+            .let { if (isLate) "$it (kasni)" else it }
+      } else if (!isFirstStopCommon)
+         "polazište ${stops[trip.stops[0].toStopId()]?.name.orLoading()}"
+      else null,
+      isBottomStartError = isAtFirstStop && isLate,
+      bottomCenterLabel = specialLabel?.first,
+      bottomEndLabel = specialLabel?.second
+         ?: if (!isHeadsignCommon) "smjer ${headsign}"
+         else null,
+      tint = if (!isHeadsignCommon ||
+         !isFirstStopCommon || specialLabel != null
+      )
+         MaterialTheme.colorScheme.tertiary
+      else MaterialTheme.colorScheme.primary,
+   )
+}
 
-      val firstVisibleItemIndex = if (highlightedStopIndex > 0) 1 else 0
-      val state = rememberSaveable(highlightedStopIndex, saver = LazyListState.Saver) {
-         LazyListState(firstVisibleItemIndex)
-      }
+@Composable
+fun LiveTravelSlider(
+   nextStopIndex: Int,
+   sliderValue: Float,
+   stopNames: List<String>,
+   departures: IntList,
+   modifier: Modifier = Modifier,
+   titleText: String? = null,
+   bottomStartLabel: String? = null,
+   isBottomStartError: Boolean = false,
+   bottomCenterLabel: String? = null,
+   bottomEndLabel: String? = null,
+   highlightNextStop: Boolean = Data.highlightNextStop,
+   interactable: Boolean = true,
+   tint: Color = MaterialTheme.colorScheme.primary,
+) = Column(modifier) {
+   val highlightedStopIndex =
+      if (highlightNextStop) nextStopIndex
+      else nextStopIndex - 1
+   val isAtFirstStop = nextStopIndex == 0
 
+   val firstVisibleItemIndex = if (highlightedStopIndex > 0 && interactable) 1 else 0
+   val state = rememberSaveable(highlightedStopIndex, saver = LazyListState.Saver) {
+      LazyListState(firstVisibleItemIndex)
+   }
+
+   if (interactable)
       LaunchedEffect(Unit) {
          state.interactionSource.interactions.collect { interaction ->
             if (interaction is DragInteraction.Stop &&
@@ -85,107 +119,106 @@ fun LiveTravelSlider(
          }
       }
 
-      LazyRow(
-         modifier = Modifier.height(40.dp),
-         state = state,
-         horizontalArrangement = Arrangement.spacedBy(4.dp),
-         verticalAlignment = Alignment.CenterVertically,
-         userScrollEnabled = interactable,
-      ) {
-         if (highlightedStopIndex > 0) item {
-            Text(
-               trip.joinStopsToString(
-                  stops,
-                  endIndex = highlightedStopIndex,
-                  postfix = " ${Typography.bullet} ".takeIf { !highlightNextStop },
-               ),
-               color = lerp(
-                  MaterialTheme.colorScheme.onSurface,
-                  MaterialTheme.colorScheme.surface,
-                  .36f
-               ),
-               style = MaterialTheme.typography.bodyMedium,
-            )
-         }
-         item {
-            if (!isAtFirstStop && highlightNextStop) Icon(
-               Icons.AutoMirrored.Filled.ArrowForward,
-               modifier = Modifier.padding(horizontal = 8.dp),
-               contentDescription = null,
-               tint = tint
-            )
+   if (titleText != null)
+      Text(
+         titleText,
+         overflow = TextOverflow.Ellipsis,
+         maxLines = 1,
+         style = MaterialTheme.typography.labelLarge,
+      )
 
-            val textPaddingModifier =
-               if (highlightNextStop) Modifier.padding(end = 8.dp)
-               else Modifier.padding(start = 8.dp)
-            Text(
-               text = stops[trip.stops[highlightedStopIndex.coerceAtLeast(0)].toStopId()]?.name.orLoading(),
-               modifier = textPaddingModifier,
-               fontWeight = FontWeight.Medium,
-            )
-
-            if (!isAtFirstStop && !highlightNextStop) Icon(
-               Icons.AutoMirrored.Filled.ArrowForward,
-               modifier = Modifier.padding(horizontal = 8.dp),
-               contentDescription = null,
-               tint = tint
-            )
-         }
-         if (highlightedStopIndex + 1 < trip.stops.size) item {
-            Text(
-               trip.joinStopsToString(
-                  stops,
-                  beginIndex = (highlightedStopIndex + 1).coerceAtLeast(1),
-                  prefix = " ${Typography.bullet} ".takeIf { highlightNextStop || isAtFirstStop },
-               ),
-               color = lerp(
-                  MaterialTheme.colorScheme.onSurface,
-                  MaterialTheme.colorScheme.surface,
-                  .36f
-               ),
-               style = MaterialTheme.typography.bodyMedium,
-            )
-         }
+   LazyRow(
+      modifier = Modifier.height(40.dp),
+      state = state,
+      horizontalArrangement = Arrangement.spacedBy(4.dp),
+      verticalAlignment = Alignment.CenterVertically,
+      userScrollEnabled = interactable,
+   ) {
+      // if the slider is not interactable, the user will never see this item
+      if (highlightedStopIndex > 0 && interactable) item {
+         Text(
+            stopNames.subList(0, highlightedStopIndex).joinToString(
+               separator = " ${Typography.bullet} ",
+               postfix = if (!highlightNextStop) " ${Typography.bullet} " else "",
+            ),
+            color = lerp(
+               MaterialTheme.colorScheme.onSurface,
+               MaterialTheme.colorScheme.surface,
+               .36f
+            ),
+            style = MaterialTheme.typography.bodyMedium,
+         )
       }
+      item {
+         if (!isAtFirstStop && highlightNextStop) Icon(
+            Icons.AutoMirrored.Filled.ArrowForward,
+            modifier = Modifier.padding(horizontal = 8.dp),
+            contentDescription = null,
+            tint = tint
+         )
 
-      RouteSlider(
-         value = sliderValue,
-         departures = trip.departures,
-         modifier = Modifier.fillMaxWidth(),
-         passedTrackColor = tint,
-      )
+         val textPaddingModifier =
+            if (highlightNextStop) Modifier.padding(end = 8.dp)
+            else Modifier.padding(start = 8.dp)
+         Text(
+            text = stopNames[highlightedStopIndex.coerceAtLeast(0)],
+            modifier = textPaddingModifier,
+            fontWeight = FontWeight.Medium,
+         )
 
-      if (isAtFirstStop ||
-         !isHeadsignCommon ||
-         overriddenFirstStop.isValid() ||
-         specialLabel != null
-      )
-         Row(
-            modifier = Modifier
-               .fillMaxWidth()
-               .padding(horizontal = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-         ) {
-            if (isAtFirstStop) {
-               val isLate = delayAmount >= 10 * 60
-               Text(
-                  (if (departureTime >= 0) "kreće u ${departureTime.timeToString()}"
-                  else "kreće za ${(-departureTime - 1) / 60} min")
-                     .let { if (isLate) "$it (kasni)" else it },
-                  color = if (isLate) MaterialTheme.colorScheme.error else Color.Unspecified,
-                  fontWeight = FontWeight.Medium.takeIf { isLate }
-               )
-            } else if (overriddenFirstStop.isValid())
-            // do not display the first stop if stopSequence == 1 because then it is already highlighted
-               Text("polazište ${stops[overriddenFirstStop]?.name.orLoading()}")
-            else
-            // blank box take up space
-               Box(Modifier.size(0.dp))
-
-            specialLabel?.first?.let { Text(it) }
-
-            if (specialLabel?.second != null || !isHeadsignCommon)
-               Text(specialLabel?.second ?: "smjer $headsign", textAlign = TextAlign.End)
-         }
+         if (!isAtFirstStop && !highlightNextStop) Icon(
+            Icons.AutoMirrored.Filled.ArrowForward,
+            modifier = Modifier.padding(horizontal = 8.dp),
+            contentDescription = null,
+            tint = tint
+         )
+      }
+      if (highlightedStopIndex + 1 < stopNames.size) item {
+         Text(
+            stopNames.subList(
+               (highlightedStopIndex + 1).coerceAtLeast(1),
+               stopNames.size
+            ).joinToString(
+               separator = " ${Typography.bullet} ",
+               prefix = if (highlightNextStop || isAtFirstStop) " ${Typography.bullet} " else "",
+            ),
+            color = lerp(
+               MaterialTheme.colorScheme.onSurface,
+               MaterialTheme.colorScheme.surface,
+               .36f
+            ),
+            style = MaterialTheme.typography.bodyMedium,
+         )
+      }
    }
+
+   RouteSlider(
+      value = sliderValue,
+      departures = departures,
+      modifier = Modifier.fillMaxWidth(),
+      passedTrackColor = tint,
+   )
+
+   if (bottomStartLabel != null || bottomCenterLabel != null || bottomEndLabel != null)
+      Row(
+         modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp),
+         horizontalArrangement = Arrangement.SpaceBetween,
+      ) {
+         if (bottomStartLabel != null)
+            Text(
+               text = bottomStartLabel,
+               color = if (isBottomStartError) MaterialTheme.colorScheme.error else Color.Unspecified,
+               fontWeight = FontWeight.Medium.takeIf { isBottomStartError },
+            )
+         else // blank box to take up space
+            Box(Modifier.size(0.dp))
+
+         if (bottomCenterLabel != null)
+            Text(bottomCenterLabel)
+
+         if (bottomEndLabel != null)
+            Text(bottomEndLabel, textAlign = TextAlign.End)
+      }
 }
