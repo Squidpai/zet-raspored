@@ -142,7 +142,7 @@ fun RouteSlider(
          center = Offset(currentPointPosition, centerHeight),
          alpha = 0.28f,
       )
-      currentPointPosition += totalTrackLength * (weightRatios?.get(i) ?: pointSpacing)
+      currentPointPosition += totalTrackLength * (weightRatios?.getOrNull(i) ?: pointSpacing)
    }
    drawCircle(
       color = nextStopColor,
@@ -151,7 +151,7 @@ fun RouteSlider(
    )
    if (valueInt + 1 >= stopCount - 1)
       return@Canvas
-   currentPointPosition += totalTrackLength * (weightRatios?.get(max(valueInt + 1, 0))
+   currentPointPosition += totalTrackLength * (weightRatios?.getOrNull(max(valueInt + 1, 0))
       ?: pointSpacing)
    for (i in max(valueInt + 2, 1)..<stopCount) {
       drawCircle(
