@@ -179,11 +179,11 @@ private class EmptySavedStateRegistryOwner : SavedStateRegistryOwner {
       get() =
          object : Lifecycle() {
             override fun addObserver(observer: LifecycleObserver) {
-               lifecycleOwner?.lifecycle?.addObserver(observer)
+               lifecycleOwner.lifecycle.addObserver(observer)
             }
 
             override fun removeObserver(observer: LifecycleObserver) {
-               lifecycleOwner?.lifecycle?.removeObserver(observer)
+               lifecycleOwner.lifecycle.removeObserver(observer)
             }
 
             override val currentState = State.INITIALIZED
