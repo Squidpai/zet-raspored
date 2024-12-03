@@ -66,6 +66,6 @@ private val routeFactory: CsvFactory<Route> = { headerMap, data ->
     id = data[headerMap[0]].toInt(),
     shortName = data[headerMap[1]],
     longName = data[headerMap[2]],
-    type = data[headerMap[3]].toInt(),
+    type = data[headerMap[3]].toIntOrNull() ?: -1,
   )
 }
