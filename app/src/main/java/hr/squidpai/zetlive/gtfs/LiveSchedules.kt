@@ -50,7 +50,7 @@ class RouteNoLiveSchedule(val noLiveMessage: String) : RouteLiveSchedule
  */
 @Composable
 fun Route.getLiveSchedule(): RouteLiveSchedule? {
-   val schedule = Schedule.instanceLoaded ?: return null
+   val schedule = Schedule.loadedInstance ?: return null
 
    val trips = schedule.getTripsOfRoute(id).value ?: return null
    val calendarDates = schedule.calendarDates
@@ -163,7 +163,7 @@ fun Stop.getLiveSchedule(
    maxSize: Int,
    routesFiltered: List<Int>? = null,
 ): StopLiveSchedule? {
-   val schedule = Schedule.instanceLoaded ?: return null
+   val schedule = Schedule.loadedInstance ?: return null
 
    val routes = schedule.routes
    val calendarDates = schedule.calendarDates

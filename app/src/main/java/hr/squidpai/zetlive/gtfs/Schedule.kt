@@ -48,7 +48,7 @@ sealed interface Schedule {
       var instance by mutableStateOf<Schedule>(EmptySchedule())
          private set
 
-      val instanceLoaded get() = instance as? LoadedSchedule
+      val loadedInstance get() = instance as? LoadedSchedule
 
       var lastCheckedLatestVersion by mutableStateOf<String?>(null)
          private set

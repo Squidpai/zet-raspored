@@ -160,7 +160,7 @@ class TripDialogActivity : ComponentActivity() {
          AppTheme {
             var isAbsoluteTime by remember { mutableStateOf(false) }
 
-            val schedule = Schedule.instanceLoaded
+            val schedule = Schedule.loadedInstance
             val trips = schedule?.getTripsOfRoute(routeId)?.value
             val trip = trips?.list?.get(key = tripId)
 

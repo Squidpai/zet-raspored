@@ -194,7 +194,7 @@ class NotificationTrackerService : Service(), Live.UpdateListener {
          return START_REDELIVER_INTENT
       }
 
-      val schedule = Schedule.instanceLoaded
+      val schedule = Schedule.loadedInstance
          ?: run {
             Log.w(TAG, "onStartCommand: schedule not loaded")
             return START_REDELIVER_INTENT

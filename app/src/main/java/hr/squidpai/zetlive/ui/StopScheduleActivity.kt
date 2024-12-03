@@ -88,7 +88,7 @@ class StopScheduleActivity : ComponentActivity() {
       enableEdgeToEdge()
       setContent {
          AppTheme {
-            val schedule = Schedule.instanceLoaded
+            val schedule = Schedule.loadedInstance
 
             val groupedStop =
                schedule?.stops?.groupedStops?.get(stopId.stationNumber.toParentStopId())

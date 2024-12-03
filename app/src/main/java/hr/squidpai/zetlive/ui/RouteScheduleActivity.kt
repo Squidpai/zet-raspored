@@ -133,7 +133,7 @@ class RouteScheduleActivity : ComponentActivity() {
       enableEdgeToEdge()
       setContent {
          AppTheme {
-            val schedule = Schedule.instanceLoaded
+            val schedule = Schedule.loadedInstance
 
             val route = schedule?.routes?.list?.get(key = routeId)
 

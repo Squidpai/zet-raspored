@@ -198,7 +198,7 @@ private fun StopContent(
       tonalElevation = if (expanded) 2.dp else 0.dp,
    ) {
       Column {
-         val routesAtStopMap = Schedule.instanceLoaded?.routesAtStopMap
+         val routesAtStopMap = Schedule.loadedInstance?.routesAtStopMap
 
          Row(
             modifier = Modifier
