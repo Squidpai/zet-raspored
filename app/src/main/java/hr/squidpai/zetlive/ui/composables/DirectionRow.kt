@@ -11,8 +11,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import hr.squidpai.zetapi.RouteId
 import hr.squidpai.zetlive.Data
-import hr.squidpai.zetlive.gtfs.RouteId
 import hr.squidpai.zetlive.ui.Symbols
 
 /**

@@ -104,7 +104,7 @@ fun RouteSlider(
 
       val weightSum = weights.sum().toFloat()
       weightRatios = FloatArray(stopCount - 1) { weights[it] / weightSum }
-      passedTrackLength = 0f //totalTrackLength * value / (stopCount - 1)
+      passedTrackLength = 0f
       for ((i, ratio) in weightRatios.withIndex()) {
          passedTrackLength += if (i + 1 <= value) ratio
          else if (i < value) value % 1 * ratio
@@ -123,13 +123,14 @@ fun RouteSlider(
       strokeWidth = trackWidthPx,
       cap = StrokeCap.Round,
    )
-   drawLine(
-      color = passedTrackColor,
-      start = Offset(nextPointRadiusPx, centerHeight),
-      end = Offset(nextPointRadiusPx + passedTrackLength, centerHeight),
-      strokeWidth = trackWidthPx,
-      cap = StrokeCap.Round,
-   )
+   if (value >= -1f)
+      drawLine(
+         color = passedTrackColor,
+         start = Offset(nextPointRadiusPx, centerHeight),
+         end = Offset(nextPointRadiusPx + passedTrackLength, centerHeight),
+         strokeWidth = trackWidthPx,
+         cap = StrokeCap.Round,
+      )
 
    val valueInt = floor(value).toInt()
    var currentPointPosition = nextPointRadiusPx
@@ -144,16 +145,18 @@ fun RouteSlider(
       )
       currentPointPosition += totalTrackLength * (weightRatios?.getOrNull(i) ?: pointSpacing)
    }
-   drawCircle(
-      color = nextStopColor,
-      radius = nextPointRadiusPx,
-      center = Offset(currentPointPosition, centerHeight),
-   )
+   if (value >= -1)
+      drawCircle(
+         color = nextStopColor,
+         radius = nextPointRadiusPx,
+         center = Offset(currentPointPosition, centerHeight),
+      )
    if (valueInt + 1 >= stopCount - 1)
       return@Canvas
-   currentPointPosition += totalTrackLength * (weightRatios?.getOrNull(max(valueInt + 1, 0))
-      ?: pointSpacing)
-   for (i in max(valueInt + 2, 1)..<stopCount) {
+   if (value >= -1)
+      currentPointPosition += totalTrackLength * (weightRatios?.getOrNull(max(valueInt + 1, 0))
+         ?: pointSpacing)
+   for (i in max(valueInt + 2, 0)..<stopCount) {
       drawCircle(
          color = notPassedStopColor,
          radius = pointRadiusPx,

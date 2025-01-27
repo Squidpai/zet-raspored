@@ -1,5 +1,6 @@
 package hr.squidpai.zetlive
 
+@Deprecated("Replace with regular lists or maps")
 open class SortedListMap<K : Comparable<K>, V>(
   source: List<V>,
   assumeSorted: Boolean = false,
@@ -115,12 +116,15 @@ open class SortedListMap<K : Comparable<K>, V>(
 @Suppress("ObjectPropertyName")
 val _emptySortedListMap = SortedListMap<Nothing, Nothing>(emptyList()) { throw NoSuchElementException() }
 
+@Deprecated("Replace with regular lists or maps")
 @Suppress("UNCHECKED_CAST", "NOTHING_TO_INLINE")
 inline fun <K : Comparable<K>, V> emptySortedListMap(): SortedListMap<K, V> = _emptySortedListMap as SortedListMap<K, V>
 
+@Deprecated("Replace with regular lists or maps")
 @Suppress("NOTHING_TO_INLINE")
 inline fun <K : Comparable<K>, V> List<V>.toSortedListMap(noinline keyFactory: (V) -> K) = SortedListMap(this, assumeSorted = false, keyFactory)
 
+@Deprecated("Replace with regular lists or maps")
 @Suppress("NOTHING_TO_INLINE")
 inline fun <K : Comparable<K>, V> List<V>.asSortedListMap(noinline keyFactory: (V) -> K) = SortedListMap(this, assumeSorted = true, keyFactory)
 

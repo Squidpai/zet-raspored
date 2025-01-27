@@ -42,10 +42,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import hr.squidpai.zetapi.cached.CachedScheduleIO
 import hr.squidpai.zetlive.Data
-import hr.squidpai.zetlive.gtfs.LoadedSchedule
-import hr.squidpai.zetlive.gtfs.Schedule
-import hr.squidpai.zetlive.gtfs.feedInfo
+import hr.squidpai.zetlive.gtfs.ScheduleManager
 import hr.squidpai.zetlive.orLoading
 import hr.squidpai.zetlive.ui.composables.IconButton
 import hr.squidpai.zetlive.ui.composables.LiveTravelSlider
@@ -160,8 +159,8 @@ class SettingsActivity : ComponentActivity() {
       val scope = rememberCoroutineScope()
       var showDialog by remember { mutableStateOf(false) }
 
-      val schedule = Schedule.instance
-      val feedInfo = (schedule as? LoadedSchedule)?.feedInfo
+      val schedule = ScheduleManager.instance
+      val feedInfo = schedule?.feedInfo
 
       Column(
          modifier = Modifier
@@ -187,12 +186,14 @@ class SettingsActivity : ComponentActivity() {
          title = { Text("Informacije o rasporedu") },
          text = {
             Column(Modifier.fillMaxWidth()) {
-               if (schedule is LoadedSchedule) {
-                  val latestVersion = Schedule.lastCheckedLatestVersion
+               if (schedule != null) {
+                  val latestVersion = ScheduleManager.lastCheckedLatestVersion
                   val startDate = feedInfo?.startDate
                   val lastDate = schedule.calendarDates.lastDate
                   val newScheduleFeedInfo = try {
-                     Schedule.getNewScheduleFile(filesDir).feedInfo
+                     CachedScheduleIO.getFeedInfo(
+                        ScheduleManager.getNewScheduleFile(filesDir)
+                     )
                   } catch (e: Exception) {
                      null
                   }
@@ -202,7 +203,7 @@ class SettingsActivity : ComponentActivity() {
                         if (latestVersion != null)
                            append("\nNajnovija verzija: ").append(latestVersion)
                         append("\nPočetak rasporeda: ").append(startDate?.toString().orLoading())
-                        append("\nKraj rasporeda: ").append(lastDate?.toString().orLoading())
+                        append("\nKraj rasporeda: ").append(lastDate.toString().orLoading())
                         if (newScheduleFeedInfo != null) {
                            append("\n\nPostoji neaktivirani raspored:")
                            append("\n Verzija: ").append(newScheduleFeedInfo.version)
@@ -210,8 +211,7 @@ class SettingsActivity : ComponentActivity() {
                         }
                      }
                   )
-               } else
-                  Text("Nema preuzetog rasporeda")
+               } else Text("Nema preuzetog rasporeda")
 
                val (isCheckingUpdate, setIsCheckingUpdate) = remember { mutableStateOf(false) }
                val (isUpdating, setIsUpdating) = remember { mutableStateOf(false) }
@@ -222,7 +222,8 @@ class SettingsActivity : ComponentActivity() {
                      scope.launch {
                         setIsCheckingUpdate(true)
                         errorMessage = null
-                        val errorType = Schedule.update(filesDir).await()
+                        ScheduleManager.update(filesDir).join()
+                        val errorType = ScheduleManager.lastDownloadError
                         errorMessage = errorType?.errorMessage
                         setIsCheckingUpdate(false)
                      }
@@ -248,17 +249,14 @@ class SettingsActivity : ComponentActivity() {
 
    @Composable
    private fun UpdateState(setIsUpdating: (Boolean) -> Unit) {
-      val loadingState = Schedule.priorityLoadingState ?: Schedule.loadingState
-      if (loadingState == null) {
+      val loadingState = ScheduleManager.loadingState
+      if (loadingState == ScheduleManager.LoadingState.NOT_LOADING) {
          setIsUpdating(false)
          return
       }
       setIsUpdating(true)
-      Text(loadingState.text)
-      if (loadingState is Schedule.Companion.TrackableLoadingState)
-         LinearProgressIndicator(progress = { loadingState.progress })
-      else
-         LinearProgressIndicator()
+      Text("Ažuriranje rasporeda...")
+      LinearProgressIndicator()
    }
 
    /*@Composable

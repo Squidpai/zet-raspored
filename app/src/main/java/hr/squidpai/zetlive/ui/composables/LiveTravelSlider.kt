@@ -30,35 +30,28 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import hr.squidpai.zetapi.Love
 import hr.squidpai.zetlive.Data
-import hr.squidpai.zetlive.gtfs.Love
 import hr.squidpai.zetlive.gtfs.RouteScheduleEntry
-import hr.squidpai.zetlive.gtfs.Stop
-import hr.squidpai.zetlive.gtfs.StopId
-import hr.squidpai.zetlive.gtfs.toStopId
-import hr.squidpai.zetlive.map
 import hr.squidpai.zetlive.orLoading
 import hr.squidpai.zetlive.timeToString
 import hr.squidpai.zetlive.ui.TripDialogActivity
 
 @Composable
-fun LiveTravelSlider(
-   routeScheduleEntry: RouteScheduleEntry,
-   stops: Map<StopId, Stop>,
-) {
+fun LiveTravelSlider(routeScheduleEntry: RouteScheduleEntry) {
    val context = LocalContext.current
 
-   val (nextStopIndex, sliderValue, trip, headsign, isHeadsignCommon, isFirstStopCommon,
-      departureTime, delayAmount, selectedDate) = routeScheduleEntry
+   val (nextStopIndex, sliderValue, trip, departureTime, delayAmount,
+      selectedDate, isCancelled) = routeScheduleEntry
 
    val isAtFirstStop = nextStopIndex == 0
    val specialLabel = Love.giveMeTheSpecialTripLabel(trip)
-   val isLate = delayAmount >= 10 * 60
+   val isLate = delayAmount >= 5 * 60
 
    LiveTravelSlider(
       nextStopIndex = nextStopIndex,
       sliderValue = sliderValue,
-      stopNames = trip.stops.map { stops[it.toStopId()]?.name.orLoading() },
+      stopNames = trip.stops.map { it.name },
       departures = trip.departures,
       modifier = Modifier
          .padding(vertical = 6.dp)
@@ -67,18 +60,16 @@ fun LiveTravelSlider(
          (if (departureTime >= 0) "kreće u ${departureTime.timeToString()}"
          else "kreće za ${(-departureTime - 1) / 60} min")
             .let { if (isLate) "$it (kasni)" else it }
-      } else if (!isFirstStopCommon)
-         "polazište ${stops[trip.stops[0].toStopId()]?.name.orLoading()}"
+      } else if (!trip.isFirstStopCommon)
+         "polazište ${trip.stops.first().name.orLoading()}"
       else null,
       isBottomStartError = isAtFirstStop && isLate,
       bottomCenterLabel = specialLabel?.first,
       bottomEndLabel = specialLabel?.second
-         ?: if (!isHeadsignCommon) "smjer ${headsign}"
-         else null,
-      tint = if (!isHeadsignCommon ||
-         !isFirstStopCommon || specialLabel != null
-      )
-         MaterialTheme.colorScheme.tertiary
+         ?: if (!trip.isHeadsignCommon) "smjer ${trip.headsign}" else null,
+      tint = if (!trip.isHeadsignCommon ||
+         !trip.isFirstStopCommon || specialLabel != null
+      ) MaterialTheme.colorScheme.tertiary
       else MaterialTheme.colorScheme.primary,
    )
 }

@@ -12,25 +12,26 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import hr.squidpai.zetlive.gtfs.Schedule
+import hr.squidpai.zetapi.gtfs.ErrorType
+import hr.squidpai.zetlive.gtfs.ScheduleManager
 
 @Composable
 fun MainActivityLoading(
-   errorType: Schedule.ErrorType?,
+   errorType: ErrorType?,
    modifier: Modifier = Modifier,
 ) = Column(
    modifier = modifier.fillMaxSize().padding(horizontal = 16.dp),
    verticalArrangement = Arrangement.Center,
    horizontalAlignment = Alignment.CenterHorizontally,
 ) {
-   if (errorType == null || errorType == Schedule.ErrorType.ALREADY_DOWNLOADING) {
+   if (errorType == null || errorType == ErrorType.ALREADY_DOWNLOADING) {
       Text("Preuzimanje rasporeda${Typography.ellipsis}")
       CircularProgressIndicator(Modifier.padding(8.dp))
    } else {
       Text(errorType.errorMessage.orEmpty())
 
       val context = LocalContext.current
-      Button(onClick = { Schedule.init(context.filesDir) }) {
+      Button(onClick = { ScheduleManager.init(context.filesDir) }) {
          Text("Pokušaj ponovno")
       }
    }

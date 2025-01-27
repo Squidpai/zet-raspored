@@ -54,33 +54,25 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import hr.squidpai.zetapi.CalendarDates
+import hr.squidpai.zetapi.Love
+import hr.squidpai.zetapi.Route
+import hr.squidpai.zetapi.ServiceId
+import hr.squidpai.zetapi.ServiceType
+import hr.squidpai.zetapi.ServiceTypes
+import hr.squidpai.zetapi.TimeOfDay
+import hr.squidpai.zetapi.Trip
+import hr.squidpai.zetapi.filterByServiceId
+import hr.squidpai.zetapi.findFirstDeparture
+import hr.squidpai.zetapi.sortedByDepartures
+import hr.squidpai.zetapi.splitByDirection
 import hr.squidpai.zetlive.LOADING_TEXT
 import hr.squidpai.zetlive.MILLIS_IN_DAY
 import hr.squidpai.zetlive.MILLIS_IN_SECONDS
 import hr.squidpai.zetlive.SECONDS_IN_DAY
-import hr.squidpai.zetlive.any
-import hr.squidpai.zetlive.get
-import hr.squidpai.zetlive.gtfs.CalendarDates
-import hr.squidpai.zetlive.gtfs.Live
-import hr.squidpai.zetlive.gtfs.Love
-import hr.squidpai.zetlive.gtfs.RouteId
-import hr.squidpai.zetlive.gtfs.Schedule
-import hr.squidpai.zetlive.gtfs.ServiceId
-import hr.squidpai.zetlive.gtfs.ServiceIdType
-import hr.squidpai.zetlive.gtfs.ServiceIdTypes
-import hr.squidpai.zetlive.gtfs.StopId
-import hr.squidpai.zetlive.gtfs.Stops
-import hr.squidpai.zetlive.gtfs.Trip
-import hr.squidpai.zetlive.gtfs.Trips
-import hr.squidpai.zetlive.gtfs.TripsList
-import hr.squidpai.zetlive.gtfs.filterByServiceId
-import hr.squidpai.zetlive.gtfs.findFirstDepartureTomorrow
-import hr.squidpai.zetlive.gtfs.findFirstDepartures
-import hr.squidpai.zetlive.gtfs.sortedByDepartures
-import hr.squidpai.zetlive.gtfs.splitByDirection
-import hr.squidpai.zetlive.gtfs.toStopId
+import hr.squidpai.zetlive.gtfs.ScheduleManager
+import hr.squidpai.zetlive.gtfs.contentColor
 import hr.squidpai.zetlive.localCurrentTimeMillis
-import hr.squidpai.zetlive.orLoading
 import hr.squidpai.zetlive.timeToString
 import hr.squidpai.zetlive.ui.composables.CircularLoadingBox
 import hr.squidpai.zetlive.ui.composables.DirectionRow
@@ -88,6 +80,9 @@ import hr.squidpai.zetlive.ui.composables.IconButton
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import kotlin.math.max
+import kotlin.time.Duration.Companion.days
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 
 class RouteScheduleActivity : ComponentActivity() {
 
@@ -118,9 +113,9 @@ class RouteScheduleActivity : ComponentActivity() {
    override fun onCreate(savedInstanceState: Bundle?) {
       super.onCreate(savedInstanceState)
 
-      val routeId = intent.getIntExtra(EXTRA_ROUTE_ID, -1)
+      val routeId = intent.getStringExtra(EXTRA_ROUTE_ID)
 
-      if (routeId == -1) {
+      if (routeId == null) {
          Log.w(TAG, "onCreate: No route id given, finishing activity early.")
 
          finish()
@@ -133,25 +128,23 @@ class RouteScheduleActivity : ComponentActivity() {
       enableEdgeToEdge()
       setContent {
          AppTheme {
-            val schedule = Schedule.loadedInstance
+            val schedule = ScheduleManager.instance
 
-            val route = schedule?.routes?.list?.get(key = routeId)
+            val route = schedule?.routes?.get(routeId)
 
             Scaffold(topBar = {
                MyTopAppBar(
                   when {
                      route != null -> "${route.shortName} ${route.longName}"
                      schedule == null -> "$routeId $LOADING_TEXT"
-                     else -> routeId.toString()
+                     else -> routeId
                   }
                )
             }) { padding ->
-               if (schedule != null)
+               if (schedule != null && route != null)
                   MyContent(
-                     routeId = routeId,
-                     stops = schedule.stops,
-                     trips = schedule.getTripsOfRoute(routeId).value,
-                     serviceIdTypes = schedule.serviceIdTypes,
+                     route = route,
+                     serviceTypes = schedule.serviceTypes,
                      calendarDates = schedule.calendarDates,
                      modifier = Modifier.padding(padding),
                   )
@@ -163,12 +156,12 @@ class RouteScheduleActivity : ComponentActivity() {
 
    override fun onPause() {
       super.onPause()
-      Live.pauseLiveData()
+      ScheduleManager.realtimeDispatcher.removeListener(TAG)
    }
 
    override fun onResume() {
       super.onResume()
-      Live.resumeLiveData()
+      ScheduleManager.realtimeDispatcher.addListener(TAG)
    }
 
    @OptIn(ExperimentalMaterial3Api::class)
@@ -194,16 +187,14 @@ class RouteScheduleActivity : ComponentActivity() {
 
    @Composable
    private fun MyContent(
-      routeId: RouteId,
-      stops: Stops,
-      trips: Trips?,
-      serviceIdTypes: ServiceIdTypes?,
+      route: Route,
+      serviceTypes: ServiceTypes?,
       calendarDates: CalendarDates,
       modifier: Modifier = Modifier,
    ) = Column(modifier) {
       val yesterdayServiceId = calendarDates[todaysDate - 1]
-      val isYesterdayUnfinished = trips != null && yesterdayServiceId != null &&
-            trips.list.any {
+      val isYesterdayUnfinished = yesterdayServiceId != null &&
+            route.trips.values.any {
                it.serviceId == yesterdayServiceId &&
                      it.departures.last() - 1 * SECONDS_IN_DAY > todaysTime / MILLIS_IN_SECONDS
             }
@@ -226,105 +217,93 @@ class RouteScheduleActivity : ComponentActivity() {
          onSetSelectedTabIndex = {
             scope.launch { pagerState.animateScrollToPage(it) }
          },
-         serviceIdTypes,
+         serviceTypes,
       )
 
       HorizontalPager(pagerState, verticalAlignment = Alignment.Top) {
          val serviceId = serviceIds.getOrNull(it)
          val date = todaysDate + it - todayTabOffset
 
-         val filteredStopTimes =
-            if (serviceId != null && trips != null)
-               trips.list
+         val filteredTrips =
+            if (serviceId != null)
+               route.trips
                   .filterByServiceId(serviceId)
                   .splitByDirection()
                   .sortedByDepartures()
-            else if (trips != null) // this date does not have a schedule associated with it
+            else // this date does not have a schedule associated with it
                emptyList<Trip>() to emptyList()
-            else null // trips not loaded, give null to display loading box
 
          DateContent(
-            routeId,
-            commonFirstStops = trips?.commonFirstStopByDay?.get(serviceId),
-            commonHeadsigns = trips?.commonHeadsignByDay?.get(serviceId),
-            tripsLists = filteredStopTimes,
-            stops = stops,
+            route,
+            tripsLists = filteredTrips,
             selectedServiceId = serviceId,
             selectedDate = date,
-            serviceIdTypes = serviceIdTypes,
-            tripsList = trips?.list,
+            serviceTypes = serviceTypes,
          )
       }
    }
 
    @Composable
    private fun DateContent(
-      routeId: RouteId,
-      commonFirstStops: Pair<StopId, StopId>?,
-      commonHeadsigns: Pair<String, String>?,
-      tripsLists: Pair<List<Trip>, List<Trip>>?,
-      stops: Stops?,
+      route: Route,
+      tripsLists: Pair<List<Trip>, List<Trip>>,
       selectedServiceId: ServiceId?,
       selectedDate: Long,
-      serviceIdTypes: ServiceIdTypes?,
-      tripsList: TripsList?,
+      serviceTypes: ServiceTypes?,
    ) = Column {
       val (direction, setDirection) = selectedDirection
 
-      val currentTime = localCurrentTimeMillis() / MILLIS_IN_SECONDS
-      val timeOffset = selectedDate * SECONDS_IN_DAY
+      val commonHeadsigns = route.commonHeadsigns[selectedServiceId]
+
+      val currentTime = localCurrentTimeMillis().milliseconds
+      val timeOffset = selectedDate.days
 
       val states = remember(key1 = System.identityHashCode(tripsLists)) {
-         tripsLists?.findFirstDepartures((currentTime - timeOffset).toInt())
-            ?.let { (first, second) ->
-               LazyListState(first) to LazyListState(second)
-            }
+         val timeOfDay = TimeOfDay(currentTime - timeOffset)
+         LazyListState(tripsLists.first.findFirstDeparture(timeOfDay)) to
+               LazyListState(tripsLists.second.findFirstDeparture(timeOfDay))
       }
 
-      val commonFirstStop: StopId
-      val list: List<Trip>?
-      val state: LazyListState?
+      val isRoundRoute =
+         if (tripsLists.first.isNotEmpty()) tripsLists.second.isEmpty()
+         else commonHeadsigns?.second?.isEmpty() ?: false
 
-      val isRoundRoute = tripsLists != null &&
-            (if (tripsLists.first.isNotEmpty()) tripsLists.second.isEmpty()
-            else commonHeadsigns?.second?.isEmpty() ?: false)
-
+      val list: List<Trip>
+      val state: LazyListState
       if (direction == 0 || isRoundRoute) {
-         commonFirstStop = commonFirstStops?.first ?: StopId.Invalid
-         list = tripsLists?.first
-         state = states?.first
+         list = tripsLists.first
+         state = states.first
       } else {
-         commonFirstStop = commonFirstStops?.second ?: StopId.Invalid
-         list = tripsLists?.second
-         state = states?.second
+         list = tripsLists.second
+         state = states.second
       }
 
       if (commonHeadsigns != null)
-         DirectionRow(routeId, commonHeadsigns, direction, setDirection, isRoundRoute)
+         DirectionRow(
+            route.id,
+            commonHeadsigns,
+            direction,
+            setDirection,
+            isRoundRoute
+         )
 
-      if (list == null)
-         CircularLoadingBox()
-      else if (list.isEmpty())
+      if (list.isEmpty())
          Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             val specialLabel =
                Love.giveMeTheSpecialLabelForNoTrips(
-                  routeId,
-                  tripsList,
+                  route,
                   selectedServiceId,
                   selectedDate,
-                  serviceIdTypes
+                  serviceTypes,
                )
             Text(specialLabel, Modifier.padding(horizontal = 16.dp))
          }
-      else LazyColumn(state = state!!) { // list != null  =>  stopTimes != null  =>  state != null
-         val firstOfNextDay = list.findFirstDepartureTomorrow()
-         val commonHeadsign = commonHeadsigns?.get(direction).orLoading()
+      else LazyColumn(state = state) {
+         val firstOfNextDay =
+            list.indexOfFirst { TimeOfDay(it.departures.first()).isTomorrow() }
 
          items(list.size) { i ->
             val trip = list[i]
-            val stopId = trip.stops.first().toStopId()
-
-            val stop = if (stopId != commonFirstStop) stops?.list?.get(stopId) else null
 
             if (i == firstOfNextDay) {
                HorizontalDivider(Modifier.padding(horizontal = 4.dp))
@@ -332,7 +311,9 @@ class RouteScheduleActivity : ComponentActivity() {
                   getLabel((selectedDate + 1 - todaysDate).toInt()),
                   Modifier
                      .fillMaxWidth()
-                     .background(MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp)),
+                     .background(
+                        MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp)
+                     ),
                   textAlign = TextAlign.Center,
                   style = MaterialTheme.typography.titleMedium,
                )
@@ -340,12 +321,9 @@ class RouteScheduleActivity : ComponentActivity() {
             HorizontalDivider(Modifier.padding(horizontal = 4.dp))
             TripRow(
                trip,
-               overriddenFirstStop = stop?.name,
-               headsign = trip.headsign ?: commonHeadsign,
-               isHeadsignOverridden = trip.headsign != null,
                liveComparison = when {
-                  currentTime < trip.departures.first() + timeOffset -> 1
-                  currentTime < trip.departures.last() + timeOffset -> 0
+                  currentTime < trip.departures.first().seconds + timeOffset -> 1
+                  currentTime < trip.departures.last().seconds + timeOffset -> 0
                   else -> -1
                },
                selectedDate
@@ -354,90 +332,9 @@ class RouteScheduleActivity : ComponentActivity() {
       }
    }
 
-   private data object TripRowMeasurePolicy : MeasurePolicy {
-
-      const val TIME_LAYOUT_ID = "time"
-
-      override fun MeasureScope.measure(
-         measurables: List<Measurable>,
-         constraints: Constraints
-      ): MeasureResult {
-         if (measurables.size == 1) {
-            val timePlaceable = measurables[0].measure(constraints)
-
-            val actualHeight = max(48.dp.roundToPx(), timePlaceable.height)
-            val yOffset = (actualHeight - timePlaceable.height) / 2
-
-            return layout(constraints.maxWidth, actualHeight) {
-               timePlaceable.place((constraints.maxWidth - timePlaceable.width) / 2, yOffset)
-            }
-         }
-
-         val timeIndex = measurables.indexOfFirst { TIME_LAYOUT_ID == it.layoutId }
-
-         val timePlaceable = measurables[timeIndex].measure(constraints)
-
-         val leftTextMeasurable = if (timeIndex != 0) measurables.first() else null
-         val rightTextMeasurable =
-            if (timeIndex != measurables.lastIndex) measurables.last() else null
-
-         if (constraints.maxWidth - timePlaceable.width >= 180.dp.roundToPx()) {
-            val maxTextWidth = (constraints.maxWidth - timePlaceable.width) / 2
-
-            val leftPlaceable =
-               leftTextMeasurable?.measure(constraints.copy(maxWidth = maxTextWidth))
-            val rightPlaceable =
-               rightTextMeasurable?.measure(constraints.copy(maxWidth = maxTextWidth))
-
-            var actualHeight = 48.dp.roundToPx()
-            if (timePlaceable.height > actualHeight) actualHeight = timePlaceable.height
-            if (leftPlaceable != null && leftPlaceable.height > actualHeight) actualHeight =
-               leftPlaceable.height
-            if (rightPlaceable != null && rightPlaceable.height > actualHeight) actualHeight =
-               rightPlaceable.height
-
-            return layout(constraints.maxWidth, actualHeight) {
-               leftPlaceable?.place(
-                  ((constraints.maxWidth - timePlaceable.width) / 2 - leftPlaceable.width) / 2,
-                  (actualHeight - leftPlaceable.height) / 2,
-               )
-               timePlaceable.place(
-                  (constraints.maxWidth - timePlaceable.width) / 2,
-                  (actualHeight - timePlaceable.height) / 2,
-               )
-               rightPlaceable?.place(
-                  (constraints.maxWidth + timePlaceable.width) / 2 + ((constraints.maxWidth - timePlaceable.width) / 2 - rightPlaceable.width) / 2,
-                  (actualHeight - rightPlaceable.height) / 2,
-               )
-            }
-         }
-
-         val leftPlaceable = leftTextMeasurable?.measure(constraints)
-         val rightPlaceable = rightTextMeasurable?.measure(constraints)
-
-         val height =
-            (leftPlaceable?.height ?: 0) + timePlaceable.height + (rightPlaceable?.height ?: 0)
-
-         return layout(constraints.maxWidth, height) {
-            leftPlaceable?.place(0, 0)
-            timePlaceable.place(
-               (constraints.maxWidth - timePlaceable.width) / 2,
-               leftPlaceable?.height ?: 0
-            )
-            rightPlaceable?.place(
-               constraints.maxWidth - rightPlaceable.width,
-               (leftPlaceable?.height ?: 0) + timePlaceable.height,
-            )
-         }
-      }
-   }
-
    @Composable
    private fun TripRow(
       trip: Trip,
-      overriddenFirstStop: String?,
-      headsign: String,
-      isHeadsignOverridden: Boolean,
       liveComparison: Int,
       selectedDate: Long,
       modifier: Modifier = Modifier,
@@ -458,7 +355,8 @@ class RouteScheduleActivity : ComponentActivity() {
             }
             val weight = if (liveComparison == 0) FontWeight.SemiBold else null
 
-            val startLabel = specialLabel?.first ?: overriddenFirstStop
+            val startLabel = specialLabel?.first
+               ?: if (!trip.isFirstStopCommon) trip.stops.first().name else null
 
             if (startLabel != null) Text(
                text = startLabel,
@@ -486,10 +384,15 @@ class RouteScheduleActivity : ComponentActivity() {
                   modifier = Modifier.padding(horizontal = 8.dp),
                   tint = tint,
                )
-               Text(trip.departures.last().timeToString(), color = tint, fontWeight = weight)
+               Text(
+                  trip.departures.last().timeToString(),
+                  color = tint,
+                  fontWeight = weight
+               )
             }
 
-            val endLabel = specialLabel?.second ?: headsign.takeIf { isHeadsignOverridden }
+            val endLabel = specialLabel?.second
+               ?: if (!trip.isHeadsignCommon) trip.headsign else null
 
             if (endLabel != null) Text(
                text = endLabel,
@@ -500,14 +403,95 @@ class RouteScheduleActivity : ComponentActivity() {
             )
          },
          modifier = modifier.clickable {
-            TripDialogActivity.show(
-               this,
-               trip,
-               selectedDate = selectedDate.toInt(),
-            )
+            TripDialogActivity.show(this, trip, selectedDate)
          },
          measurePolicy = TripRowMeasurePolicy,
       )
+   }
+
+   private data object TripRowMeasurePolicy : MeasurePolicy {
+
+      const val TIME_LAYOUT_ID = "time"
+
+      override fun MeasureScope.measure(
+         measurables: List<Measurable>,
+         constraints: Constraints
+      ): MeasureResult {
+         if (measurables.size == 1) {
+            val timePlaceable = measurables[0].measure(constraints)
+
+            val actualHeight = max(48.dp.roundToPx(), timePlaceable.height)
+            val yOffset = (actualHeight - timePlaceable.height) / 2
+
+            return layout(constraints.maxWidth, actualHeight) {
+               timePlaceable.place(
+                  (constraints.maxWidth - timePlaceable.width) / 2,
+                  yOffset
+               )
+            }
+         }
+
+         val timeIndex =
+            measurables.indexOfFirst { TIME_LAYOUT_ID == it.layoutId }
+
+         val timePlaceable = measurables[timeIndex].measure(constraints)
+
+         val leftTextMeasurable =
+            if (timeIndex != 0) measurables.first() else null
+         val rightTextMeasurable =
+            if (timeIndex != measurables.lastIndex) measurables.last() else null
+
+         if (constraints.maxWidth - timePlaceable.width >= 180.dp.roundToPx()) {
+            val maxTextWidth = (constraints.maxWidth - timePlaceable.width) / 2
+
+            val leftPlaceable =
+               leftTextMeasurable?.measure(constraints.copy(maxWidth = maxTextWidth))
+            val rightPlaceable =
+               rightTextMeasurable?.measure(constraints.copy(maxWidth = maxTextWidth))
+
+            var actualHeight = 48.dp.roundToPx()
+            if (timePlaceable.height > actualHeight) actualHeight =
+               timePlaceable.height
+            if (leftPlaceable != null && leftPlaceable.height > actualHeight) actualHeight =
+               leftPlaceable.height
+            if (rightPlaceable != null && rightPlaceable.height > actualHeight) actualHeight =
+               rightPlaceable.height
+
+            return layout(constraints.maxWidth, actualHeight) {
+               leftPlaceable?.place(
+                  ((constraints.maxWidth - timePlaceable.width) / 2 - leftPlaceable.width) / 2,
+                  (actualHeight - leftPlaceable.height) / 2,
+               )
+               timePlaceable.place(
+                  (constraints.maxWidth - timePlaceable.width) / 2,
+                  (actualHeight - timePlaceable.height) / 2,
+               )
+               rightPlaceable?.place(
+                  (constraints.maxWidth + timePlaceable.width) / 2 + ((constraints.maxWidth - timePlaceable.width) / 2 - rightPlaceable.width) / 2,
+                  (actualHeight - rightPlaceable.height) / 2,
+               )
+            }
+         }
+
+         val leftPlaceable = leftTextMeasurable?.measure(constraints)
+         val rightPlaceable = rightTextMeasurable?.measure(constraints)
+
+         val height =
+            (leftPlaceable?.height
+               ?: 0) + timePlaceable.height + (rightPlaceable?.height ?: 0)
+
+         return layout(constraints.maxWidth, height) {
+            leftPlaceable?.place(0, 0)
+            timePlaceable.place(
+               (constraints.maxWidth - timePlaceable.width) / 2,
+               leftPlaceable?.height ?: 0
+            )
+            rightPlaceable?.place(
+               constraints.maxWidth - rightPlaceable.width,
+               (leftPlaceable?.height ?: 0) + timePlaceable.height,
+            )
+         }
+      }
    }
 
    @OptIn(ExperimentalMaterial3Api::class)
@@ -517,21 +501,24 @@ class RouteScheduleActivity : ComponentActivity() {
       todayTabOffset: Int,
       selectedTabIndex: Int,
       onSetSelectedTabIndex: (Int) -> Unit,
-      serviceIdTypes: ServiceIdTypes?,
+      serviceTypes: ServiceTypes?,
       modifier: Modifier = Modifier,
    ) = PrimaryScrollableTabRow(
       selectedTabIndex, modifier,
       indicator = {
          TabRowDefaults.PrimaryIndicator(
-            Modifier.tabIndicatorOffset(selectedTabIndex, matchContentSize = true),
+            Modifier.tabIndicatorOffset(
+               selectedTabIndex,
+               matchContentSize = true
+            ),
             width = Dp.Unspecified,
-            color = (serviceIdTypes?.get(serviceIds[selectedTabIndex])
-               ?: ServiceIdType.WEEKDAY).contentColor
+            color = (serviceTypes?.get(serviceIds[selectedTabIndex])
+               ?: ServiceType.WEEKDAY).contentColor
          )
       }
    ) {
       serviceIds.forEachIndexed { i, serviceId ->
-         val type = serviceIdTypes?.get(serviceId) ?: ServiceIdType.WEEKDAY
+         val type = serviceTypes?.get(serviceId) ?: ServiceType.WEEKDAY
 
          Tab(
             selected = selectedTabIndex == i,

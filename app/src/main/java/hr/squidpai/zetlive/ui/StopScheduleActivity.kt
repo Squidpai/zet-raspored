@@ -52,16 +52,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import hr.squidpai.zetlive.gtfs.GroupedStop
-import hr.squidpai.zetlive.gtfs.RoutesAtStopMap
-import hr.squidpai.zetlive.gtfs.Schedule
-import hr.squidpai.zetlive.gtfs.StopId
+import hr.squidpai.zetapi.RouteId
+import hr.squidpai.zetapi.StopId
+import hr.squidpai.zetapi.Stops
+import hr.squidpai.zetapi.asStopId
+import hr.squidpai.zetlive.gtfs.ActualStopLiveSchedule
+import hr.squidpai.zetlive.gtfs.ScheduleManager
+import hr.squidpai.zetlive.gtfs.StopNoLiveSchedule
 import hr.squidpai.zetlive.gtfs.getLiveSchedule
-import hr.squidpai.zetlive.gtfs.toParentStopId
-import hr.squidpai.zetlive.gtfs.toStopId
-import hr.squidpai.zetlive.none
+import hr.squidpai.zetlive.gtfs.iconInfo
 import hr.squidpai.zetlive.orLoading
-import hr.squidpai.zetlive.timeToString
 import hr.squidpai.zetlive.ui.composables.CircularLoadingBox
 import hr.squidpai.zetlive.ui.composables.IconButton
 
@@ -76,7 +76,8 @@ class StopScheduleActivity : ComponentActivity() {
    override fun onCreate(savedInstanceState: Bundle?) {
       super.onCreate(savedInstanceState)
 
-      val stopId = intent.getIntExtra(EXTRA_STOP, StopId.Invalid.value).toStopId()
+      val stopId = intent.getIntExtra(EXTRA_STOP, StopId.Invalid.rawValue)
+         .asStopId()
 
       if (stopId == StopId.Invalid) {
          Log.w(TAG, "onCreate: No stop id given, finishing activity early.")
@@ -88,20 +89,18 @@ class StopScheduleActivity : ComponentActivity() {
       enableEdgeToEdge()
       setContent {
          AppTheme {
-            val schedule = Schedule.loadedInstance
+            val schedule = ScheduleManager.instance
 
             val groupedStop =
-               schedule?.stops?.groupedStops?.get(stopId.stationNumber.toParentStopId())
-
-            val routesAtStopMap = schedule?.routesAtStopMap
+               schedule?.stops?.groupedStops?.get(stopId.stopNumber)
 
             Scaffold(
                topBar = { MyTopAppBar(groupedStop?.parentStop?.name.orLoading()) },
                contentWindowInsets = WindowInsets.safeDrawing,
             ) { padding ->
                MyContent(
-                  groupedStop, routesAtStopMap,
-                  defaultCode = stopId.stationCode,
+                  groupedStop,
+                  defaultCode = stopId.stopCode,
                   Modifier
                      .fillMaxSize()
                      .padding(padding),
@@ -131,17 +130,20 @@ class StopScheduleActivity : ComponentActivity() {
 
    @Composable
    private fun MyContent(
-      groupedStop: GroupedStop?,
-      routesAtStopMap: RoutesAtStopMap?,
+      groupedStop: Stops.Grouped?,
       defaultCode: Int,
       modifier: Modifier,
-   ) = Column(modifier.background(MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp))) {
-      if (groupedStop == null || routesAtStopMap == null) {
+   ) = Column(
+      modifier.background(
+         MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp)
+      )
+   ) {
+      if (groupedStop == null) {
          CircularLoadingBox()
          return
       }
 
-      val labeledStops = groupedStop.labeledStop(routesAtStopMap)
+      val labeledStops = groupedStop.labeledStop()
 
       val (selectedStopIndex, setSelectedStopIndex) = rememberSaveable {
          val index = labeledStops.indexOfFirst { it.stop.code == defaultCode }
@@ -154,7 +156,7 @@ class StopScheduleActivity : ComponentActivity() {
          modifier = Modifier.fillMaxWidth(),
          horizontalArrangement = Arrangement.SpaceEvenly,
       ) {
-         items(groupedStop.childStops.size) {
+         items(groupedStop.size) {
             val (stop, label) = labeledStops[it]
             FilterChip(
                selected = selectedStopIndex == it,
@@ -172,45 +174,39 @@ class StopScheduleActivity : ComponentActivity() {
 
       val selectedStop = labeledStops[selectedStopIndex].stop
 
-      val routesAtStop = routesAtStopMap[selectedStop.id.value]
-      if (routesAtStop == null) {
-         CircularLoadingBox()
-         return
+      val routesAtStop = remember(selectedStop) {
+         selectedStop.routes.keys.sortedBy { it.sortOrder }
       }
 
       Text("Linije", Modifier.padding(start = 8.dp))
 
-      val routesFiltered = remember { mutableStateListOf<Int>() }
-      val filterEmpty =
-         routesFiltered.isEmpty() || routesAtStop.routeIds.none { it in routesFiltered }
+      val routesFiltered = remember { mutableStateListOf<RouteId>() }
+      val filterEmpty = routesFiltered.isEmpty() ||
+            routesAtStop.none { it.id in routesFiltered }
 
       LazyRow(Modifier.fillMaxWidth()) {
-         items(routesAtStop.routeIds.size) { i ->
-            val route = routesAtStop.routeIds[i]
-            val selected = route in routesFiltered
+         items(routesAtStop.size) { i ->
+            val route = routesAtStop[i]
+            val selected = route.id in routesFiltered
             FilterChip(
                selected = selected || filterEmpty,
                onClick = {
                   if (selected)
-                     routesFiltered -= route
+                     routesFiltered -= route.id
                   else {
-                     routesFiltered += route
+                     routesFiltered += route.id
 
                      // if we've selected all routes, deselect them all
-                     var containsAll = true
-                     routesAtStop.routeIds.forEach { r ->
-                        if (r !in routesFiltered) {
-                           containsAll = false
-                           return@forEach
-                        }
+                     val containsAll = routesAtStop.all {
+                        it.id in routesFiltered
                      }
                      if (containsAll)
-                        routesAtStop.routeIds.forEach { routesFiltered -= it }
+                        routesAtStop.forEach { routesFiltered -= it.id }
                   }
                },
                label = {
                   Text(
-                     text = route.toString(),
+                     text = route.shortName,
                      modifier = Modifier.defaultMinSize(18.dp),
                      textAlign = TextAlign.Center,
                   )
@@ -228,42 +224,53 @@ class StopScheduleActivity : ComponentActivity() {
       }
 
       val liveSchedule = selectedStop.getLiveSchedule(
-         routesAtStop,
          keepDeparted = true,
          maxSize = 40,
-         routesFiltered = null,
-      )
-         ?: run {
-            CircularLoadingBox()
-            return
-         }
-
-      Spacer(Modifier.height(4.dp))
-
-      val live =
-         if (filterEmpty) liveSchedule.first
-         else liveSchedule.first?.filter { it.routeId in routesFiltered }
-
-      if (live.isNullOrEmpty()) {
-         Box(
-            Modifier
-               .fillMaxSize()
-               .background(MaterialTheme.colorScheme.background),
-            contentAlignment = Alignment.Center,
-         ) {
-            Text(
-               if (liveSchedule.second != null) liveSchedule.second!!
-               else if (filterEmpty) "Nema polazaka na postaji uskoro."
-               else "Izabrane linije nemaju nikakvih polazaka uskoro.",
-               Modifier.padding(horizontal = 16.dp),
-               textAlign = TextAlign.Center,
-            )
-         }
+         routesFiltered = routesFiltered.toList(),
+      ) ?: run {
+         CircularLoadingBox()
          return
       }
 
+      Spacer(Modifier.height(4.dp))
+
+      when (liveSchedule) {
+         is StopNoLiveSchedule -> NoLiveSchedule(liveSchedule, filterEmpty)
+         is ActualStopLiveSchedule -> ActualLiveSchedule(
+            liveSchedule,
+            selectedStopIndex
+         )
+      }
+   }
+
+   @Composable
+   private fun NoLiveSchedule(
+      liveSchedule: StopNoLiveSchedule,
+      filterEmpty: Boolean,
+   ) = Box(
+      Modifier
+         .fillMaxSize()
+         .background(MaterialTheme.colorScheme.background),
+      contentAlignment = Alignment.Center,
+   ) {
+      Text(
+         liveSchedule.noLiveMessage
+            ?: if (filterEmpty) "Nema polazaka na postaji uskoro."
+            else "Izabrane linije nemaju nikakvih polazaka uskoro.",
+         Modifier.padding(horizontal = 16.dp),
+         textAlign = TextAlign.Center,
+      )
+   }
+
+   @Composable
+   private fun ActualLiveSchedule(
+      liveSchedule: ActualStopLiveSchedule,
+      selectedStopIndex: Int,
+   ) {
       val departedColor = lerp(
-         MaterialTheme.colorScheme.onSurface, MaterialTheme.colorScheme.surface, fraction = 0.36f
+         MaterialTheme.colorScheme.onSurface,
+         MaterialTheme.colorScheme.surface,
+         fraction = 0.36f,
       )
 
       // TODO add option to view this stop's whole day schedule (similar to RouteScheduleActivity)
@@ -272,13 +279,20 @@ class StopScheduleActivity : ComponentActivity() {
          modifier = Modifier
             .background(MaterialTheme.colorScheme.background)
             .fillMaxHeight(),
-         state = rememberSaveable(selectedStopIndex, saver = LazyListState.Saver) {
-            LazyListState(firstVisibleItemIndex = live.indexOfFirst { !it.departed }
-               .coerceAtLeast(0))
+         state = rememberSaveable(
+            selectedStopIndex,
+            saver = LazyListState.Saver
+         ) {
+            LazyListState(
+               firstVisibleItemIndex = liveSchedule
+                  .indexOfFirst { it.relativeTime >= 0 }
+                  .coerceAtLeast(0)
+            )
          },
       ) {
-         items(live.size) {
-            val entry = live[it]
+         items(liveSchedule.size) {
+            val entry = liveSchedule[it]
+            val departed = entry.relativeTime < 0
 
             Row(
                Modifier
@@ -294,28 +308,30 @@ class StopScheduleActivity : ComponentActivity() {
             ) {
                val routeStyle = MaterialTheme.typography.titleMedium
                Text(
-                  text = entry.routeId.toString(),
+                  text = entry.route.id,
                   modifier = Modifier.width(with(LocalDensity.current) {
                      (routeStyle.fontSize * 3.5f).toDp()
                   }),
-                  color = if (!entry.departed) MaterialTheme.colorScheme.primary else departedColor,
+                  color = if (departed) departedColor
+                  else MaterialTheme.colorScheme.primary,
                   textAlign = TextAlign.Center,
                   style = routeStyle,
                )
                Text(
                   entry.headsign,
                   Modifier.weight(1f),
-                  color = if (!entry.departed) Color.Unspecified else departedColor,
+                  color = if (departed) departedColor else Color.Unspecified,
                   maxLines = 1,
                   overflow = TextOverflow.Ellipsis,
                )
                Text(
-                  if (entry.departed) "otišao"
+                  if (departed) "otišao"
                   else if (entry.useRelative) "${entry.relativeTime / 60} min"
-                  else entry.absoluteTime.timeToString(),
+                  else entry.absoluteTime.toStringHHMM(),
                   modifier = Modifier.padding(end = 4.dp),
-                  color = if (!entry.departed) MaterialTheme.colorScheme.primary else departedColor,
-                  fontWeight = FontWeight.Bold.takeUnless { entry.departed },
+                  color = if (departed) departedColor
+                  else MaterialTheme.colorScheme.primary,
+                  fontWeight = FontWeight.Bold.takeUnless { departed },
                )
             }
          }

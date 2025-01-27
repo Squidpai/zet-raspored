@@ -15,6 +15,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.material3.IconButton as Material3IconButton
 
 /**
  * [Material Design standard icon button](https://m3.material.io/components/icon-button/overview)
@@ -54,7 +55,7 @@ fun IconButton(
    tooltip = { PlainTooltip { Text(contentDescription) } },
    state = rememberTooltipState(),
 ) {
-   androidx.compose.material3.IconButton(onClick, modifier, enabled, colors, interactionSource) {
+   Material3IconButton(onClick, modifier, enabled, colors, interactionSource) {
       Icon(icon, contentDescription)
    }
 }

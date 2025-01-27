@@ -42,24 +42,26 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import hr.squidpai.zetapi.Route
+import hr.squidpai.zetapi.Routes
+import hr.squidpai.zetapi.filter
 import hr.squidpai.zetlive.Data
 import hr.squidpai.zetlive.gtfs.ActualRouteLiveSchedule
-import hr.squidpai.zetlive.gtfs.Route
 import hr.squidpai.zetlive.gtfs.RouteNoLiveSchedule
-import hr.squidpai.zetlive.gtfs.Routes
-import hr.squidpai.zetlive.gtfs.Stops
 import hr.squidpai.zetlive.gtfs.getLiveSchedule
 import hr.squidpai.zetlive.ui.composables.DirectionRow
 import hr.squidpai.zetlive.ui.composables.IconButton
 import hr.squidpai.zetlive.ui.composables.LiveTravelSlider
 
 @Composable
-fun MainActivityRoutes(routes: Routes, stops: Stops) = Column(Modifier.fillMaxSize()) {
+fun MainActivityRoutes(routes: Routes) = Column(Modifier.fillMaxSize()) {
    val inputState = rememberSaveable { mutableStateOf("") }
 
    val pinnedRoutes = Data.pinnedRoutes.toSet()
    val list = remember(routes) {
-      mutableStateListOf<Route>().apply { addAll(routes.filter(inputState.value.trim())) }
+      mutableStateListOf<Route>().apply {
+         addAll(routes.values.filter(inputState.value.trim()))
+      }
    }
 
    val lazyListState = rememberLazyListState()
@@ -74,12 +76,10 @@ fun MainActivityRoutes(routes: Routes, stops: Stops) = Column(Modifier.fillMaxSi
    LazyColumn(state = lazyListState) {
       if (inputState.value.isBlank())
          for (pinnedRouteId in pinnedRoutes) {
-            val route = routes.list.get(key = pinnedRouteId) ?: continue
-            item(key = -pinnedRouteId) {
-               Modifier
-                  .fillParentMaxWidth()
+            val route = routes[pinnedRouteId] ?: continue
+            item(key = pinnedRouteId.hashCode()) {
                RouteContent(
-                  route, stops, pinned = true,
+                  route, pinned = true,
                   modifier = Modifier
                      .fillParentMaxWidth()
                      .animateItem(),
@@ -90,7 +90,7 @@ fun MainActivityRoutes(routes: Routes, stops: Stops) = Column(Modifier.fillMaxSi
       items(list.size, key = { list[it].id }) {
          val route = list[it]
          RouteContent(
-            route, stops, pinned = route.id in pinnedRoutes,
+            route, pinned = route.id in pinnedRoutes,
             modifier = Modifier
                .fillParentMaxWidth()
                .animateItem(),
@@ -121,8 +121,8 @@ private fun RouteFilterSearchBar(
          lazyListState.requestScrollToItem(0)
 
          val newList =
-            if (input in newInput) Routes.filter(list, newInputTrimmed)
-            else routes.filter(newInputTrimmed)
+            if (input in newInput) list.filter(newInputTrimmed)
+            else routes.values.filter(newInputTrimmed)
 
          list.clear()
          list.addAll(newList)
@@ -151,7 +151,7 @@ private fun RouteFilterSearchBar(
 }
 
 @Composable
-private fun RouteContent(route: Route, stops: Stops, pinned: Boolean, modifier: Modifier) {
+private fun RouteContent(route: Route, pinned: Boolean, modifier: Modifier) {
    val (expanded, setExpanded) =
       rememberSaveable(key = "re${route.id}") { mutableStateOf(false) }
 
@@ -219,17 +219,17 @@ private fun RouteContent(route: Route, stops: Stops, pinned: Boolean, modifier: 
                }*/
             }
 
-            RouteLiveTravels(route, stops, directionState)
+            RouteLiveTravels(route, directionState)
          }
       }
    }
 }
 
 @Composable
-private fun ColumnScope.RouteLiveTravels(route: Route, stops: Stops, directionState: MutableIntState) {
-   val routeLiveSchedule = route.getLiveSchedule()
+private fun ColumnScope.RouteLiveTravels(route: Route, directionState: MutableIntState) {
+   val liveSchedule = route.getLiveSchedule()
 
-   if (routeLiveSchedule == null) {
+   if (liveSchedule == null) {
       CircularProgressIndicator(
          Modifier
             .align(Alignment.CenterHorizontally)
@@ -238,9 +238,9 @@ private fun ColumnScope.RouteLiveTravels(route: Route, stops: Stops, directionSt
       return
    }
 
-   when (routeLiveSchedule) {
+   when (liveSchedule) {
       is RouteNoLiveSchedule -> Text(
-         routeLiveSchedule.noLiveMessage,
+         liveSchedule.noLiveMessage,
          Modifier
             .padding(vertical = 8.dp)
             .align(Alignment.CenterHorizontally)
@@ -249,22 +249,22 @@ private fun ColumnScope.RouteLiveTravels(route: Route, stops: Stops, directionSt
          val (direction, setDirection) = directionState
 
          val isRoundRoute =
-            if (routeLiveSchedule.first.isNotEmpty()) routeLiveSchedule.second.isEmpty()
-            else routeLiveSchedule.commonHeadsign.second.isEmpty()
+            if (liveSchedule.first.isNotEmpty()) liveSchedule.second.isEmpty()
+            else liveSchedule.commonHeadsign.second.isEmpty()
 
          DirectionRow(
             routeId = route.id,
-            commonHeadsign = routeLiveSchedule.commonHeadsign,
+            commonHeadsign = liveSchedule.commonHeadsign,
             direction, setDirection,
             isRoundRoute,
          )
 
          val liveTravels =
-            if (direction == 0 || isRoundRoute) routeLiveSchedule.first
-            else routeLiveSchedule.second
+            if (direction == 0 || isRoundRoute) liveSchedule.first
+            else liveSchedule.second
 
          for (entry in liveTravels)
-            LiveTravelSlider(entry, stops.list)
+            LiveTravelSlider(entry)
       }
    }
 }

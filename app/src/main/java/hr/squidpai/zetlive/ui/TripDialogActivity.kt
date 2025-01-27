@@ -26,6 +26,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -52,388 +53,382 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import hr.squidpai.zetapi.RouteId
+import hr.squidpai.zetapi.TimeOfDay
+import hr.squidpai.zetapi.Trip
+import hr.squidpai.zetapi.TripId
 import hr.squidpai.zetlive.LOADING_TEXT
-import hr.squidpai.zetlive.MILLIS_IN_DAY
-import hr.squidpai.zetlive.MILLIS_IN_SECONDS
-import hr.squidpai.zetlive.SECONDS_IN_DAY
-import hr.squidpai.zetlive.SECONDS_IN_HOUR
-import hr.squidpai.zetlive.get
-import hr.squidpai.zetlive.gtfs.Live
-import hr.squidpai.zetlive.gtfs.PreciseDelayByStop
-import hr.squidpai.zetlive.gtfs.Schedule
-import hr.squidpai.zetlive.gtfs.Trip
-import hr.squidpai.zetlive.gtfs.TripId
-import hr.squidpai.zetlive.gtfs.getArrivalLineRatio
-import hr.squidpai.zetlive.gtfs.getDelayByStop
-import hr.squidpai.zetlive.gtfs.toStopId
-import hr.squidpai.zetlive.localCurrentTimeMillis
+import hr.squidpai.zetlive.gtfs.ScheduleManager
+import hr.squidpai.zetlive.gtfs.getUpdatingLiveDisplayData
 import hr.squidpai.zetlive.localEpochDate
-import hr.squidpai.zetlive.orLoading
-import hr.squidpai.zetlive.timeToString
 import hr.squidpai.zetlive.ui.composables.HintIconButton
 import hr.squidpai.zetlive.ui.composables.IconButton
-import hr.squidpai.zetlive.utcEpochDate
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 
 class TripDialogActivity : ComponentActivity() {
 
-   companion object {
-      private const val TAG = "TripDialogActivity"
+	companion object {
+		private const val TAG = "TripDialogActivity"
 
-      fun show(context: Context, trip: Trip, selectedDate: Int) {
-         context.startActivity(
-            Intent(context, TripDialogActivity::class.java)
-               .putExtra(EXTRA_ROUTE_ID, trip.routeId)
-               .putExtra(EXTRA_TRIP_ID, trip.tripId)
-               .putExtra(EXTRA_SELECTED_DATE, selectedDate)
-         )
-      }
-   }
+		fun show(context: Context, trip: Trip, selectedDate: Long) {
+			context.startActivity(
+				Intent(context, TripDialogActivity::class.java)
+					.putExtra(EXTRA_ROUTE_ID, trip.route.id)
+					.putExtra(EXTRA_TRIP_ID, trip.tripId)
+					.putExtra(EXTRA_SELECTED_DATE, selectedDate)
+			)
+		}
+	}
 
-   private var routeId = -1
-   private lateinit var tripId: TripId
-   private var selectedDate = 0
+	private lateinit var routeId: RouteId
+	private lateinit var tripId: TripId
+	private var selectedDate = 0L
 
-   private val requestPermissionLauncher = registerForActivityResult(
-      ActivityResultContracts.RequestPermission()
-   ) { isGranted ->
-      if (isGranted) {
-         startNotificationTracking()
-         finish()
-      } else
-         Toast.makeText(
-            this,
-            "Ne može se postaviti obavijest${Typography.mdash}" +
-                  "odbijena je dozvola za postavljanje obavijesti.",
-            Toast.LENGTH_LONG
-         ).show()
-   }
+	private val requestPermissionLauncher = registerForActivityResult(
+		ActivityResultContracts.RequestPermission()
+	) { isGranted ->
+		if (isGranted) {
+			startNotificationTracking()
+			finish()
+		} else
+			Toast.makeText(
+				this,
+				"Ne može se postaviti obavijest${Typography.mdash}" +
+						"odbijena je dozvola za postavljanje obavijesti.",
+				Toast.LENGTH_LONG
+			).show()
+	}
 
-   private fun trackInNotifications() {
-      if (ContextCompat.checkSelfPermission(
-            this,
-            Manifest.permission.POST_NOTIFICATIONS
-         ) == PackageManager.PERMISSION_GRANTED
-      ) {
-         startNotificationTracking()
-         finish()
-         return
-      }
+	private fun trackInNotifications() {
+		if (ContextCompat.checkSelfPermission(
+				this,
+				Manifest.permission.POST_NOTIFICATIONS
+			) == PackageManager.PERMISSION_GRANTED
+		) {
+			startNotificationTracking()
+			finish()
+			return
+		}
 
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
-         requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-   }
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+			requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+	}
 
-   private fun startNotificationTracking() {
-      startForegroundService(
-         Intent(this, NotificationTrackerService::class.java)
-            .putExtra(EXTRA_ROUTE_ID, routeId)
-            .putExtra(EXTRA_TRIP_ID, tripId)
-            .putExtra(EXTRA_SELECTED_DATE, selectedDate)
-      )
-   }
+	private fun startNotificationTracking() {
+		startForegroundService(
+			Intent(this, NotificationTrackerService::class.java)
+				.putExtra(EXTRA_ROUTE_ID, routeId)
+				.putExtra(EXTRA_TRIP_ID, tripId)
+				.putExtra(EXTRA_SELECTED_DATE, selectedDate)
+		)
+	}
 
-   override fun onCreate(savedInstanceState: Bundle?) {
-      super.onCreate(savedInstanceState)
+	override fun onCreate(savedInstanceState: Bundle?) {
+		super.onCreate(savedInstanceState)
 
-      routeId = intent.getIntExtra(EXTRA_ROUTE_ID, -1)
-      if (routeId == -1) {
-         Log.w(TAG, "onCreate: no routeId given, finishing activity early")
-         finish()
-         return
-      }
+		routeId = intent.getStringExtra(EXTRA_ROUTE_ID)
+			?: run {
+				Log.w(TAG, "onCreate: no routeId given, finishing activity early")
+				finish()
+				return
+			}
 
-      tripId = intent.getStringExtra(EXTRA_TRIP_ID)
-         ?: run {
-            Log.w(TAG, "onCreate: no tripId given, finishing activity early")
-            finish()
-            return
-         }
+		tripId = intent.getStringExtra(EXTRA_TRIP_ID)
+			?: run {
+				Log.w(TAG, "onCreate: no tripId given, finishing activity early")
+				finish()
+				return
+			}
 
-      selectedDate = intent.getIntExtra(EXTRA_SELECTED_DATE, 0)
-      if (selectedDate == 0)
-         selectedDate = localEpochDate().toInt()
+		selectedDate = intent.getLongExtra(EXTRA_SELECTED_DATE, 0L)
+		if (selectedDate == 0L)
+			selectedDate = localEpochDate()
 
-      setContent {
-         AppTheme {
-            var isAbsoluteTime by remember { mutableStateOf(false) }
+		setContent {
+			AppTheme {
+				var isAbsoluteTime by remember { mutableStateOf(true) }
 
-            val schedule = Schedule.loadedInstance
-            val trips = schedule?.getTripsOfRoute(routeId)?.value
-            val trip = trips?.list?.get(key = tripId)
+				val schedule = ScheduleManager.instance
+				val route = schedule?.routes?.get(routeId)
+				val trip = route?.trips?.get(tripId)
 
-            AlertDialog(
-               onDismissRequest = ::finish,
-               confirmButton = {
-                  TextButton(onClick = ::finish) {
-                     Text("Zatvori")
-                  }
-               },
-               title = {
-                  val route = schedule?.routes?.list?.get(key = routeId)
+				AlertDialog(
+					onDismissRequest = ::finish,
+					confirmButton = {
+						TextButton(onClick = ::finish) {
+							Text("Zatvori")
+						}
+					},
+					title = {
+						Row(verticalAlignment = Alignment.CenterVertically) {
+							Text(
+								text = if (route != null && trip != null)
+									"${route.shortName} smjer ${trip.headsign}"
+								else LOADING_TEXT,
+								modifier = Modifier.weight(1f),
+							)
 
-                  Row(verticalAlignment = Alignment.CenterVertically) {
-                     Text(
-                        text = if (route != null && trip != null)
-                           "${route.shortName} smjer ${
-                              trip.headsign ?: trips.commonHeadsignByDay[trip.serviceId]?.get(
-                                 trip.directionId
-                              ).orLoading()
-                           }" else LOADING_TEXT,
-                        modifier = Modifier.weight(1f),
-                     )
+							val icon = if (isAbsoluteTime) Symbols.ClockLoader10 else Symbols.Schedule
+							IconButton(
+								icon, "Promjeni prikaz vremena",
+								onClick = { isAbsoluteTime = !isAbsoluteTime },
+							)
+							Box {
+								var expanded by remember { mutableStateOf(false) }
 
-                     val icon = if (isAbsoluteTime) Symbols.ClockLoader10 else Symbols.Schedule
-                     IconButton(
-                        icon, "Promjeni prikaz vremena",
-                        onClick = { isAbsoluteTime = !isAbsoluteTime },
-                     )
-                     Box {
-                        var expanded by remember { mutableStateOf(false) }
+								IconButton(
+									Symbols.MoreVert, "Dodatne opcije",
+									onClick = { expanded = true },
+								)
+								DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+									DropdownMenuItem(
+										text = { Text("Prati u obavijestima") },
+										onClick = { trackInNotifications() }
+									)
+								}
+							}
+						}
+					},
+					text = {
+						if (schedule == null || trip == null) {
+							CircularProgressIndicator()
+							return@AlertDialog
+						}
 
-                        IconButton(
-                           Symbols.MoreVert, "Dodatke opcije",
-                           onClick = { expanded = true },
-                        )
-                        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                           DropdownMenuItem(
-                              text = { Text("Prati u obavijestima") },
-                              onClick = { trackInNotifications() }
-                           )
-                        }
-                     }
-                  }
-               },
-               text = text@{
-                  val stops = schedule?.stops
+						DialogContent(trip, isAbsoluteTime)
+					}
+				)
+			}
+		}
+	}
 
-                  if (stops == null || trip == null) {
-                     CircularProgressIndicator()
-                     return@text
-                  }
+	override fun onPause() {
+		super.onPause()
+		ScheduleManager.realtimeDispatcher.removeListener(TAG)
+	}
 
-                  val currentTimeMillis = localCurrentTimeMillis()
-                  val dateDifference = (currentTimeMillis / MILLIS_IN_DAY).toInt() - selectedDate
+	override fun onResume() {
+		super.onResume()
+		ScheduleManager.realtimeDispatcher.addListener(TAG)
+	}
 
-                  val offsetTime = (currentTimeMillis % MILLIS_IN_DAY +
-                        dateDifference * MILLIS_IN_DAY).toInt() / MILLIS_IN_SECONDS
+	@Composable
+	private fun DialogContent(trip: Trip, isAbsoluteTime: Boolean) {
+		val (realtimeDepartures, timeOfDay, nextStopIndex, nextStopValue) =
+			getUpdatingLiveDisplayData(trip, selectedDate)
+		val isCancelled = realtimeDepartures == null
 
-                  val tripUpdate = trip.tripId.let { id ->
-                     Live.instance.findForTripIgnoringServiceId(id)?.tripUpdate
-                        ?.takeIf {
-                           abs(
-                              it.timestamp - (trip.departures.first() +
-                                    (utcEpochDate() - dateDifference) * SECONDS_IN_DAY)
-                           ) < 12 * SECONDS_IN_HOUR
-                        }
-                  }
+		LazyColumn(
+			modifier = Modifier.fillMaxWidth(),
+			state = rememberLazyListState(
+				(nextStopIndex - 4).coerceAtLeast(0)
+			),
+		) {
+			items(trip.stops.size) { i ->
+				val stop = trip.stops[i]
+				val departure = TimeOfDay(trip.departures[i])
+				val realtimeDeparture = realtimeDepartures?.get(i)
+					?.let { TimeOfDay(it) } ?: departure
 
-                  val delays = tripUpdate?.stopTimeUpdateList.getDelayByStop()
+				Layout(
+					content = {
+						LineCanvas(
+							index = i,
+							nextStopIndex,
+							nextStopValue,
+							isCancelled,
+							lastIndex = trip.stops.lastIndex,
+						)
 
-                  val isLive = delays is PreciseDelayByStop
+						Column {
+							val passed = i < nextStopIndex
 
-                  val nextStopIndex = trip.findNextStopIndex(offsetTime, delays)
+							val stopColor: Color
+							val timeColor: Color
+							if (passed || isCancelled) {
+								stopColor = lerp(
+									MaterialTheme.colorScheme.onSurface,
+									MaterialTheme.colorScheme.surface,
+									fraction = .36f
+								)
+								timeColor = stopColor
+							} else {
+								stopColor = Color.Unspecified
+								timeColor = MaterialTheme.colorScheme.primary
+							}
+							Text(stop.name, color = stopColor)
+							Text(
+								buildAnnotatedString {
+									val t = realtimeDeparture.minusSeconds(timeOfDay)
+									if (isCancelled) {
+										withStyle(
+											SpanStyle(
+												textDecoration = TextDecoration.LineThrough,
+												fontWeight = FontWeight.Normal
+											)
+										) {
+											append(departure.toStringHHMM())
+										}
+										append(" otkazano")
+									} else if (!isAbsoluteTime) {
+										append(if (t < 0) "prije " else "za ")
+										append((abs(t) / 60 % 60).toString())
+										append(" min")
+									} else {
+										if (realtimeDeparture.minusMinutes(departure) != 0) {
+											append(realtimeDeparture.toStringHHMM())
+											append(' ')
+											withStyle(
+												SpanStyle(
+													textDecoration = TextDecoration.LineThrough,
+													fontWeight = FontWeight.Normal
+												)
+											) {
+												append(departure.toStringHHMM())
+											}
+										} else append(departure.toStringHHMM())
+									}
+								},
+								color = timeColor,
+								fontWeight = FontWeight.Bold,
+								style = MaterialTheme.typography.bodySmall,
+							)
+						}
 
-                  val nextStopValue = when (nextStopIndex) {
-                     0 -> 0f
-                     trip.departures.size -> trip.departures.size.toFloat()
-                     else -> nextStopIndex + getArrivalLineRatio(
-                        trip.departures,
-                        nextStopIndex,
-                        delays,
-                        offsetTime,
-                     )
-                  }
+						if (trip.departures !== realtimeDepartures && i == (nextStopIndex - 1).coerceAtLeast(0))
+							HintIconButton(
+								Symbols.MyLocation,
+								contentDescription = null,
+								tooltipTitle = "GPS praćenje",
+								tooltipText = "Ovom vozilu moguće je pratiti lokaciju. " +
+										"Raspored prikazan ovdje prilagođen je prema " +
+										"lokaciji vozila."
+							)
+					},
+					modifier = Modifier
+						.fillMaxWidth()
+						.clip(MaterialTheme.shapes.large)
+						.clickable {
+							startActivity(
+								Intent(
+									this@TripDialogActivity,
+									StopScheduleActivity::class.java,
+								).putExtra(StopScheduleActivity.EXTRA_STOP, stop.id.rawValue)
+							)
+						},
+					measurePolicy = TripRowMeasurePolicy,
+				)
+			}
+		}
+	}
 
-                  LazyColumn(
-                     modifier = Modifier.fillMaxWidth(),
-                     state = rememberLazyListState((nextStopIndex - 4).coerceAtLeast(0))
-                  ) {
-                     items(trip.stops.size) {
-                        val stop = stops.list[trip.stops[it].toStopId()]
-                        val departure = trip.departures[it]
-                        val delay = delays[it]
+	@Composable
+	private fun LineCanvas(
+		index: Int,
+		nextStopIndex: Int,
+		nextStopValue: Float,
+		isCancelled: Boolean,
+		lastIndex: Int,
+	) {
+		val notFilled: Color
+		val filled: Color
 
-                        Layout(
-                           content = {
-                              val filled = MaterialTheme.colorScheme.primary
-                              val notFilled = MaterialTheme.colorScheme.onSurface
+		if (isCancelled) {
+			notFilled = lerp(
+				MaterialTheme.colorScheme.surface,
+				MaterialTheme.colorScheme.onSurface,
+				.36f,
+			)
+			filled = notFilled
+		} else {
+			notFilled = MaterialTheme.colorScheme.onSurface
+			filled = MaterialTheme.colorScheme.primary
+		}
 
-                              val fillCircle = it < nextStopIndex || it == 0
-                              val circleTint = if (fillCircle) filled else notFilled
+		val fillCircle = index < nextStopIndex || index == 0 && !isCancelled
+		val circleTint = if (fillCircle) filled else notFilled
 
-                              Canvas(Modifier) {
-                                 val (width, height) = size
-                                 if (it != 0) {
-                                    val prefillRatio =
-                                       ((nextStopValue - (it + 1 - 0.5f)) * 2f).coerceIn(0f, 1f)
-                                    val prefillLength = prefillRatio * (height / 2 - width / 6)
-                                    if (prefillRatio != 1f) drawLine(
-                                       color = notFilled,
-                                       start = Offset(width / 2, prefillLength),
-                                       end = Offset(width / 2, (height / 2 - width / 6)),
-                                       strokeWidth = width / 16,
-                                       cap = StrokeCap.Round,
-                                    )
-                                    if (prefillRatio != 0f) drawLine(
-                                       color = filled,
-                                       start = Offset(width / 2, 0f),
-                                       end = Offset(width / 2, prefillLength),
-                                       strokeWidth = width / 16,
-                                       cap = StrokeCap.Round,
-                                    )
-                                 }
-                                 drawCircle(
-                                    color = circleTint,
-                                    radius = width / 6,
-                                    style = if (fillCircle) Fill else Stroke(width = width / 16),
-                                 )
-                                 if (it != trip.stops.lastIndex) {
-                                    val prefillRatio =
-                                       ((nextStopValue - (it + 1)) * 2f).coerceIn(0f, 1f)
-                                    val prefillLength = prefillRatio * (height / 2 - width / 6)
-                                    val beginY = (height / 2 + width / 6)
-                                    if (prefillRatio != 1f) drawLine(
-                                       color = notFilled,
-                                       start = Offset(width / 2, beginY + prefillLength),
-                                       end = Offset(width / 2, height),
-                                       strokeWidth = width / 16,
-                                       cap = StrokeCap.Round,
-                                    )
-                                    if (prefillRatio != 0f) drawLine(
-                                       color = filled,
-                                       start = Offset(width / 2, beginY),
-                                       end = Offset(width / 2, beginY + prefillLength),
-                                       strokeWidth = width / 16,
-                                       cap = StrokeCap.Round,
-                                    )
-                                 }
-                              }
+		Canvas(Modifier) {
+			val (width, height) = size
+			if (index != 0) {
+				val prefillRatio =
+					((nextStopValue - (index - 0.5f)) * 2f).coerceIn(0f, 1f)
+				val prefillLength = prefillRatio * (height / 2 - width / 6)
+				if (prefillRatio != 1f) drawLine(
+					color = notFilled,
+					start = Offset(width / 2, prefillLength),
+					end = Offset(width / 2, (height / 2 - width / 6)),
+					strokeWidth = width / 16,
+					cap = StrokeCap.Round,
+				)
+				if (prefillRatio != 0f) drawLine(
+					color = filled,
+					start = Offset(width / 2, 0f),
+					end = Offset(width / 2, prefillLength),
+					strokeWidth = width / 16,
+					cap = StrokeCap.Round,
+				)
+			}
+			drawCircle(
+				color = circleTint,
+				radius = width / 6,
+				style = if (fillCircle) Fill else Stroke(width = width / 16),
+			)
+			if (index != lastIndex) {
+				val prefillRatio =
+					((nextStopValue - index) * 2f).coerceIn(0f, 1f)
+				val prefillLength = prefillRatio * (height / 2 - width / 6)
+				val beginY = (height / 2 + width / 6)
+				if (prefillRatio != 1f) drawLine(
+					color = notFilled,
+					start = Offset(width / 2, beginY + prefillLength),
+					end = Offset(width / 2, height),
+					strokeWidth = width / 16,
+					cap = StrokeCap.Round,
+				)
+				if (prefillRatio != 0f) drawLine(
+					color = filled,
+					start = Offset(width / 2, beginY),
+					end = Offset(width / 2, beginY + prefillLength),
+					strokeWidth = width / 16,
+					cap = StrokeCap.Round,
+				)
+			}
+		}
+	}
 
-                              val stopName = stop?.name.orLoading()
+	private data object TripRowMeasurePolicy : MeasurePolicy {
+		override fun MeasureScope.measure(
+			measurables: List<Measurable>,
+			constraints: Constraints
+		): MeasureResult {
+			val px48 = 48.dp.roundToPx()
 
-                              Column {
-                                 val passed = it < nextStopIndex
+			val iconPlaceable = measurables.getOrNull(2)
+				?.takeIf { constraints.maxWidth >= px48 * 3 }
+				?.measure(Constraints.fixed(px48, min(px48, constraints.maxHeight)))
 
-                                 val stopColor: Color
-                                 val timeColor: Color
-                                 if (passed) {
-                                    stopColor = lerp(
-                                       MaterialTheme.colorScheme.onSurface,
-                                       MaterialTheme.colorScheme.surface,
-                                       fraction = .36f
-                                    )
-                                    timeColor = stopColor
-                                 } else {
-                                    stopColor = Color.Unspecified
-                                    timeColor = MaterialTheme.colorScheme.primary
-                                 }
-                                 Text(stopName, color = stopColor)
-                                 if (!passed || isAbsoluteTime) Text(
-                                    buildAnnotatedString {
-                                       val t = departure + delay - offsetTime
-                                       if (!isAbsoluteTime && t < 900) {
-                                          if (t < 60)
-                                             append("za 0 min")
-                                          else {
-                                             append("za ")
-                                             append((t / 60 % 60).toString())
-                                             append(" min")
-                                          }
-                                       } else {
-                                          if (departure / 60 != (departure + delay) / 60) {
-                                             withStyle(
-                                                SpanStyle(
-                                                   textDecoration = TextDecoration.LineThrough,
-                                                   fontWeight = FontWeight.Normal
-                                                )
-                                             ) {
-                                                append(departure.timeToString())
-                                             }
-                                             append(' ')
-                                             append((departure + delay).timeToString())
-                                          } else append(departure.timeToString())
-                                       }
-                                    },
-                                    color = timeColor,
-                                    fontWeight = FontWeight.Bold,
-                                    style = MaterialTheme.typography.bodySmall,
-                                 )
-                              }
+			val stopWidthOffset = if (iconPlaceable != null) px48 * 2 else px48
 
-                              if (isLive && it == (nextStopIndex - 1).coerceAtLeast(0))
-                                 HintIconButton(
-                                    Symbols.MyLocation,
-                                    contentDescription = null,
-                                    tooltipTitle = "GPS praćenje",
-                                    tooltipText = "Ovom vozilu moguće je pratiti lokaciju. " +
-                                          "Raspored prikazan ovdje prilagođen je prema " +
-                                          "lokaciji vozila."
-                                 )
-                           },
-                           modifier = Modifier
-                              .fillMaxWidth()
-                              .clip(MaterialTheme.shapes.large)
-                              .clickable(enabled = stop != null) {
-                                 if (stop != null) startActivity(
-                                    Intent(
-                                       this@TripDialogActivity,
-                                       StopScheduleActivity::class.java,
-                                    ).putExtra(StopScheduleActivity.EXTRA_STOP, stop.id.value)
-                                 )
-                              },
-                           measurePolicy = TripRowMeasurePolicy,
-                        )
-                     }
-                  }
-               }
-            )
-         }
-      }
-   }
+			val stopPlaceable = measurables[1].measure(
+				constraints.copy(
+					minWidth = (constraints.minWidth - stopWidthOffset).coerceAtLeast(0),
+					maxWidth = (constraints.maxWidth - stopWidthOffset).coerceAtLeast(0),
+				)
+			)
 
-   override fun onPause() {
-      super.onPause()
-      Live.pauseLiveData()
-   }
+			val height = max(stopPlaceable.height, px48)
 
-   override fun onResume() {
-      super.onResume()
-      Live.resumeLiveData()
-   }
+			val canvasPlaceable = measurables[0].measure(Constraints.fixed(px48, height))
 
-   private data object TripRowMeasurePolicy : MeasurePolicy {
-      override fun MeasureScope.measure(
-         measurables: List<Measurable>,
-         constraints: Constraints
-      ): MeasureResult {
-         val px48 = 48.dp.roundToPx()
-
-         val iconPlaceable = measurables.getOrNull(2)
-            ?.takeIf { constraints.maxWidth >= px48 * 3 }
-            ?.measure(Constraints.fixed(px48, min(px48, constraints.maxHeight)))
-
-         val stopWidthOffset = if (iconPlaceable != null) px48 * 2 else px48
-
-         val stopPlaceable = measurables[1].measure(
-            constraints.copy(
-               minWidth = (constraints.minWidth - stopWidthOffset).coerceAtLeast(0),
-               maxWidth = (constraints.maxWidth - stopWidthOffset).coerceAtLeast(0),
-            )
-         )
-
-         val height = max(stopPlaceable.height, px48)
-
-         val canvasPlaceable = measurables[0].measure(Constraints.fixed(px48, height))
-
-         return layout(constraints.maxWidth, height) {
-            canvasPlaceable.place(0, 0)
-            stopPlaceable.place(px48, (height - stopPlaceable.height) / 2)
-            iconPlaceable?.place(constraints.maxWidth - px48, (height - px48) / 2)
-         }
-      }
-   }
+			return layout(constraints.maxWidth, height) {
+				canvasPlaceable.place(0, 0)
+				stopPlaceable.place(px48, (height - stopPlaceable.height) / 2)
+				iconPlaceable?.place(constraints.maxWidth - px48, (height - px48) / 2)
+			}
+		}
+	}
 
 }

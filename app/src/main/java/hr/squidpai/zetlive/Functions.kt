@@ -9,6 +9,7 @@ import androidx.collection.MutableIntObjectMap
 import androidx.compose.ui.Modifier
 import java.io.DataInputStream
 import java.io.DataOutputStream
+import java.time.LocalDate
 import kotlin.enums.enumEntries
 
 /**
@@ -21,6 +22,19 @@ inline fun Boolean.toInt() = if (this) 1 else 0
  * Returns [trueValue] if `this` is `true`, 0 otherwise.
  */
 inline fun Boolean.toInt(trueValue: () -> Int) = if (this) trueValue() else 0
+
+/**
+ * Converts the string of contents "YYYYMMDD" into a [LocalDate].
+ */
+fun String.dateToLocalDate(): LocalDate {
+  val year = this.substring(0, 4).toInt()
+  val month = this.substring(4, 6).toInt()
+  val date = this.substring(6, 8).toInt()
+
+  return LocalDate.of(year, month, date)
+}
+
+fun String.toIntOrHashCode() = toIntOrNull() ?: hashCode()
 
 /**
  * The text "Učitavanje...".
@@ -219,3 +233,52 @@ operator fun <T> Pair<*, T>?.component2() = this?.second
  * whose ordinal is zero, if this is the last entry.
  */
 inline val <reified T : Enum<T>> T.next get() = enumEntries<T>().let { it[(ordinal + 1) % it.size] }
+
+/**
+ * Checks if all elements are sorted according to the natural sort order
+ * of the value returned by the specified [selector] function.
+ * If not, it sorts them by that.
+ *
+ * This function is useful if the list is very probably already sorted,
+ * as to not create a large memory overhead from the merge sort.
+ *
+ * The sort is _stable_. It means that equal elements preserve
+ * their order relative to each other after sorting.
+ */
+// This function is a tad bit too long to be inlined.
+fun <T, R : Comparable<R>> Iterable<T>.sortedByIfNotAlready(
+  selector: (T) -> R?
+): Iterable<T> {
+  val iterator = iterator()
+  if (!iterator.hasNext())
+    return this
+
+  var previous = iterator.next()
+  var sorted = true
+  for (current in iterator) {
+    // if previous > current
+    if (compareValues(selector(previous), selector(current)) > 0) {
+      sorted = false
+      break
+    }
+    previous = current
+  }
+  if (sorted)
+    return this
+
+  return sortedBy(selector)
+}
+
+/**
+ * Returns the greater of two values.
+ *
+ * If values are equal, returns the first one.
+ *
+ * `null` is considered the smallest element.
+ */
+fun <T : Comparable<T>> maxOf(a: T?, b: T?) = when {
+  b == null -> a
+  a == null -> b
+  a >= b -> a
+  else -> b
+}

@@ -16,4 +16,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "ZET live"
 include(":app")
- 
+include(":zetapi")

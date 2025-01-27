@@ -15,7 +15,6 @@ import android.util.Log
 import android.util.TypedValue
 import android.view.View
 import android.widget.RemoteViews
-import androidx.collection.IntObjectMap
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -26,109 +25,77 @@ import androidx.compose.ui.unit.IntSize
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.getSystemService
+import hr.squidpai.zetapi.Love
+import hr.squidpai.zetapi.TimeOfDay
+import hr.squidpai.zetapi.Trip
 import hr.squidpai.zetlive.Data
-import hr.squidpai.zetlive.MILLIS_IN_DAY
-import hr.squidpai.zetlive.MILLIS_IN_SECONDS
 import hr.squidpai.zetlive.R
-import hr.squidpai.zetlive.SECONDS_IN_DAY
-import hr.squidpai.zetlive.SECONDS_IN_HOUR
-import hr.squidpai.zetlive.associateWith
-import hr.squidpai.zetlive.get
-import hr.squidpai.zetlive.gtfs.Live
-import hr.squidpai.zetlive.gtfs.Love
-import hr.squidpai.zetlive.gtfs.Schedule
-import hr.squidpai.zetlive.gtfs.Trip
-import hr.squidpai.zetlive.gtfs.getArrivalLineRatio
-import hr.squidpai.zetlive.gtfs.getDelayByStop
-import hr.squidpai.zetlive.gtfs.getDelayByStopForTrip
-import hr.squidpai.zetlive.gtfs.toStopId
-import hr.squidpai.zetlive.localCurrentTimeMillis
-import hr.squidpai.zetlive.orLoading
+import hr.squidpai.zetlive.gtfs.ScheduleManager
+import hr.squidpai.zetlive.gtfs.getLiveDisplayData
 import hr.squidpai.zetlive.timeToString
 import hr.squidpai.zetlive.ui.composables.RouteSlider
-import hr.squidpai.zetlive.utcEpochDate
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlin.math.abs
 import android.graphics.Color as AndroidColor
 import androidx.compose.ui.graphics.Color.Companion as ComposeColor
 
 
-class NotificationTrackerService : Service(), Live.UpdateListener {
+class NotificationTrackerService : Service() {
 
    companion object {
       private const val TAG = "NotificationTrackerService"
 
       private const val CHANNEL_ID = "trackingChannel"
 
-      const val ACTION_REMOVE_NOTIFICATION = "hr.squidpai.zetlive.REMOVE_NOTIFICATION"
+      const val ACTION_REMOVE_NOTIFICATION =
+         "hr.squidpai.zetlive.REMOVE_NOTIFICATION"
 
       fun createNotificationChannel(context: Context) {
          val name = "Praćenje polazaka u obavijestima"
          val importance = NotificationManager.IMPORTANCE_DEFAULT
          val mChannel = NotificationChannel(CHANNEL_ID, name, importance)
-         val notificationManager = context.getSystemService<NotificationManager>()!!
+         val notificationManager =
+            context.getSystemService<NotificationManager>()!!
          notificationManager.createNotificationChannel(mChannel)
       }
    }
 
    private lateinit var notificationBuilder: NotificationCompat.Builder
-   private var selectedDate = 0
+   private var selectedDate = 0L
    private lateinit var trip: Trip
-   private lateinit var stopNames: IntObjectMap<String>
 
    private lateinit var titleText: String
 
-   val mainScope = CoroutineScope(Dispatchers.Main)
+   private val interrupt = CancellationException()
 
-   override fun onUpdated(live: Live) {
-      mainScope.launch {
-         val view = RemoteViews(packageName, R.layout.layout_notification_tracker)
+   private fun launchJob() = CoroutineScope(Dispatchers.Main).launch {
+      while (true) try {
+         val view =
+            RemoteViews(packageName, R.layout.layout_notification_tracker)
 
-         val currentTimeMillis = localCurrentTimeMillis()
-         val dateDifference = (currentTimeMillis / MILLIS_IN_DAY).toInt() - selectedDate
+         val (realtimeDepartures, timeOfDay, nextStopIndex, nextStopValue) =
+            getLiveDisplayData(trip, selectedDate)
 
-         val offsetTime = (currentTimeMillis % MILLIS_IN_DAY +
-               dateDifference * MILLIS_IN_DAY).toInt() / MILLIS_IN_SECONDS
+         val isCancelled = realtimeDepartures == null
 
-         val delays = live.findForTripIgnoringServiceId(trip.tripId)?.tripUpdate
-            ?.takeIf {
-               abs(
-                  it.timestamp - (trip.departures.first() +
-                        (utcEpochDate() - dateDifference) * SECONDS_IN_DAY)
-               ) < 12 * SECONDS_IN_HOUR
-            }?.stopTimeUpdateList.getDelayByStop()
-
-         val nextStopIndex = trip.findNextStopIndex(offsetTime, delays)
-
-         val nextStopRatio = when (nextStopIndex) {
-            0 -> 0f
-            trip.departures.size -> trip.departures.size.toFloat()
-            else -> nextStopIndex - 1 + getArrivalLineRatio(
-               trip.departures,
-               nextStopIndex,
-               delays,
-               offsetTime,
-            )
-         }
-         /*view.setProgressBar(
-            /* viewId = */ R.id.liveTravelSlider,
-            /* max = */ MAX_SLIDER_VALUE,
-            /* progress = */ (nextStopRatio * MAX_SLIDER_VALUE).toInt(),
-            /* indeterminate = */ false,
-         )*/
          val bitmap = useVirtualDisplay(applicationContext) { display ->
-
             val metrics = resources.displayMetrics
-            /*@Suppress("DEPRECATION")
-            ContextCompat.getDisplayOrDefault(this@NotificationTrackerService)
-               .getMetrics(metrics)*/
             val width = metrics.widthPixels -
-                  TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 96f, metrics)
-            val height = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 8f, metrics)
-
-            println("Width: $width")
+                  TypedValue.applyDimension(
+                     TypedValue.COMPLEX_UNIT_DIP,
+                     96f,
+                     metrics
+                  )
+            val height =
+               TypedValue.applyDimension(
+                  TypedValue.COMPLEX_UNIT_DIP,
+                  8f,
+                  metrics
+               )
 
             captureComposable(
                context = this@NotificationTrackerService,
@@ -143,7 +110,10 @@ class NotificationTrackerService : Service(), Live.UpdateListener {
                      color = ComposeColor.Unspecified,
                      contentColor = MaterialTheme.colorScheme.onSurface,
                   ) {
-                     RouteSlider(value = nextStopRatio, departures = trip.departures)
+                     RouteSlider(
+                        value = if (isCancelled) -2f else nextStopValue,
+                        departures = trip.departures,
+                     )
                   }
                }
             }
@@ -162,18 +132,21 @@ class NotificationTrackerService : Service(), Live.UpdateListener {
          when (nextStopIndex) {
             0 -> {
                highlightNextStop = false
-               view.setTextViewText(R.id.currentStopText, stopNames[trip.stops[0]])
+               view.setTextViewText(R.id.currentStopText, trip.stops[0].name)
                view.setViewVisibility(R.id.arrowImage, View.GONE)
                view.setTextViewText(
                   R.id.nextStopText,
-                  "  ${Typography.bullet} ${stopNames[trip.stops[1]]}"
+                  "  ${Typography.bullet} ${trip.stops[1].name}"
                )
 
             }
 
             trip.stops.size -> {
                highlightNextStop = false
-               view.setTextViewText(R.id.currentStopText, stopNames[trip.stops.last()])
+               view.setTextViewText(
+                  R.id.currentStopText,
+                  trip.stops.last().name
+               )
                view.setViewVisibility(R.id.arrowImage, View.GONE)
                view.setTextViewText(R.id.nextStopText, "")
             }
@@ -185,44 +158,61 @@ class NotificationTrackerService : Service(), Live.UpdateListener {
                else
                   view.setTextViewText(
                      R.id.currentStopText,
-                     stopNames[trip.stops[nextStopIndex - 1]]
+                     trip.stops[nextStopIndex - 1].name
                   )
-               view.setTextViewText(R.id.nextStopText, stopNames[trip.stops[nextStopIndex]])
-               view.setInt(R.id.arrowImage, "setColorFilter", fetchAccentColor())
+               view.setTextViewText(
+                  R.id.nextStopText,
+                  trip.stops[nextStopIndex].name
+               )
+               view.setInt(
+                  R.id.arrowImage,
+                  "setColorFilter",
+                  fetchAccentColor()
+               )
             }
          }
          view.setTextViewText(R.id.stopsAfterText, buildString {
             for (i in (nextStopIndex + 1).coerceAtLeast(2)..<trip.stops.size) {
                append(' ').append(Typography.bullet).append(' ')
-               append(stopNames[trip.stops[i]])
+               append(trip.stops[i].name)
             }
          })
 
-         view.setFloat(
-            if (highlightNextStop) R.id.currentStopText else R.id.nextStopText,
-            "setAlpha", .36f,
-         )
-         view.setInt(
-            if (highlightNextStop) R.id.nextStopText else R.id.currentStopText,
-            "setPaintFlags", Paint.FAKE_BOLD_TEXT_FLAG or Paint.ANTI_ALIAS_FLAG,
-         )
+         if (isCancelled) {
+            view.setFloat(R.id.currentStopText, "setAlpha", .36f)
+            view.setFloat(R.id.nextStopText, "setAlpha", .36f)
+            view.setFloat(R.id.titleText, "setAlpha", .36f)
+         } else {
+            view.setFloat(
+               if (highlightNextStop) R.id.currentStopText else R.id.nextStopText,
+               "setAlpha", .36f,
+            )
+            view.setInt(
+               if (highlightNextStop) R.id.nextStopText else R.id.currentStopText,
+               "setPaintFlags",
+               Paint.FAKE_BOLD_TEXT_FLAG or Paint.ANTI_ALIAS_FLAG,
+            )
+         }
          view.setFloat(R.id.stopsAfterText, "setAlpha", .36f)
 
          view.setTextViewText(R.id.titleText, titleText)
 
-         if (nextStopIndex == 0) {
-            val departureTime =
-               (trip.departures[0] + live.getDelayByStopForTrip(trip.tripId)[0]).let { departure ->
-                  val relativeTime = departure - offsetTime
-                  if (relativeTime <= 0) -1
-                  else if (relativeTime <= 15 * 60) -relativeTime - 1
-                  else departure
-               }
+         if (nextStopIndex == 0 || isCancelled) {
+            val departureTime = if (isCancelled) 0
+            // isCancelled = realtimeDepartures == null
+            else (realtimeDepartures!![0]).let { departure ->
+               val difference = TimeOfDay(departure).minusMinutes(timeOfDay)
+
+               if (difference <= 0) -1
+               else if (difference <= 15) -difference - 1
+               else departure
+            }
 
             view.setViewVisibility(R.id.firstStopText, View.VISIBLE)
             view.setTextViewText(
                R.id.firstStopText,
-               if (departureTime >= 0) "kreće u ${departureTime.timeToString()}"
+               if (isCancelled) "otkazano"
+               else if (departureTime >= 0) "kreće u ${departureTime.timeToString()}"
                else "kreće za ${(-departureTime - 1) / 60} min",
             )
          }
@@ -233,6 +223,11 @@ class NotificationTrackerService : Service(), Live.UpdateListener {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
                ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE else 0
          )
+         delay(5000L)
+      } catch (e: CancellationException) {
+         println(e)
+         if (e !== interrupt)
+            break
       }
    }
 
@@ -262,22 +257,24 @@ class NotificationTrackerService : Service(), Live.UpdateListener {
       if (isDarkMode()) AndroidColor.WHITE
       else AndroidColor.BLACK
 
+   private lateinit var job: Job
+
    override fun onConfigurationChanged(newConfig: Configuration) {
       super.onConfigurationChanged(newConfig)
 
-      onUpdated(Live.instance)
+      job.cancel(interrupt)
    }
 
    override fun onBind(intent: Intent?) = null
 
    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
       intent!! // guaranteed to not be null because of the START_REDELIVER_INTENT return result
-      val routeId = intent.getIntExtra(EXTRA_ROUTE_ID, -1)
+      val routeId = intent.getStringExtra(EXTRA_ROUTE_ID)
       val tripId = intent.getStringExtra(EXTRA_TRIP_ID)
-      selectedDate = intent.getIntExtra(EXTRA_SELECTED_DATE, 0)
+      selectedDate = intent.getLongExtra(EXTRA_SELECTED_DATE, 0L)
 
-      if (routeId == -1 || tripId == null) {
-         if (routeId == -1)
+      if (routeId == null || tripId == null) {
+         if (routeId == null)
             Log.w(TAG, "onStartCommand: no routeId given, stopping service")
          if (tripId == null)
             Log.w(TAG, "onStartCommand: no tripId given, stopping service")
@@ -286,23 +283,17 @@ class NotificationTrackerService : Service(), Live.UpdateListener {
          return START_REDELIVER_INTENT
       }
 
-      val schedule = Schedule.loadedInstance
+      val schedule = ScheduleManager.instance
          ?: run {
             Log.w(TAG, "onStartCommand: schedule not loaded")
             return START_REDELIVER_INTENT
          }
-      val trips = schedule.getTripsOfRoute(routeId).value
-      trip = trips?.list?.get(tripId)
+      val trips = schedule.routes[routeId]?.trips
+      trip = trips?.get(tripId)
          ?: run {
             Log.w(TAG, "onStartCommand: trip not found")
             return START_REDELIVER_INTENT
          }
-      val headsign = trip.headsign ?: trips.commonHeadsignByDay[trip.serviceId]
-         ?.get(trip.directionId) ?: run {
-         Log.w(TAG, "onStartCommand: trip headsign not found")
-      }
-      val stopsList = schedule.stops.list
-      stopNames = trip.stops.associateWith { stopsList[it.toStopId()]?.name.orLoading() }
 
       val deleteIntent = PendingIntent.getBroadcast(
          /* context = */ this,
@@ -323,15 +314,18 @@ class NotificationTrackerService : Service(), Live.UpdateListener {
          .setSilent(true)
          .setContentIntent(
             PendingIntent.getActivity(
-               /* context = */ this,
-               /* requestCode = */ 0,
+               /* context = */
+               this,
+               /* requestCode = */
+               0,
                /* intent = */
                Intent(this, TripDialogActivity::class.java)
                   .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                   .putExtra(EXTRA_ROUTE_ID, routeId)
                   .putExtra(EXTRA_TRIP_ID, tripId)
                   .putExtra(EXTRA_SELECTED_DATE, selectedDate),
-               /* flags = */ PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+               /* flags = */
+               PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
             )
          )
          .addAction(0, "Prestani pratiti", deleteIntent)
@@ -340,28 +334,30 @@ class NotificationTrackerService : Service(), Live.UpdateListener {
 
       titleText = buildString {
          append(routeId)
-         if (trip.stops.first() != trips.commonFirstStopByDay[trip.serviceId]?.get(trip.directionId)?.value)
-            append(' ').append(stopNames[trip.stops.first()])
+         if (!trip.isFirstStopCommon)
+            append(' ').append(trip.stops.first().name)
          append(" smjer ")
-         append(headsign)
+         append(trip.headsign)
          val specialLabel = Love.giveMeTheSpecialTripLabel(trip)
             ?.let { it.first ?: it.second }
          if (specialLabel != null)
             append(", ").append(specialLabel)
       }
 
-      onUpdated(Live.instance)
-      Live.setNotificationTrackerListener(this)
+      job = launchJob()
+      ScheduleManager.realtimeDispatcher.addListener(TAG)
 
       return START_REDELIVER_INTENT
    }
 
    override fun onTaskRemoved(rootIntent: Intent?) {
-      Live.removeNotificationTrackerListener()
+      ScheduleManager.realtimeDispatcher.removeListener(TAG)
+      job.cancel()
    }
 
    override fun onDestroy() {
-      Live.removeNotificationTrackerListener()
+      ScheduleManager.realtimeDispatcher.removeListener(TAG)
+      job.cancel()
    }
 
    class NotificationRemoveReceiver : BroadcastReceiver() {
@@ -369,9 +365,14 @@ class NotificationTrackerService : Service(), Live.UpdateListener {
          if (intent.action != ACTION_REMOVE_NOTIFICATION)
             return
 
-         context.stopService(Intent(context, NotificationTrackerService::class.java))
+         context.stopService(
+            Intent(
+               context,
+               NotificationTrackerService::class.java
+            )
+         )
          context.getSystemService<NotificationManager>()!!.cancel(666)
-         Live.removeNotificationTrackerListener()
+         ScheduleManager.realtimeDispatcher.removeListener(TAG)
       }
    }
 

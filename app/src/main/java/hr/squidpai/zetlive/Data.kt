@@ -4,13 +4,13 @@ import android.util.JsonReader
 import android.util.JsonWriter
 import android.util.Log
 import androidx.collection.MutableIntIntMap
-import androidx.collection.MutableIntSet
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import hr.squidpai.zetlive.gtfs.RouteId
-import hr.squidpai.zetlive.gtfs.StopId
-import hr.squidpai.zetlive.gtfs.toStopId
+import hr.squidpai.zetapi.RouteId
+import hr.squidpai.zetapi.StopId
+import hr.squidpai.zetapi.StopNumber
+import hr.squidpai.zetapi.toStopId
 import java.io.File
 import java.io.FileNotFoundException
 import java.io.IOException
@@ -39,9 +39,9 @@ object Data {
 
    /**
     * The set of stops pinned to the top of the stop list
-    * in `MainActivityStops`, specifically, their **station number**.
+    * in `MainActivityStops`, specifically, their **stop number**.
     */
-   val pinnedStops = mutableStateSetOf<Int>()
+   val pinnedStops = mutableStateSetOf<StopNumber>()
 
    /**
     * The set of routes for which the user selected the opposite direction to view.
@@ -49,7 +49,7 @@ object Data {
     * Used in `MainActivityRoutes` and `RouteScheduleActivity` to remember and
     * show the direction which the user previously selected.
     */
-   val directionSwapped = MutableIntSet()
+   val directionSwapped = mutableSetOf<RouteId>()
 
    /** Returns the preferred direction based on [directionSwapped]. */
    fun getDirectionForRoute(routeId: RouteId) = (routeId in directionSwapped).toInt()
@@ -132,9 +132,9 @@ object Data {
                   PINNED_ROUTES -> {
                      reader.beginArray()
 
-                     val list = ArrayList<Int>()
+                     val list = ArrayList<RouteId>()
                      while (reader.hasNext())
-                        list += reader.nextInt()
+                        list += reader.nextString()
 
                      pinnedRoutes.clear()
                      pinnedRoutes.addAll(list)
@@ -160,7 +160,7 @@ object Data {
 
                      directionSwapped.clear()
                      while (reader.hasNext())
-                        directionSwapped += reader.nextInt()
+                        directionSwapped += reader.nextString()
 
                      reader.endArray()
                   }
