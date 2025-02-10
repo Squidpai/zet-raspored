@@ -58,7 +58,7 @@ fun LiveTravelSlider(routeScheduleEntry: RouteScheduleEntry) {
          .clickable { TripDialogActivity.show(context, trip, selectedDate) },
       bottomStartLabel = if (isAtFirstStop) {
          (if (departureTime >= 0) "kreće u ${departureTime.timeToString()}"
-         else "kreće za ${(-departureTime - 1) / 60} min")
+         else "kreće za ${-departureTime - 1} min")
             .let { if (isLate) "$it (kasni)" else it }
       } else if (!trip.isFirstStopCommon)
          "polazište ${trip.stops.first().name.orLoading()}"
@@ -140,7 +140,7 @@ fun LiveTravelSlider(
             style = MaterialTheme.typography.bodyMedium,
          )
       }
-      item {
+      if (highlightedStopIndex < stopNames.size) item {
          if (!isAtFirstStop && highlightNextStop) Icon(
             Icons.AutoMirrored.Filled.ArrowForward,
             modifier = Modifier.padding(horizontal = 8.dp),
