@@ -33,24 +33,33 @@ data class Trip(
    val tripShape: Int,
 ) {
    fun findNextStopIndex(time: Int, delays: DelayByStop): Int {
-      // this cannot be optimized with a binary search, as the departures
-      // with a delay are not sorted sometimes (even though that makes
-      // little sense...)
-      departures.forEachIndexed { index, departure ->
-         if (time < (delays[index] + departure)) {
-            return index
-         }
+      var min = Int.MAX_VALUE
+      var minIndex = departures.size
+      departures.forEachReversedIndexed { index, departure ->
+         val actualDeparture = departure + delays[index]
+         if (time < actualDeparture) {
+            if (actualDeparture < min) {
+               min = actualDeparture
+               minIndex = index
+            }
+         } else return minIndex
       }
-      return stops.size
+      return minIndex
    }
 
    fun findNextStopIndexToday(time: Int, delays: DelayByStop): Int {
-      departures.forEachIndexed { index, departure ->
-         if (time < (delays[index] + departure) % SECONDS_IN_DAY) {
-            return index
-         }
+      var min = Int.MAX_VALUE
+      var minIndex = departures.size
+      departures.forEachReversedIndexed { index, departure ->
+         val actualDeparture = (departure + delays[index]) % SECONDS_IN_DAY
+         if (time < actualDeparture) {
+            if (actualDeparture < min) {
+               min = actualDeparture
+               minIndex = index
+            }
+         } else return minIndex
       }
-      return stops.size
+      return minIndex
    }
 
    fun joinStopsToString(
