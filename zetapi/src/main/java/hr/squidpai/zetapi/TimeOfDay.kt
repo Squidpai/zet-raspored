@@ -56,7 +56,10 @@ public value class TimeOfDay(public val valueInSeconds: Int) {
       valueInSeconds - timeOfDay.valueInSeconds
 
    public fun minusMinutes(timeOfDay: TimeOfDay): Int =
-      valueInSeconds / 60 * 60 - timeOfDay.valueInSeconds / 60 * 60
+      valueInMinutes - timeOfDay.valueInMinutes
+
+   public fun minusHours(timeOfDay: TimeOfDay): Int =
+      valueInHours - timeOfDay.valueInHours
 
    public operator fun compareTo(other: TimeOfDay): Int =
       this.valueInSeconds.compareTo(other.valueInSeconds)
