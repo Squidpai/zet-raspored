@@ -15,13 +15,15 @@ import android.util.Log
 import android.util.TypedValue
 import android.view.View
 import android.widget.RemoteViews
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.ui.Modifier
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Canvas
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
 import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.Density
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.getSystemService
@@ -33,15 +35,13 @@ import hr.squidpai.zetlive.R
 import hr.squidpai.zetlive.gtfs.ScheduleManager
 import hr.squidpai.zetlive.gtfs.getLiveDisplayData
 import hr.squidpai.zetlive.timeToString
-import hr.squidpai.zetlive.ui.composables.RouteSlider
+import hr.squidpai.zetlive.ui.composables.drawRouteSlider
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import android.graphics.Color as AndroidColor
-import androidx.compose.ui.graphics.Color.Companion as ComposeColor
 
 
 class NotificationTrackerService : Service() {
@@ -72,7 +72,7 @@ class NotificationTrackerService : Service() {
 
    private val interrupt = CancellationException()
 
-   private fun launchJob() = CoroutineScope(Dispatchers.Main).launch {
+   private fun launchJob() = CoroutineScope(Dispatchers.Default).launch {
       while (true) try {
          val view =
             RemoteViews(packageName, R.layout.layout_notification_tracker)
@@ -82,45 +82,35 @@ class NotificationTrackerService : Service() {
 
          val isCancelled = realtimeDepartures == null
 
-         val bitmap = useVirtualDisplay(applicationContext) { display ->
-            val metrics = resources.displayMetrics
-            val width = metrics.widthPixels -
-                  TypedValue.applyDimension(
-                     TypedValue.COMPLEX_UNIT_DIP,
-                     96f,
-                     metrics
-                  )
-            val height =
-               TypedValue.applyDimension(
-                  TypedValue.COMPLEX_UNIT_DIP,
-                  8f,
-                  metrics
-               )
+         val metrics = resources.displayMetrics
+         val width = metrics.widthPixels - TypedValue.applyDimension(
+            TypedValue.COMPLEX_UNIT_DIP,
+            96f,
+            metrics,
+         )
+         val height = TypedValue.applyDimension(
+            TypedValue.COMPLEX_UNIT_DIP,
+            8f,
+            metrics,
+         )
+         val imageBitmap = ImageBitmap(width.toInt(), height.toInt())
+         val canvas = Canvas(imageBitmap)
+         val drawScope = CanvasDrawScope()
+         drawScope.drawContext.canvas = canvas
+         drawScope.drawContext.density = Density(metrics.density)
+         drawScope.drawContext.size = Size(width, height)
+         drawScope.drawRouteSlider(
+            value = if (isCancelled) -2f else nextStopValue,
+            departures = trip.departures,
+            passedTrackColor = colorScheme.primary,
+            notPassedTrackColor = colorScheme.surfaceVariant,
+            passedStopColor = colorScheme.onPrimary,
+            notPassedStopColor = colorScheme.onSurfaceVariant,
+            nextStopColor = colorScheme.onSurface,
+         )
+         view.setImageViewBitmap(R.id.sliderImage, imageBitmap.asAndroidBitmap())
 
-            captureComposable(
-               context = this@NotificationTrackerService,
-               size = IntSize(width.toInt(), height.toInt()),
-               display = display
-            ) {
-               LaunchedEffect(Unit) { capture() }
-
-               AppTheme {
-                  Surface(
-                     modifier = Modifier.fillMaxSize(),
-                     color = ComposeColor.Unspecified,
-                     contentColor = MaterialTheme.colorScheme.onSurface,
-                  ) {
-                     RouteSlider(
-                        value = if (isCancelled) -2f else nextStopValue,
-                        departures = trip.departures,
-                     )
-                  }
-               }
-            }
-         }
-         view.setImageViewBitmap(R.id.sliderImage, bitmap)
-
-         val textColor = fetchTextColor()
+         val textColor = colorScheme.onSurface.toArgb()
          view.setTextColor(R.id.titleText, textColor)
          view.setTextColor(R.id.currentStopText, textColor)
          view.setTextColor(R.id.nextStopText, textColor)
@@ -167,7 +157,7 @@ class NotificationTrackerService : Service() {
                view.setInt(
                   R.id.arrowImage,
                   "setColorFilter",
-                  fetchAccentColor()
+                  colorScheme.primary.toArgb(),
                )
             }
          }
@@ -213,7 +203,7 @@ class NotificationTrackerService : Service() {
                R.id.firstStopText,
                if (isCancelled) "otkazano"
                else if (departureTime >= 0) "kreće u ${departureTime.timeToString()}"
-               else "kreće za ${(-departureTime - 1) / 60} min",
+               else "kreće za ${-departureTime - 1} min",
             )
          }
 
@@ -235,34 +225,25 @@ class NotificationTrackerService : Service() {
       resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK ==
             Configuration.UI_MODE_NIGHT_YES
 
-   private fun fetchAccentColor(): Int {
+   private var colorScheme = LightColors
+
+   private fun updateColorScheme() {
       val isDarkMode = isDarkMode()
 
-      return if (Build.VERSION.SDK_INT >= 34)
-         resources.getColor(
-            if (isDarkMode) android.R.color.system_primary_dark
-            else android.R.color.system_primary_light,
-            theme,
-         )
-      else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
-         resources.getColor(
-            if (isDarkMode) android.R.color.system_accent1_200
-            else android.R.color.system_accent1_600,
-            theme,
-         )
-      else (if (isDarkMode) DarkColors else LightColors).primary.toArgb()
+      colorScheme = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+         if (isDarkMode) dynamicDarkColorScheme(this)
+         else dynamicLightColorScheme(this)
+      } else if (isDarkMode) DarkColors else LightColors
    }
-
-   private fun fetchTextColor() =
-      if (isDarkMode()) AndroidColor.WHITE
-      else AndroidColor.BLACK
 
    private lateinit var job: Job
 
    override fun onConfigurationChanged(newConfig: Configuration) {
       super.onConfigurationChanged(newConfig)
 
-      job.cancel(interrupt)
+      updateColorScheme()
+      if (::job.isInitialized)
+         job.cancel(interrupt)
    }
 
    override fun onBind(intent: Intent?) = null
@@ -343,6 +324,8 @@ class NotificationTrackerService : Service() {
          if (specialLabel != null)
             append(", ").append(specialLabel)
       }
+
+      updateColorScheme()
 
       job = launchJob()
       ScheduleManager.realtimeDispatcher.addListener(TAG)
