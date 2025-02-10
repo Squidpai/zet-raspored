@@ -10,6 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlin.math.floor
@@ -74,8 +75,93 @@ fun RouteSlider(
       minHeight = nextPointRadius,
    )
 ) {
+   drawRouteSlider(
+      value, stopCount, passedTrackColor, notPassedTrackColor, passedStopColor,
+      notPassedStopColor, nextStopColor, weights, trackWidth, pointRadius,
+      nextPointRadius,
+   )
+}
+
+/**
+ * Displays a [RouteSlider] where `stopCount = `[departures]`.size`
+ * and distance between each point is proportional to the time it
+ * takes the route to travel between them.
+ *
+ * @see RouteSlider
+ */
+@Composable
+fun RouteSlider(
+   value: Float,
+   departures: IntList,
+   modifier: Modifier = Modifier,
+   trackWidth: Dp = 3.dp,
+   pointRadius: Dp = 2.dp,
+   nextPointRadius: Dp = 4.dp,
+   passedTrackColor: Color = MaterialTheme.colorScheme.primary,
+   notPassedTrackColor: Color = MaterialTheme.colorScheme.surfaceVariant,
+   passedStopColor: Color = MaterialTheme.colorScheme.contentColorFor(passedTrackColor),
+   notPassedStopColor: Color = MaterialTheme.colorScheme.contentColorFor(notPassedTrackColor),
+   nextStopColor: Color = MaterialTheme.colorScheme.onSurface,
+) = RouteSlider(
+   value, stopCount = departures.size, modifier,
+   weights = IntArray(departures.size - 1) { departures[it + 1] - departures[it] },
+   trackWidth, pointRadius, nextPointRadius, passedTrackColor, notPassedTrackColor, passedStopColor,
+   notPassedStopColor, nextStopColor,
+)
+
+/**
+ * Draw a track representing how far a route has reached in its trip.
+ *
+ * The whole part of [value] is the index of the last reached stop, and the
+ * fractional part of [value] is how close the route is to the next stop.
+ *
+ * The slider is made out of [stopCount] points connected by a track.
+ * The part of the track that is before or at [value] is colored
+ * [passedTrackColor], and the part of the track that is after [value] is
+ * colored [notPassedTrackColor].
+ * Points which are before [value] are colored [passedStopColor], the point
+ * that is right after [value] is colored [nextStopColor], and points after
+ * that are colored [notPassedStopColor].
+ * The track is of width [trackWidth], and points have a radius of [pointRadius],
+ * except for the point right after [value] which has a radius of [nextPointRadius].
+ *
+ * If [value] < 0, then the first point is the next point, and if [value] >= [stopCount],
+ * then there is no next point.
+ *
+ * The distance between each point is proportional to its weight value relative to
+ * other weight values. If [weights] is `null`, the points are spaced equally apart.
+ *
+ * Example: `o====o====o=---O----o` (weights = `null`)
+ *
+ * Example: `o=o=====o=--O--o----o` (weights = `[1, 5, 3, 2, 4]`)
+ *
+ * @param value the value of the track (how far the route has reached in its trip)
+ * @param stopCount the number of stops (points)
+ * @param passedTrackColor the color of the track that is before or at [value]
+ * @param notPassedTrackColor the color of the track that is after [value]
+ * @param passedStopColor the color of points before [value]
+ * @param notPassedStopColor the color of points after [value] (except for the one right after)
+ * @param nextStopColor the color of the points right after [value]
+ * @param weights the relative sizes of track pieces if not `null`
+ * @param trackWidth the width of the track
+ * @param pointRadius the radius of each point (except for the one right after [value])
+ * @param nextPointRadius the radius of the point right after [value]
+ */
+fun DrawScope.drawRouteSlider(
+   value: Float,
+   stopCount: Int,
+   passedTrackColor: Color,
+   notPassedTrackColor: Color,
+   passedStopColor: Color,
+   notPassedStopColor: Color,
+   nextStopColor: Color,
+   weights: IntArray? = null,
+   trackWidth: Dp = 3.dp,
+   pointRadius: Dp = 2.dp,
+   nextPointRadius: Dp = 4.dp,
+) {
    if (stopCount <= 0)
-      return@Canvas
+      return
 
    val pointRadiusPx = pointRadius.toPx()
    val nextPointRadiusPx = nextPointRadius.toPx()
@@ -85,7 +171,7 @@ fun RouteSlider(
          color = if (value >= 0f) passedStopColor else nextStopColor,
          radius = if (value >= 0f) pointRadiusPx else nextPointRadiusPx,
       )
-      return@Canvas
+      return
    }
 
    val (width, height) = size
@@ -152,7 +238,7 @@ fun RouteSlider(
          center = Offset(currentPointPosition, centerHeight),
       )
    if (valueInt + 1 >= stopCount - 1)
-      return@Canvas
+      return
    if (value >= -1)
       currentPointPosition += totalTrackLength * (weightRatios?.getOrNull(max(valueInt + 1, 0))
          ?: pointSpacing)
@@ -168,29 +254,20 @@ fun RouteSlider(
    }
 }
 
-/**
- * Displays a [RouteSlider] where `stopCount = `[departures]`.size`
- * and distance between each point is proportional to the time it
- * takes the route to travel between them.
- *
- * @see RouteSlider
- */
-@Composable
-fun RouteSlider(
+fun DrawScope.drawRouteSlider(
    value: Float,
    departures: IntList,
-   modifier: Modifier = Modifier,
+   passedTrackColor: Color,
+   notPassedTrackColor: Color,
+   passedStopColor: Color,
+   notPassedStopColor: Color,
+   nextStopColor: Color,
    trackWidth: Dp = 3.dp,
    pointRadius: Dp = 2.dp,
    nextPointRadius: Dp = 4.dp,
-   passedTrackColor: Color = MaterialTheme.colorScheme.primary,
-   notPassedTrackColor: Color = MaterialTheme.colorScheme.surfaceVariant,
-   passedStopColor: Color = MaterialTheme.colorScheme.contentColorFor(passedTrackColor),
-   notPassedStopColor: Color = MaterialTheme.colorScheme.contentColorFor(notPassedTrackColor),
-   nextStopColor: Color = MaterialTheme.colorScheme.onSurface,
-) = RouteSlider(
-   value, stopCount = departures.size, modifier,
+) = drawRouteSlider(
+   value, stopCount = departures.size, passedTrackColor, notPassedTrackColor,
+   passedStopColor, notPassedStopColor, nextStopColor,
    weights = IntArray(departures.size - 1) { departures[it + 1] - departures[it] },
-   trackWidth, pointRadius, nextPointRadius, passedTrackColor, notPassedTrackColor, passedStopColor,
-   notPassedStopColor, nextStopColor,
+   trackWidth, pointRadius, nextPointRadius,
 )
