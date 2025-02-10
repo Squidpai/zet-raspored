@@ -10,7 +10,9 @@ import hr.squidpai.zetapi.CalendarDates
 import hr.squidpai.zetapi.DirectionId
 import hr.squidpai.zetapi.Love
 import hr.squidpai.zetapi.Route
+import hr.squidpai.zetapi.RouteAtStop
 import hr.squidpai.zetapi.RouteId
+import hr.squidpai.zetapi.ServiceId
 import hr.squidpai.zetapi.ServiceTypes
 import hr.squidpai.zetapi.Stop
 import hr.squidpai.zetapi.TimeOfDay
@@ -32,63 +34,66 @@ import kotlin.time.Duration.Companion.seconds
 private const val TAG = "LiveSchedule"
 
 data class LiveDisplayData(
-	val realtimeDepartures: TimeOfDayList?,
-	val timeOfDay: TimeOfDay,
-	val nextStopIndex: Int,
-	val nextStopValue: Float,
+   val realtimeDepartures: TimeOfDayList?,
+   val timeOfDay: TimeOfDay,
+   val nextStopIndex: Int,
+   val nextStopValue: Float,
 )
 
 @Composable
-fun getUpdatingLiveDisplayData(trip: Trip, selectedDate: Long): LiveDisplayData {
-	var data by remember {
-		mutableStateOf(getLiveDisplayData(trip, selectedDate))
-	}
+fun getUpdatingLiveDisplayData(
+   trip: Trip,
+   selectedDate: Long
+): LiveDisplayData {
+   var data by remember {
+      mutableStateOf(getLiveDisplayData(trip, selectedDate))
+   }
 
-	LaunchedEffect(Unit) {
-		while (true) {
-			delay(5000)
-			data = getLiveDisplayData(trip, selectedDate)
-		}
-	}
+   LaunchedEffect(Unit) {
+      while (true) {
+         delay(5000)
+         data = getLiveDisplayData(trip, selectedDate)
+      }
+   }
 
-	return data
+   return data
 }
 
 fun getLiveDisplayData(trip: Trip, selectedDate: Long): LiveDisplayData {
-	val currentTimeMillis = localCurrentTimeMillis().milliseconds
-	val selectedDateDays = selectedDate.days
+   val currentTimeMillis = localCurrentTimeMillis().milliseconds
+   val selectedDateDays = selectedDate.days
 
-	val appropriateToUseLiveData =
-		(trip.departures.first().seconds + selectedDateDays
-				- currentTimeMillis).absoluteValue < 12.hours
+   val appropriateToUseLiveData =
+      (trip.departures.first().seconds + selectedDateDays
+            - currentTimeMillis).absoluteValue < 12.hours
 
-	val departures =
-		if (appropriateToUseLiveData) trip.getRealtimeDepartures()
-		else trip.departures
+   val departures =
+      if (appropriateToUseLiveData) trip.getRealtimeDepartures()
+      else trip.departures
 
-	val timeOfDay = TimeOfDay(currentTimeMillis - selectedDateDays)
+   val timeOfDay = TimeOfDay(currentTimeMillis - selectedDateDays)
 
-	if (departures == null)
-		return LiveDisplayData(
-			realtimeDepartures = null,
-			timeOfDay,
-			nextStopIndex = 0,
-			nextStopValue = 0f,
-		)
+   if (departures == null)
+      return LiveDisplayData(
+         realtimeDepartures = null,
+         timeOfDay,
+         nextStopIndex = 0,
+         nextStopValue = 0f,
+      )
 
-	val nextStopIndex = findNextStopIndex(departures, timeOfDay)
+   val nextStopIndex = findNextStopIndex(departures, timeOfDay)
 
-	val nextStopValue = when (nextStopIndex) {
-		0 -> 0f
-		-1 -> trip.departures.size.toFloat()
-		else -> nextStopIndex - 1 + getArrivalLineRatio(
-			departures,
-			nextStopIndex,
-			timeOfDay,
-		)
-	}
+   val nextStopValue = when (nextStopIndex) {
+      0 -> -0.5f
+      trip.departures.size -> trip.departures.size.toFloat()
+      else -> nextStopIndex - 1 + getArrivalLineRatio(
+         departures,
+         nextStopIndex,
+         timeOfDay,
+      )
+   }
 
-	return LiveDisplayData(departures, timeOfDay, nextStopIndex, nextStopValue)
+   return LiveDisplayData(departures, timeOfDay, nextStopIndex, nextStopValue)
 }
 
 /**
@@ -96,13 +101,13 @@ fun getLiveDisplayData(trip: Trip, selectedDate: Long): LiveDisplayData {
  * all data required to display to the user where the current trip is.
  */
 data class RouteScheduleEntry(
-	val nextStopIndex: Int,
-	val sliderValue: Float,
-	val trip: Trip,
-	val departureTime: Int,
-	val delayAmount: Int,
-	val selectedDate: Long,
-	val isCancelled: Boolean,
+   val nextStopIndex: Int,
+   val sliderValue: Float,
+   val trip: Trip,
+   val departureTime: Int,
+   val delayAmount: Int,
+   val selectedDate: Long,
+   val isCancelled: Boolean,
 )
 
 sealed interface RouteLiveSchedule
@@ -112,9 +117,9 @@ sealed interface RouteLiveSchedule
  * to display all current trips of the given route.
  */
 data class ActualRouteLiveSchedule(
-	val first: List<RouteScheduleEntry>,
-	val second: List<RouteScheduleEntry>,
-	val commonHeadsign: Pair<String, String>,
+   val first: List<RouteScheduleEntry>,
+   val second: List<RouteScheduleEntry>,
+   val commonHeadsign: Pair<String, String>,
 ) : RouteLiveSchedule
 
 class RouteNoLiveSchedule(val noLiveMessage: String) : RouteLiveSchedule
@@ -125,89 +130,143 @@ class RouteNoLiveSchedule(val noLiveMessage: String) : RouteLiveSchedule
  */
 @Composable
 fun Route.getLiveSchedule(): RouteLiveSchedule? {
-	val schedule = ScheduleManager.instance ?: return null
+   val schedule = ScheduleManager.instance ?: return null
 
-	val calendarDates = schedule.calendarDates
+   val calendarDates = schedule.calendarDates
 
-	var liveSchedule by remember {
-		mutableStateOf(getLiveSchedule(calendarDates, schedule.serviceTypes))
-	}
+   var liveSchedule by remember {
+      mutableStateOf(getLiveSchedule(calendarDates, schedule.serviceTypes))
+   }
 
-	LaunchedEffect(Unit) {
-		while (true) {
-			delay(5000)
-			liveSchedule = getLiveSchedule(calendarDates, schedule.serviceTypes)
-		}
-	}
+   LaunchedEffect(Unit) {
+      while (true) {
+         delay(5000)
+         liveSchedule = getLiveSchedule(calendarDates, schedule.serviceTypes)
+      }
+   }
 
-	return liveSchedule
+   return liveSchedule
 }
 
 /**
  * Calculates the live schedule of the given route based on the given parameters.
  */
 private fun Route.getLiveSchedule(
-	calendarDates: CalendarDates,
-	serviceTypes: ServiceTypes?,
+   calendarDates: CalendarDates,
+   serviceTypes: ServiceTypes?,
 ): RouteLiveSchedule {
-	val currentMillis = localCurrentTimeMillis()
-	val timeOfDay = TimeOfDay(
-		(currentMillis % MILLIS_IN_DAY).toInt() / MILLIS_IN_SECONDS
-	)
-	val dateEpoch = currentMillis / MILLIS_IN_DAY
+   val currentMillis = localCurrentTimeMillis()
+   val timeOfDay = TimeOfDay(
+      (currentMillis % MILLIS_IN_DAY).toInt() / MILLIS_IN_SECONDS
+   )
+   val dateEpoch = currentMillis / MILLIS_IN_DAY
 
-	if (timeOfDay.hours < 9) run yesterday@{
-		val serviceId = calendarDates[dateEpoch - 1]
-			?: return@yesterday
-		val tripsOfDay = trips.filterByServiceId(serviceId)
-			.splitByDirection()
+   val yesterdaySchedule = run yesterday@{
+      if (timeOfDay.hours >= 9)
+         return@yesterday null
 
-		val timeByYesterday = timeOfDay + 1.days
+      val serviceId = calendarDates[dateEpoch - 1]
+         ?: return@yesterday null
+      val tripsOfDay = trips.filterByServiceId(serviceId)
+         .splitByDirection()
 
-		val first = buildLiveSchedule(
-			builder = RouteLiveScheduleBuilder,
-			tripsOfDay.first, timeByYesterday, dateEpoch - 1,
-		)
-		val second = buildLiveSchedule(
-			builder = RouteLiveScheduleBuilder,
-			tripsOfDay.second, timeByYesterday, dateEpoch - 1,
-		)
+      val timeByYesterday = timeOfDay + 1.days
 
-		if (first.isNotEmpty() || second.isNotEmpty())
-			return ActualRouteLiveSchedule(
-				first, second,
-				commonHeadsign = commonHeadsigns[serviceId] ?: ("" to ""),
-			)
-	}
+      val first = buildLiveSchedule(
+         builder = RouteLiveScheduleBuilder,
+         tripsOfDay.first, timeByYesterday, dateEpoch - 1,
+      )
+      val second = buildLiveSchedule(
+         builder = RouteLiveScheduleBuilder,
+         tripsOfDay.second, timeByYesterday, dateEpoch - 1,
+      )
 
-	val serviceId = calendarDates[dateEpoch]
-		?: return RouteNoLiveSchedule(Love.NULL_SERVICE_ID_MESSAGE)
-	val tripsOfDay = trips.filterByServiceId(serviceId)
-		.splitByDirection()
+      return@yesterday if (first.isNotEmpty() || second.isNotEmpty()) {
+         val schedule = ActualRouteLiveSchedule(
+            first, second,
+            commonHeadsign = commonHeadsigns[serviceId] ?: ("" to ""),
+         )
+         if (first.size >= 4 && second.size >= 4)
+            return schedule
+         schedule
+      } else null
+   }
 
-	val first = buildLiveSchedule(
-		builder = RouteLiveScheduleBuilder,
-		tripsOfDay.first, timeOfDay, dateEpoch,
-	)
-	val second = buildLiveSchedule(
-		builder = RouteLiveScheduleBuilder,
-		tripsOfDay.second, timeOfDay, dateEpoch,
-	)
+   val serviceId = calendarDates[dateEpoch]
+      ?: return yesterdaySchedule
+         ?: RouteNoLiveSchedule(Love.NULL_SERVICE_ID_MESSAGE)
+   // TODO bookmark
+   val tripsOfDay = trips.filterByServiceId(serviceId)
+      .splitByDirection()
 
-	if (first.isEmpty() && second.isEmpty())
-		return RouteNoLiveSchedule(
-			Love.giveMeTheSpecialLabelForNoTrips(
-				route = this,
-				serviceId,
-				selectedDate = dateEpoch,
-				serviceTypes,
-			)
-		)
+   if (tripsOfDay.first.isEmpty() && tripsOfDay.second.isEmpty()) {
+      if (yesterdaySchedule != null)
+         return yesterdaySchedule
+      return RouteNoLiveSchedule(
+         Love.giveMeTheSpecialLabelForNoTrips(
+            route = this,
+            serviceId,
+            selectedDate = dateEpoch,
+            serviceTypes,
+         )
+      )
+   }
 
-	return ActualRouteLiveSchedule(
-		first, second,
-		commonHeadsign = commonHeadsigns[serviceId] ?: ("" to "")
-	)
+   val first = buildLiveSchedule(
+      builder = RouteLiveScheduleBuilder,
+      tripsOfDay.first, timeOfDay, dateEpoch,
+      preferredSize = 4 - (yesterdaySchedule?.first?.size ?: 0),
+      doNotBuildIfTooFarInFuture = !yesterdaySchedule?.first.isNullOrEmpty(),
+   )
+   val second = buildLiveSchedule(
+      builder = RouteLiveScheduleBuilder,
+      tripsOfDay.second, timeOfDay, dateEpoch,
+      preferredSize = 4 - (yesterdaySchedule?.second?.size ?: 0),
+      doNotBuildIfTooFarInFuture = !yesterdaySchedule?.second.isNullOrEmpty(),
+   )
+
+   if (yesterdaySchedule != null)
+      return ActualRouteLiveSchedule(
+         first = yesterdaySchedule.first + first,
+         second = yesterdaySchedule.second + second,
+         commonHeadsign = yesterdaySchedule.commonHeadsign,
+      )
+
+   if (timeOfDay.hours > 18 && (first.size < 4 || second.size < 4)) run tomorrow@{
+      val tomorrowServiceId = calendarDates[dateEpoch + 1]
+         ?: return@tomorrow
+      val tomorrowTripsOfDay = trips.filterByServiceId(tomorrowServiceId)
+         .splitByDirection()
+
+      val timeByTomorrow = timeOfDay - 1.days
+
+      val tomorrowFirst = buildLiveSchedule(
+         builder = RouteLiveScheduleBuilder,
+         tomorrowTripsOfDay.first, timeByTomorrow, dateEpoch - 1,
+         preferredSize = 4 - first.size,
+         doNotBuildIfTooFarInFuture = true,
+      )
+      val tomorrowSecond = buildLiveSchedule(
+         builder = RouteLiveScheduleBuilder,
+         tomorrowTripsOfDay.second, timeByTomorrow, dateEpoch - 1,
+         preferredSize = 4 - second.size,
+         doNotBuildIfTooFarInFuture = true,
+      )
+
+      if (tomorrowFirst.isNotEmpty() || tomorrowSecond.isNotEmpty())
+         return ActualRouteLiveSchedule(
+            first = first + tomorrowFirst,
+            second = second + tomorrowSecond,
+            commonHeadsign = commonHeadsigns[serviceId]
+               ?: commonHeadsigns[tomorrowServiceId]
+               ?: ("" to ""),
+         )
+   }
+
+   return ActualRouteLiveSchedule(
+      first, second,
+      commonHeadsign = commonHeadsigns[serviceId] ?: ("" to "")
+   )
 }
 
 sealed interface StopLiveSchedule
@@ -217,13 +276,13 @@ sealed interface StopLiveSchedule
  * display to the user where the current trip is.
  */
 data class StopScheduleEntry(
-	val route: Route,
-	val headsign: String,
-	val trip: Trip,
-	val absoluteTime: TimeOfDay,
-	val relativeTime: Int,
-	val useRelative: Boolean,
-	val selectedDate: Long,
+   val route: Route,
+   val headsign: String,
+   val trip: Trip,
+   val absoluteTime: TimeOfDay,
+   val relativeTime: Int,
+   val useRelative: Boolean,
+   val selectedDate: Long,
 )
 
 /**
@@ -231,7 +290,7 @@ data class StopScheduleEntry(
  * to display all current trips of the given route.
  */
 class ActualStopLiveSchedule(
-	list: List<StopScheduleEntry>
+   list: List<StopScheduleEntry>
 ) : List<StopScheduleEntry> by list, StopLiveSchedule
 
 class StopNoLiveSchedule(val noLiveMessage: String?) : StopLiveSchedule
@@ -242,271 +301,315 @@ class StopNoLiveSchedule(val noLiveMessage: String?) : StopLiveSchedule
  */
 @Composable
 fun Stop.getLiveSchedule(
-	keepDeparted: Boolean,
-	maxSize: Int,
-	routesFiltered: List<RouteId>? = null,
+   keepDeparted: Boolean,
+   maxSize: Int,
+   routesFiltered: List<RouteId>? = null,
 ): StopLiveSchedule? {
-	val schedule = ScheduleManager.instance ?: return null
+   val schedule = ScheduleManager.instance ?: return null
 
-	val calendarDates = schedule.calendarDates
+   val calendarDates = schedule.calendarDates
 
-	var liveSchedule by remember {
-		mutableStateOf<StopLiveSchedule?>(null)
-	}
+   var liveSchedule by remember {
+      mutableStateOf<StopLiveSchedule?>(null)
+   }
 
-	LaunchedEffect(this, routesFiltered) {
-		while (true) {
-			liveSchedule = getLiveSchedule(
-				keepDeparted,
-				maxSize,
-				routesFiltered,
-				calendarDates,
-				schedule.serviceTypes,
-			)
-			delay(20000)
-		}
-	}
+   LaunchedEffect(this, routesFiltered) {
+      while (true) {
+         liveSchedule = getLiveSchedule(
+            keepDeparted,
+            maxSize,
+            routesFiltered,
+            calendarDates,
+            schedule.serviceTypes,
+         )
+         delay(20000)
+      }
+   }
 
-	return liveSchedule
+   return liveSchedule
 }
 
 /**
  * Calculates the live schedule of the given stop based on the given parameters.
  */
 private fun Stop.getLiveSchedule(
-	keepDeparted: Boolean,
-	maxSize: Int,
-	routesFiltered: List<RouteId>?,
-	calendarDates: CalendarDates,
-	serviceTypes: ServiceTypes?,
+   keepDeparted: Boolean,
+   maxSize: Int,
+   routesFiltered: List<RouteId>?,
+   calendarDates: CalendarDates,
+   serviceTypes: ServiceTypes?,
 ): StopLiveSchedule {
-	val currentMillis = localCurrentTimeMillis()
-	val timeOfDay = TimeOfDay(
-		(currentMillis % MILLIS_IN_DAY).toInt() / MILLIS_IN_SECONDS
-	)
-	val dateEpoch = currentMillis / MILLIS_IN_DAY
+   val currentMillis = localCurrentTimeMillis()
+   val timeOfDay = TimeOfDay(
+      (currentMillis % MILLIS_IN_DAY).toInt() / MILLIS_IN_SECONDS
+   )
+   val dateEpoch = currentMillis / MILLIS_IN_DAY
 
-	val result = mutableListOf<StopScheduleEntry>()
+   val result = mutableListOf<StopScheduleEntry>()
 
-	val filterEmpty =
-		routesFiltered == null || routes.none { it.key.id in routesFiltered }
+   val filterEmpty =
+      routesFiltered == null || routes.none { it.key.id in routesFiltered }
 
-	if (timeOfDay.hours < 9) run yesterday@{
-		val serviceId = calendarDates[dateEpoch - 1]
-			?: return@yesterday
+   val builder = StopLiveScheduleBuilder(stop = this, keepDeparted)
 
-		val timeByYesterday = timeOfDay + 1.days
-		val tripsOfDay = mutableListOf<Trip>()
+   val yesterdayExists = run yesterday@{
+      if (timeOfDay.hours >= 9)
+         return@yesterday false
+      val serviceId = calendarDates[dateEpoch - 1]
+         ?: return@yesterday false
 
-		for ((route, routeAtStop) in routes) {
-			if (!filterEmpty && route.id !in routesFiltered!!)
-				continue
-			val routeTripsOfDay = route.trips.filterByServiceId(serviceId)
-			if (routeTripsOfDay.isEmpty()) continue
+      val timeByYesterday = timeOfDay + 1.days
+      val tripsOfDay = mutableListOf<Trip>()
 
-			tripsOfDay += when {
-				routeAtStop.stopsAtDirectionZero && routeAtStop.stopsAtDirectionOne ->
-					routeTripsOfDay
+      appendTripsOfDay(
+         tripsOfDay,
+         routes,
+         routesFiltered,
+         filterEmpty,
+         serviceId,
+      )
 
-				routeAtStop.stopsAtDirectionZero ->
-					routeTripsOfDay.filterByDirection(DirectionId.Zero)
+      buildLiveSchedule(
+         builder,
+         tripsOfDay,
+         timeOfDay = timeByYesterday,
+         dateEpoch = dateEpoch - 1,
+         appendTo = result,
+         preferredSize = maxSize,
+         maxSize = maxSize,
+      )
 
-				// if a route is in `routes`, then it stops at this stop;
-				// since it doesn't stop at direction zero,
-				// it must stop at direction one
-				else -> routeTripsOfDay.filterByDirection(DirectionId.One)
-			}
-		}
+      if (result.isNotEmpty()) {
+         result.sortBy { it.relativeTime }
+         if (result.size >= maxSize)
+            return ActualStopLiveSchedule(result)
+         true
+      } else false
+   }
 
-		buildLiveSchedule(
-			builder = StopLiveScheduleBuilder(stop = this, keepDeparted),
-			tripsOfDay,
-			timeOfDay = timeByYesterday,
-			dateEpoch,
-			appendTo = result,
-			preferredSize = maxSize,
-			maxSize = maxSize,
-		)
+   val serviceId = calendarDates[dateEpoch]
+      ?: return if (yesterdayExists) ActualStopLiveSchedule(result)
+      else StopNoLiveSchedule(Love.NULL_SERVICE_ID_MESSAGE)
+   val tripsOfDay = mutableListOf<Trip>()
 
-		if (result.isNotEmpty()) {
-			result.sortBy { it.relativeTime }
-			return ActualStopLiveSchedule(result)
-		}
-	}
+   appendTripsOfDay(tripsOfDay, routes, routesFiltered, filterEmpty, serviceId)
 
-	val serviceId = calendarDates[dateEpoch]
-		?: return StopNoLiveSchedule(Love.NULL_SERVICE_ID_MESSAGE)
-	val tripsOfDay = mutableListOf<Trip>()
+   if (tripsOfDay.isEmpty()) {
+      if (yesterdayExists)
+         return ActualStopLiveSchedule(result)
+      return StopNoLiveSchedule(
+         null
+         /*Love.giveMeTheSpecialLabelForNoTrips(
+            route = TODO(),
+            serviceId,
+            selectedDate = dateEpoch,
+            serviceTypes,
+         )*/
+      )
+   }
 
-	for ((route, routeAtStop) in routes) {
-		if (!filterEmpty && route.id !in routesFiltered!!)
-			continue
-		val routeTripsOfDay = route.trips.filterByServiceId(serviceId)
-		if (routeTripsOfDay.isEmpty()) continue
+   buildLiveSchedule(
+      builder,
+      tripsOfDay, timeOfDay, dateEpoch,
+      appendTo = result,
+      preferredSize = maxSize,
+      maxSize = maxSize,
+   )
 
-		tripsOfDay += when {
-			routeAtStop.stopsAtDirectionZero && routeAtStop.stopsAtDirectionOne ->
-				routeTripsOfDay
+   if (!yesterdayExists && timeOfDay.hours > 18 && result.size < maxSize)
+      run tomorrow@{
+         val tomorrowServiceId = calendarDates[dateEpoch + 1]
+            ?: return@tomorrow false
 
-			routeAtStop.stopsAtDirectionZero ->
-				routeTripsOfDay.filterByDirection(DirectionId.Zero)
+         val timeByTomorrow = timeOfDay - 1.days
+         val tomorrowTripsOfDay = mutableListOf<Trip>()
 
-			// if a route is in `routes`, then it stops at this stop;
-			// since it doesn't stop at direction zero,
-			// it must stop at direction one
-			else -> routeTripsOfDay.filterByDirection(DirectionId.One)
-		}
-	}
+         appendTripsOfDay(
+            tomorrowTripsOfDay,
+            routes,
+            routesFiltered,
+            filterEmpty,
+            tomorrowServiceId,
+         )
 
-	buildLiveSchedule(
-		builder = StopLiveScheduleBuilder(stop = this, keepDeparted),
-		tripsOfDay, timeOfDay, dateEpoch,
-		appendTo = result,
-		preferredSize = maxSize,
-		maxSize = maxSize,
-	)
+         buildLiveSchedule(
+            builder,
+            tomorrowTripsOfDay,
+            timeOfDay = timeByTomorrow,
+            dateEpoch = dateEpoch + 1,
+            appendTo = result,
+            preferredSize = maxSize,
+            maxSize = maxSize,
+         )
+      }
 
-	if (result.isEmpty())
-		return StopNoLiveSchedule(
-			null
-			/*Love.giveMeTheSpecialLabelForNoTrips(
-				route = TODO(),
-				serviceId,
-				selectedDate = dateEpoch,
-				serviceTypes,
-			)*/
-		)
+   result.sortBy { it.relativeTime }
+   return ActualStopLiveSchedule(result)
+}
 
-	result.sortBy { it.relativeTime }
-	return ActualStopLiveSchedule(result)
+private fun appendTripsOfDay(
+   tripsOfDay: MutableList<Trip>,
+   routes: Map<Route, RouteAtStop>,
+   routesFiltered: List<RouteId>?,
+   filterEmpty: Boolean,
+   serviceId: ServiceId,
+) {
+   for ((route, routeAtStop) in routes) {
+      if (!filterEmpty && route.id !in routesFiltered!!)
+         continue
+      val routeTripsOfDay = route.trips.filterByServiceId(serviceId)
+      if (routeTripsOfDay.isEmpty()) continue
+
+      tripsOfDay += when {
+         routeAtStop.stopsAtDirectionZero && routeAtStop.stopsAtDirectionOne ->
+            routeTripsOfDay
+
+         routeAtStop.stopsAtDirectionZero ->
+            routeTripsOfDay.filterByDirection(DirectionId.Zero)
+
+         // if a route is in `routes`, then it stops at this stop;
+         // since it doesn't stop at direction zero,
+         // it must stop at direction one
+         else -> routeTripsOfDay.filterByDirection(DirectionId.One)
+      }
+   }
 }
 
 private fun <T> buildLiveSchedule(
-	builder: LiveScheduleBuilder<T>,
-	tripsOfDay: Collection<Trip>,
-	timeOfDay: TimeOfDay,
-	dateEpoch: Long,
-	appendTo: MutableList<T>? = null,
-	preferredSize: Int = 4,
-	maxSize: Int = Int.MAX_VALUE,
+   builder: LiveScheduleBuilder<T>,
+   tripsOfDay: Collection<Trip>,
+   timeOfDay: TimeOfDay,
+   dateEpoch: Long,
+   appendTo: MutableList<T>? = null,
+   preferredSize: Int = 4,
+   maxSize: Int = Int.MAX_VALUE,
+   doNotBuildIfTooFarInFuture: Boolean = false,
 ): List<T> {
-	val realtimeTrips = tripsOfDay.mapNotNullTo(mutableListOf()) { trip ->
-		trip.getRealtimeDepartures()?.let { trip to it }
-	}
-	realtimeTrips.sortBy { it.second.first() }
+   val realtimeTrips = tripsOfDay.mapNotNullTo(mutableListOf()) { trip ->
+      trip.getRealtimeDepartures()?.let { trip to it }
+   }
+   if (doNotBuildIfTooFarInFuture) {
+      val firstDeparture = realtimeTrips.minOfOrNull { it.second.first() }
+      if (firstDeparture == null ||
+         TimeOfDay(firstDeparture).minusHours(timeOfDay) > 4
+      ) return emptyList()
+   }
+   realtimeTrips.sortBy { it.second.first() }
 
-	val firstTripIndex = realtimeTrips.indexOfFirst {
-		it.second.last() >= timeOfDay.valueInSeconds
-	}
-	if (firstTripIndex == -1)
-		return emptyList()
+   val firstTripIndex = realtimeTrips.indexOfFirst {
+      it.second.last() >= timeOfDay.valueInSeconds
+   }
+   if (firstTripIndex == -1)
+      return emptyList()
 
-	val iterator = realtimeTrips.listIterator(firstTripIndex)
+   val iterator = realtimeTrips.listIterator(firstTripIndex)
 
-	val result = appendTo ?: mutableListOf()
+   val result = appendTo ?: mutableListOf()
 
-	for ((trip, realtimeDepartures) in iterator) {
-		val nextStopIndex = findNextStopIndex(realtimeDepartures, timeOfDay)
-		if (nextStopIndex <= 0) {
-			iterator.previous()
-			break
-		}
-		builder.build(
-			trip,
-			realtimeDepartures,
-			nextStopIndex,
-			selectedDate = dateEpoch,
-			timeOfDay,
-		)?.let { result += it }
-		if (result.size >= maxSize)
-			return result
-	}
+   for ((trip, realtimeDepartures) in iterator) {
+      val nextStopIndex = findNextStopIndex(realtimeDepartures, timeOfDay)
+      if (nextStopIndex == realtimeDepartures.size)
+         continue
+      if (nextStopIndex == 0) {
+         iterator.previous()
+         break
+      }
+      builder.build(
+         trip,
+         realtimeDepartures,
+         nextStopIndex,
+         selectedDate = dateEpoch,
+         timeOfDay,
+      )?.let { result += it }
+      if (result.size >= maxSize)
+         return result
+   }
 
-	// always add at least one entry that hasn't happened yet
-	do {
-		if (!iterator.hasNext()) break
-		val (trip, realtimeDepartures) = iterator.next()
-		builder.build(
-			trip,
-			realtimeDepartures,
-			nextStopIndex = 0,
-			selectedDate = dateEpoch,
-			timeOfDay,
-		)?.let { result += it }
-	} while (result.size < preferredSize)
+   // always add at least one entry that hasn't happened yet
+   do {
+      if (!iterator.hasNext()) break
+      val (trip, realtimeDepartures) = iterator.next()
+      builder.build(
+         trip,
+         realtimeDepartures,
+         nextStopIndex = 0,
+         selectedDate = dateEpoch,
+         timeOfDay,
+      )?.let { result += it }
+   } while (result.size < preferredSize)
 
-	return result
+   return result
 }
 
 private fun interface LiveScheduleBuilder<T> {
-	fun build(
-		trip: Trip,
-		realtimeDepartures: TimeOfDayList,
-		nextStopIndex: Int,
-		selectedDate: Long,
-		timeOfDay: TimeOfDay,
-	): T?
+   fun build(
+      trip: Trip,
+      realtimeDepartures: TimeOfDayList,
+      nextStopIndex: Int,
+      selectedDate: Long,
+      timeOfDay: TimeOfDay,
+   ): T?
 }
 
 private val RouteLiveScheduleBuilder =
-	LiveScheduleBuilder { trip, realtimeDepartures, nextStopIndex, selectedDate, timeOfDay ->
-		if (nextStopIndex != 0) RouteScheduleEntry(
-			nextStopIndex,
-			sliderValue = nextStopIndex - 1 + getArrivalLineRatio(
-				realtimeDepartures, nextStopIndex, timeOfDay
-			),
-			trip,
-			departureTime = 0,
-			delayAmount = 0,
-			selectedDate,
-			isCancelled = false,
-		) else RouteScheduleEntry(
-			nextStopIndex = 0,
-			sliderValue = -.5f,
-			trip,
-			departureTime = realtimeDepartures[0].let { departure ->
-				val difference = TimeOfDay(departure).minusMinutes(timeOfDay)
+   LiveScheduleBuilder { trip, realtimeDepartures, nextStopIndex, selectedDate, timeOfDay ->
+      if (nextStopIndex != 0) RouteScheduleEntry(
+         nextStopIndex,
+         sliderValue = nextStopIndex - 1 + getArrivalLineRatio(
+            realtimeDepartures, nextStopIndex, timeOfDay
+         ),
+         trip,
+         departureTime = 0,
+         delayAmount = 0,
+         selectedDate,
+         isCancelled = false,
+      ) else RouteScheduleEntry(
+         nextStopIndex = 0,
+         sliderValue = -.5f,
+         trip,
+         departureTime = realtimeDepartures[0].let { departure ->
+            val difference = TimeOfDay(departure).minusMinutes(timeOfDay)
 
-				if (difference <= 0) -1
-				else if (difference <= 15) -difference - 1
-				else departure
-			},
-			delayAmount = realtimeDepartures[0] - trip.departures[0],
-			selectedDate,
-			isCancelled = false,
-		)
-	}
+            if (difference <= 0) -1
+            else if (difference <= 15) -difference - 1
+            else departure
+         },
+         delayAmount = realtimeDepartures[0] - trip.departures[0],
+         selectedDate,
+         isCancelled = false,
+      )
+   }
 
 private class StopLiveScheduleBuilder(
-	private val stop: Stop,
-	private val keepDeparted: Boolean,
+   private val stop: Stop,
+   private val keepDeparted: Boolean,
 ) : LiveScheduleBuilder<StopScheduleEntry> {
-	override fun build(
-		trip: Trip,
-		realtimeDepartures: TimeOfDayList,
-		nextStopIndex: Int,
-		selectedDate: Long,
-		timeOfDay: TimeOfDay
-	): StopScheduleEntry? {
-		val indexOfStop = trip.stops.indexOf(stop)
-		if (indexOfStop == -1)
-			return null
+   override fun build(
+      trip: Trip,
+      realtimeDepartures: TimeOfDayList,
+      nextStopIndex: Int,
+      selectedDate: Long,
+      timeOfDay: TimeOfDay
+   ): StopScheduleEntry? {
+      val indexOfStop = trip.stops.indexOf(stop)
+      if (indexOfStop == -1)
+         return null
 
-		val absoluteTime = TimeOfDay(realtimeDepartures[indexOfStop])
-		val relativeTime = absoluteTime.minusSeconds(timeOfDay)
-		if (relativeTime < 0 && !keepDeparted)
-			return null
+      val absoluteTime = TimeOfDay(realtimeDepartures[indexOfStop])
+      val relativeTime = absoluteTime.minusSeconds(timeOfDay)
+      if (relativeTime < 0 && !keepDeparted)
+         return null
 
-		return StopScheduleEntry(
-			route = trip.route,
-			headsign = trip.headsign,
-			trip,
-			absoluteTime,
-			relativeTime,
-			useRelative = realtimeDepartures !== trip.departures,
-			selectedDate,
-		)
-	}
+      return StopScheduleEntry(
+         route = trip.route,
+         headsign = trip.headsign,
+         trip,
+         absoluteTime,
+         relativeTime,
+         useRelative = realtimeDepartures !== trip.departures,
+         selectedDate,
+      )
+   }
 }
 
 /*
