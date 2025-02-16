@@ -264,7 +264,7 @@ class NotificationTrackerService : Service() {
          return START_REDELIVER_INTENT
       }
 
-      val schedule = ScheduleManager.instance
+      val schedule = ScheduleManager.instance.value
          ?: run {
             Log.w(TAG, "onStartCommand: schedule not loaded")
             return START_REDELIVER_INTENT

@@ -32,6 +32,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.NonRestartableComposable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -159,7 +160,7 @@ class SettingsActivity : ComponentActivity() {
       val scope = rememberCoroutineScope()
       var showDialog by remember { mutableStateOf(false) }
 
-      val schedule = ScheduleManager.instance
+      val schedule = ScheduleManager.instance.collectAsState().value
       val feedInfo = schedule?.feedInfo
 
       Column(
@@ -167,11 +168,18 @@ class SettingsActivity : ComponentActivity() {
             .clickable { showDialog = true }
             .defaultEntryModifiers()
       ) {
-         Text("Informacije o rasporedu", style = MaterialTheme.typography.titleLarge)
+         Text(
+            "Informacije o rasporedu",
+            style = MaterialTheme.typography.titleLarge
+         )
          Text(
             if (feedInfo != null) "Verzija: ${feedInfo.version}"
             else "Nema preuzetog rasporeda",
-            color = lerp(LocalContentColor.current, MaterialTheme.colorScheme.background, .20f),
+            color = lerp(
+               LocalContentColor.current,
+               MaterialTheme.colorScheme.background,
+               .20f
+            ),
             fontSize = 12.sp,
          )
       }
@@ -202,8 +210,12 @@ class SettingsActivity : ComponentActivity() {
                         append("Verzija: ").append(feedInfo?.version.orLoading())
                         if (latestVersion != null)
                            append("\nNajnovija verzija: ").append(latestVersion)
-                        append("\nPočetak rasporeda: ").append(startDate?.toString().orLoading())
-                        append("\nKraj rasporeda: ").append(lastDate.toString().orLoading())
+                        append("\nPočetak rasporeda: ").append(
+                           startDate?.toString().orLoading()
+                        )
+                        append("\nKraj rasporeda: ").append(
+                           lastDate.toString().orLoading()
+                        )
                         if (newScheduleFeedInfo != null) {
                            append("\n\nPostoji neaktivirani raspored:")
                            append("\n Verzija: ").append(newScheduleFeedInfo.version)
@@ -213,7 +225,9 @@ class SettingsActivity : ComponentActivity() {
                   )
                } else Text("Nema preuzetog rasporeda")
 
-               val (isCheckingUpdate, setIsCheckingUpdate) = remember { mutableStateOf(false) }
+               val (isCheckingUpdate, setIsCheckingUpdate) = remember {
+                  mutableStateOf(false)
+               }
                val (isUpdating, setIsUpdating) = remember { mutableStateOf(false) }
                var errorMessage by remember { mutableStateOf<String?>(null) }
 
@@ -223,7 +237,7 @@ class SettingsActivity : ComponentActivity() {
                         setIsCheckingUpdate(true)
                         errorMessage = null
                         ScheduleManager.update(filesDir).join()
-                        val errorType = ScheduleManager.lastDownloadError
+                        val errorType = ScheduleManager.lastDownloadError.value
                         errorMessage = errorType?.errorMessage
                         setIsCheckingUpdate(false)
                      }
@@ -239,7 +253,9 @@ class SettingsActivity : ComponentActivity() {
                      }
                   )
                }
-               errorMessage?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+               errorMessage?.let {
+                  Text(it, color = MaterialTheme.colorScheme.error)
+               }
 
                UpdateState(setIsUpdating)
             }
@@ -249,13 +265,18 @@ class SettingsActivity : ComponentActivity() {
 
    @Composable
    private fun UpdateState(setIsUpdating: (Boolean) -> Unit) {
-      val loadingState = ScheduleManager.loadingState
-      if (loadingState == ScheduleManager.LoadingState.NOT_LOADING) {
+      val loadingState = ScheduleManager.downloadState.collectAsState().value
+      if (loadingState == ScheduleManager.DownloadState.NOOP) {
          setIsUpdating(false)
          return
       }
       setIsUpdating(true)
-      Text("Ažuriranje rasporeda...")
+      // TODO check if Schedule exists and change this text then
+      Text(
+         if (loadingState == ScheduleManager.DownloadState.DOWNLOADING)
+            "Preuzimanje novog rasporeda${Typography.ellipsis}"
+         else "Ažuriranje rasporeda${Typography.ellipsis}"
+      )
       LinearProgressIndicator()
    }
 

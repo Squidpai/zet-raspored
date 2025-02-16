@@ -27,6 +27,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -150,7 +151,7 @@ class TripDialogActivity : ComponentActivity() {
          AppTheme {
             var isAbsoluteTime by remember { mutableStateOf(true) }
 
-            val schedule = ScheduleManager.instance
+            val schedule = ScheduleManager.instance.collectAsState().value
             val route = schedule?.routes?.get(routeId)
             val trip = route?.trips?.get(tripId)
 
@@ -170,7 +171,8 @@ class TripDialogActivity : ComponentActivity() {
                         modifier = Modifier.weight(1f),
                      )
 
-                     val icon = if (isAbsoluteTime) Symbols.ClockLoader10 else Symbols.Schedule
+                     val icon =
+                        if (isAbsoluteTime) Symbols.ClockLoader10 else Symbols.Schedule
                      IconButton(
                         icon, "Promjeni prikaz vremena",
                         onClick = { isAbsoluteTime = !isAbsoluteTime },
@@ -182,7 +184,9 @@ class TripDialogActivity : ComponentActivity() {
                            Symbols.MoreVert, "Dodatne opcije",
                            onClick = { expanded = true },
                         )
-                        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                        DropdownMenu(
+                           expanded = expanded,
+                           onDismissRequest = { expanded = false }) {
                            DropdownMenuItem(
                               text = { Text("Prati u obavijestima") },
                               onClick = { trackInNotifications() }

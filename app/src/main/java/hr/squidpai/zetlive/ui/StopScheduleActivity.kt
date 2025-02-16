@@ -39,6 +39,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
@@ -89,10 +90,9 @@ class StopScheduleActivity : ComponentActivity() {
       enableEdgeToEdge()
       setContent {
          AppTheme {
-            val schedule = ScheduleManager.instance
+            val schedule = ScheduleManager.instance.collectAsState().value
 
-            val groupedStop =
-               schedule?.stops?.groupedStops?.get(stopId.stopNumber)
+            val groupedStop = schedule?.stops?.groupedStops?.get(stopId.stopNumber)
 
             Scaffold(
                topBar = { MyTopAppBar(groupedStop?.parentStop?.name.orLoading()) },
@@ -133,11 +133,7 @@ class StopScheduleActivity : ComponentActivity() {
       groupedStop: Stops.Grouped?,
       defaultCode: Int,
       modifier: Modifier,
-   ) = Column(
-      modifier.background(
-         MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp)
-      )
-   ) {
+   ) = Column(modifier.background(MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp))) {
       if (groupedStop == null) {
          CircularLoadingBox()
          return
@@ -280,8 +276,8 @@ class StopScheduleActivity : ComponentActivity() {
             .background(MaterialTheme.colorScheme.background)
             .fillMaxHeight(),
          state = rememberSaveable(
-            selectedStopIndex,
-            saver = LazyListState.Saver
+            liveSchedule.key,
+            saver = LazyListState.Saver,
          ) {
             LazyListState(
                firstVisibleItemIndex = liveSchedule
@@ -325,9 +321,10 @@ class StopScheduleActivity : ComponentActivity() {
                   overflow = TextOverflow.Ellipsis,
                )
                Text(
-                  if (departed) "otišao"
-                  else if (entry.useRelative) "${entry.relativeTime / 60} min"
-                  else entry.absoluteTime.toStringHHMM(),
+                  if (entry.useRelative) {
+                     if (!departed) "${entry.relativeTime / 60} min"
+                     else "prije ${-entry.relativeTime / 60} min"
+                  } else entry.absoluteTime.toStringHHMM(),
                   modifier = Modifier.padding(end = 4.dp),
                   color = if (departed) departedColor
                   else MaterialTheme.colorScheme.primary,

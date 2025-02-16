@@ -268,17 +268,3 @@ fun <T, R : Comparable<R>> Iterable<T>.sortedByIfNotAlready(
 
   return sortedBy(selector)
 }
-
-/**
- * Returns the greater of two values.
- *
- * If values are equal, returns the first one.
- *
- * `null` is considered the smallest element.
- */
-fun <T : Comparable<T>> maxOf(a: T?, b: T?) = when {
-  b == null -> a
-  a == null -> b
-  a >= b -> a
-  else -> b
-}

@@ -4,12 +4,14 @@ import hr.squidpai.zetapi.FeedInfo
 import hr.squidpai.zetapi.Love
 import hr.squidpai.zetapi.Schedule
 import hr.squidpai.zetapi.Stops
+import hr.squidpai.zetapi.maxOf
 import hr.squidpai.zetapi.realtime.RealtimeDispatcher
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
 import java.net.MalformedURLException
-import java.net.URL
+import java.net.URI
+import java.net.URISyntaxException
 import java.nio.channels.Channels
 import java.util.zip.ZipFile
 
@@ -37,12 +39,14 @@ public object GtfsScheduleLoader {
     */
    public fun download(
       file: File,
+      vararg cachedVersions: String?,
       link: String = LINK,
-      cachedVersion: String? = null,
    ): DownloadResult {
       val url = try {
-         URL(link)
+         URI(link).toURL()
       } catch (e: MalformedURLException) {
+         return DownloadResult(ErrorType.MALFORMED_URL, e)
+      } catch (e: URISyntaxException) {
          return DownloadResult(ErrorType.MALFORMED_URL, e)
       }
 
@@ -67,8 +71,10 @@ public object GtfsScheduleLoader {
             .replace("\"", "")
       )
 
-      if (newVersion == cachedVersion)
-         return DownloadResult(ErrorType.UP_TO_DATE, version = newVersion)
+      val latestVersion = maxOf(*cachedVersions)
+
+      if (latestVersion != null && latestVersion >= newVersion)
+         return DownloadResult(ErrorType.UP_TO_DATE)
       else try {
          connection.inputStream.use { input ->
             FileOutputStream(file).use { output ->

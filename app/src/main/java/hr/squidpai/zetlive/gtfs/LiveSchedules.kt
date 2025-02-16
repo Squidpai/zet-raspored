@@ -2,6 +2,7 @@ package hr.squidpai.zetlive.gtfs
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -130,7 +131,8 @@ class RouteNoLiveSchedule(val noLiveMessage: String) : RouteLiveSchedule
  */
 @Composable
 fun Route.getLiveSchedule(): RouteLiveSchedule? {
-   val schedule = ScheduleManager.instance ?: return null
+   val schedule = ScheduleManager.instance.collectAsState().value
+      ?: return null
 
    val calendarDates = schedule.calendarDates
 
@@ -290,7 +292,8 @@ data class StopScheduleEntry(
  * to display all current trips of the given route.
  */
 class ActualStopLiveSchedule(
-   list: List<StopScheduleEntry>
+   list: List<StopScheduleEntry>,
+   val key: Any?,
 ) : List<StopScheduleEntry> by list, StopLiveSchedule
 
 class StopNoLiveSchedule(val noLiveMessage: String?) : StopLiveSchedule
@@ -305,7 +308,8 @@ fun Stop.getLiveSchedule(
    maxSize: Int,
    routesFiltered: List<RouteId>? = null,
 ): StopLiveSchedule? {
-   val schedule = ScheduleManager.instance ?: return null
+   val schedule = ScheduleManager.instance.collectAsState().value
+      ?: return null
 
    val calendarDates = schedule.calendarDates
 
@@ -382,13 +386,13 @@ private fun Stop.getLiveSchedule(
       if (result.isNotEmpty()) {
          result.sortBy { it.relativeTime }
          if (result.size >= maxSize)
-            return ActualStopLiveSchedule(result)
+            return ActualStopLiveSchedule(result, key = routesFiltered)
          true
       } else false
    }
 
    val serviceId = calendarDates[dateEpoch]
-      ?: return if (yesterdayExists) ActualStopLiveSchedule(result)
+      ?: return if (yesterdayExists) ActualStopLiveSchedule(result, key = routesFiltered)
       else StopNoLiveSchedule(Love.NULL_SERVICE_ID_MESSAGE)
    val tripsOfDay = mutableListOf<Trip>()
 
@@ -396,7 +400,7 @@ private fun Stop.getLiveSchedule(
 
    if (tripsOfDay.isEmpty()) {
       if (yesterdayExists)
-         return ActualStopLiveSchedule(result)
+         return ActualStopLiveSchedule(result, key = routesFiltered)
       return StopNoLiveSchedule(
          null
          /*Love.giveMeTheSpecialLabelForNoTrips(
@@ -444,7 +448,7 @@ private fun Stop.getLiveSchedule(
       }
 
    result.sortBy { it.relativeTime }
-   return ActualStopLiveSchedule(result)
+   return ActualStopLiveSchedule(result, key = routesFiltered)
 }
 
 private fun appendTripsOfDay(

@@ -8,6 +8,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -25,7 +26,8 @@ fun MainActivityLoading(
    horizontalAlignment = Alignment.CenterHorizontally,
 ) {
    if (errorType == null || errorType == ErrorType.ALREADY_DOWNLOADING) {
-      Text("Preuzimanje rasporeda${Typography.ellipsis}")
+      val state = ScheduleManager.downloadState.collectAsState().value
+      state.message?.let { Text(it) }
       CircularProgressIndicator(Modifier.padding(8.dp))
    } else {
       Text(errorType.errorMessage.orEmpty())
@@ -36,3 +38,10 @@ fun MainActivityLoading(
       }
    }
 }
+
+private val ScheduleManager.DownloadState.message
+   get() = when (this) {
+      ScheduleManager.DownloadState.NOOP, ScheduleManager.DownloadState.LOADING_CACHED -> null
+      ScheduleManager.DownloadState.DOWNLOADING -> "Preuzimanje rasporeda${Typography.ellipsis}"
+      ScheduleManager.DownloadState.LOADING_GTFS -> "Pripremanje rasporeda${Typography.ellipsis}"
+   }

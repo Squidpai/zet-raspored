@@ -12,7 +12,6 @@ import com.opencsv.CSVReader
 import com.opencsv.CSVWriter
 import java.time.LocalDate
 
-
 /**
  * Converts the string of contents "YYYYMMDD" into a [LocalDate].
  */
@@ -100,3 +99,40 @@ internal fun CSVWriter.writeNext(nextLine: IntList) =
 // special function for writing strings to avoid creating an additional array
 internal inline fun CSVWriter.writeNext(vararg nextLine: String?) =
    writeNext(nextLine)
+
+/**
+ * Linearly interpolate between [start] and [stop] with [fraction] fraction between them.
+ */
+public fun lerp(start: Int, stop: Int, fraction: Float): Int =
+   Math.round(start + ((stop - start) * fraction.toDouble())).toInt()
+
+/**
+ * Returns the greater of two values.
+ *
+ * If values are equal, returns the first one.
+ *
+ * `null` is considered the smallest element.
+ */
+public fun <T : Comparable<T>> maxOf(a: T?, b: T?): T? = when {
+   b == null -> a
+   a == null -> b
+   a >= b -> a
+   else -> b
+}
+
+/**
+ * Returns the greatest of the given values.
+ *
+ * If there are multiple values that are the greatest, returns the first one.
+ *
+ * `null` is considered the smallest element.
+ *
+ * If no elements are given, `null` is returned.
+ */
+public fun <T : Comparable<T>> maxOf(vararg elements: T?): T? {
+   if (elements.isEmpty()) return null
+   var max = elements.first()
+   for (i in 1..<elements.size)
+      max = maxOf(max, elements[i])
+   return max
+}
