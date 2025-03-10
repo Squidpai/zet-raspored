@@ -370,7 +370,7 @@ private fun ColumnScope.StopLiveTravels(stop: Stop) {
 
 	when (liveSchedule) {
 		is StopNoLiveSchedule -> Text(
-			liveSchedule.noLiveMessage ?: "Na postaji nema više polazaka danas.",
+			liveSchedule.noLiveMessage,
 			Modifier
 				.padding(vertical = 8.dp)
 				.align(Alignment.CenterHorizontally)
