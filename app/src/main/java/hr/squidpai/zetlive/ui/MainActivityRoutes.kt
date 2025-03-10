@@ -245,6 +245,7 @@ private fun ColumnScope.RouteLiveTravels(route: Route, directionState: MutableIn
             .padding(vertical = 8.dp)
             .align(Alignment.CenterHorizontally)
       )
+
       is ActualRouteLiveSchedule -> {
          val (direction, setDirection) = directionState
 
@@ -263,7 +264,14 @@ private fun ColumnScope.RouteLiveTravels(route: Route, directionState: MutableIn
             if (direction == 0 || isRoundRoute) liveSchedule.first
             else liveSchedule.second
 
-         for (entry in liveTravels)
+         if (liveTravels.isEmpty())
+            Text(
+               "Linija nema više trenutno polazaka.",
+               Modifier
+                  .padding(vertical = 8.dp)
+                  .align(Alignment.CenterHorizontally)
+            )
+         else for (entry in liveTravels)
             LiveTravelSlider(entry)
       }
    }
