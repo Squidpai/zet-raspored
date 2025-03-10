@@ -300,6 +300,10 @@ public object Love {
       "Ne postoji vozni red za izabrani datum.\nPokušajte se spojiti na " +
             "internet, ako već niste, kako bi se preuzela najnovija inačica rasporeda."
 
+   public const val NO_TRIPS_219_MESSAGE: String =
+      "Polaske subotom, nedjeljom i praznikom ostvaruje autobus linije 229 koji " +
+            "na Glavnom kolodvoru polazi s perona 10 na Koturaškoj cesti."
+
    public fun giveMeTheSpecialLabelForNoTrips(
       route: Route,
       serviceId: ServiceId?,
@@ -312,15 +316,15 @@ public object Love {
       val serviceType =
          if (serviceTypes != null)
             serviceTypes[serviceId] ?: return NULL_SERVICE_ID_MESSAGE
-         else
-            ServiceType.ofDate(selectedDate)
+         else ServiceType.ofDate(selectedDate)
 
       // Route 219 gets a special label.
       if ((serviceType == ServiceType.SATURDAY ||
                serviceType == ServiceType.SUNDAY) && route.id == "219"
-      ) return "Polaske subotom, nedjeljom i praznikom ostvaruje autobus " +
-            "linije 229 koji na Glavnom kolodvoru polazi s perona 10 " +
-            "na Koturaškoj cesti."
+      ) return NO_TRIPS_219_MESSAGE
+
+      if (route.trips.values.any { it.serviceId == serviceId })
+         return "Linija nema više polazaka danas."
 
       return when (serviceType) {
          ServiceType.WEEKDAY -> "Linija nema polazaka na izabrani datum."
@@ -333,6 +337,49 @@ public object Love {
                route.trips.values.none { it.serviceId == saturdayServiceId }
             ) "Linija ne vozi vikendom i praznicima."
             else "Linija ne vozi nedjeljom i praznicima."
+         }
+      }
+   }
+
+   public fun giveMeTheSpecialLabelForNoTrips(
+      routes: Collection<Route>,
+      filterEmpty: Boolean,
+      serviceId: ServiceId?,
+      selectedDate: Long,
+      serviceTypes: ServiceTypes?,
+   ): String {
+      if (routes.isEmpty()) return ""
+
+      if (routes.size == 1)
+         return giveMeTheSpecialLabelForNoTrips(
+            routes.first(), serviceId, selectedDate, serviceTypes
+         )
+
+      if (serviceId == null)
+         return NULL_SERVICE_ID_MESSAGE
+
+      val serviceType =
+         if (serviceTypes != null)
+            serviceTypes[serviceId] ?: return NULL_SERVICE_ID_MESSAGE
+         else ServiceType.ofDate(selectedDate)
+
+      if (routes.any { route -> route.trips.values.any { it.serviceId == serviceId } })
+         return if (filterEmpty) "Na postaji nema više polazaka danas."
+         else "Na postaji nema više polazaka danas za izabrane linije."
+
+      return when (serviceType) {
+         ServiceType.WEEKDAY -> "Linije nemaju polazaka na izabrani datum."
+         ServiceType.SATURDAY -> "Linije ne voze vikendom i praznicima."
+         ServiceType.SUNDAY -> {
+            val saturdayServiceId = serviceTypes?.entries
+               ?.firstOrNull { it.value == ServiceType.SATURDAY }?.key
+
+            if (saturdayServiceId != null &&
+               routes.all { route ->
+                  route.trips.values.none { it.serviceId == saturdayServiceId }
+               }
+            ) "Linije ne voze vikendom i praznicima."
+            else "Linije ne voze nedjeljom i praznicima."
          }
       }
    }
