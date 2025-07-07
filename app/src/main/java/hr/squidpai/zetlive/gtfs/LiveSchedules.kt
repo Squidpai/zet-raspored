@@ -270,8 +270,6 @@ private fun Route.getLiveSchedule(
    )
 }
 
-sealed interface StopLiveSchedule
-
 /**
  * An entry of [StopLiveSchedule]. Contains all data required to
  * display to the user where the current trip is.
@@ -284,7 +282,10 @@ data class StopScheduleEntry(
    val relativeTime: Int,
    val useRelative: Boolean,
    val selectedDate: Long,
+   val isCancelled: Boolean,
 )
+
+sealed interface StopLiveSchedule
 
 /**
  * A live schedule of a route. Contains all data used
@@ -477,6 +478,21 @@ private fun Stop.getTripsOfDay(
    return tripsOfDay
 }
 
+private data class RealtimeTrip(
+   val trip: Trip,
+   val realtimeDepartures: TimeOfDayList,
+   val isCancelled: Boolean,
+) {
+   constructor(trip: Trip, realtimeDepartures: TimeOfDayList?) :
+         this(
+            trip,
+            realtimeDepartures = realtimeDepartures ?: trip.departures,
+            isCancelled = realtimeDepartures == null,
+         )
+
+   constructor(trip: Trip) : this(trip, trip.getRealtimeDepartures())
+}
+
 private fun <T> buildLiveSchedule(
    builder: LiveScheduleBuilder<T>,
    tripsOfDay: Collection<Trip>,
@@ -488,21 +504,19 @@ private fun <T> buildLiveSchedule(
    maxSize: Int = Int.MAX_VALUE,
    doNotBuildIfTooFarInFuture: Boolean = false,
 ): List<T> {
-   val realtimeTrips = tripsOfDay.mapNotNullTo(mutableListOf()) { trip ->
-      trip.getRealtimeDepartures()?.let { trip to it }
-   }
+   val realtimeTrips = tripsOfDay.mapTo(mutableListOf()) { RealtimeTrip(it) }
    if (doNotBuildIfTooFarInFuture) {
-      val firstDeparture = realtimeTrips.minOfOrNull { it.second.first() }
+      val firstDeparture = realtimeTrips.minOfOrNull { it.realtimeDepartures.first() }
       if (firstDeparture == null ||
          TimeOfDay(firstDeparture).minusHours(timeOfDay) > 4
       ) return emptyList()
    }
    if (sortBy == null)
-      realtimeTrips.sortBy { it.second.first() }
-   else realtimeTrips.sortBy { it.second[it.first.stops.indexOf(sortBy)] }
+      realtimeTrips.sortBy { it.realtimeDepartures.first() }
+   else realtimeTrips.sortBy { it.realtimeDepartures[it.trip.stops.indexOf(sortBy)] }
 
    val firstTripIndex = realtimeTrips.indexOfFirst {
-      it.second.last() >= timeOfDay.valueInSeconds
+      it.realtimeDepartures.last() >= timeOfDay.valueInSeconds
    }
    if (firstTripIndex == -1)
       return emptyList()
@@ -511,7 +525,7 @@ private fun <T> buildLiveSchedule(
 
    val result = appendTo ?: mutableListOf()
 
-   for ((trip, realtimeDepartures) in iterator) {
+   for ((trip, realtimeDepartures, isCancelled) in iterator) {
       val nextStopIndex = findNextStopIndex(realtimeDepartures, timeOfDay)
       if (nextStopIndex == realtimeDepartures.size)
          continue
@@ -525,6 +539,7 @@ private fun <T> buildLiveSchedule(
          nextStopIndex,
          selectedDate = dateEpoch,
          timeOfDay,
+         isCancelled,
       )?.let { result += it }
       if (result.size >= maxSize)
          return result
@@ -533,13 +548,14 @@ private fun <T> buildLiveSchedule(
    // always add at least one entry that hasn't happened yet
    do {
       if (!iterator.hasNext()) break
-      val (trip, realtimeDepartures) = iterator.next()
+      val (trip, realtimeDepartures, isCancelled) = iterator.next()
       builder.build(
          trip,
          realtimeDepartures,
          nextStopIndex = 0,
          selectedDate = dateEpoch,
          timeOfDay,
+         isCancelled,
       )?.let { result += it }
    } while (result.size < preferredSize)
 
@@ -553,11 +569,12 @@ private fun interface LiveScheduleBuilder<T> {
       nextStopIndex: Int,
       selectedDate: Long,
       timeOfDay: TimeOfDay,
+      isCancelled: Boolean,
    ): T?
 }
 
 private val RouteLiveScheduleBuilder =
-   LiveScheduleBuilder { trip, realtimeDepartures, nextStopIndex, selectedDate, timeOfDay ->
+   LiveScheduleBuilder { trip, realtimeDepartures, nextStopIndex, selectedDate, timeOfDay, isCancelled ->
       if (nextStopIndex != 0) RouteScheduleEntry(
          nextStopIndex,
          sliderValue = nextStopIndex - 1 + getArrivalLineRatio(
@@ -567,7 +584,7 @@ private val RouteLiveScheduleBuilder =
          departureTime = 0,
          delayAmount = 0,
          selectedDate,
-         isCancelled = false,
+         isCancelled,
       ) else RouteScheduleEntry(
          nextStopIndex = 0,
          sliderValue = -.5f,
@@ -581,7 +598,7 @@ private val RouteLiveScheduleBuilder =
          },
          delayAmount = realtimeDepartures[0] - trip.departures[0],
          selectedDate,
-         isCancelled = false,
+         isCancelled,
       )
    }
 
@@ -594,7 +611,8 @@ private class StopLiveScheduleBuilder(
       realtimeDepartures: TimeOfDayList,
       nextStopIndex: Int,
       selectedDate: Long,
-      timeOfDay: TimeOfDay
+      timeOfDay: TimeOfDay,
+      isCancelled: Boolean,
    ): StopScheduleEntry? {
       val indexOfStop = trip.stops.indexOf(stop)
       /// No need to check, the list has already been filtered (see getTripsOfDay)
@@ -614,6 +632,7 @@ private class StopLiveScheduleBuilder(
          relativeTime,
          useRelative = realtimeDepartures !== trip.departures,
          selectedDate,
+         isCancelled,
       )
    }
 }
