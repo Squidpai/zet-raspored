@@ -43,8 +43,6 @@ fun ColumnScope.DirectionRow(
    val firstSign = commonHeadsign.first
 
    if (isRoundRoute) {
-      Text(firstSign, maxLines = 1, overflow = TextOverflow.Ellipsis)
-
       HintIconButton(
          Symbols._360,
          contentDescription = null,
