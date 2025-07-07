@@ -2,9 +2,6 @@ package hr.squidpai.zetlive.ui
 
 import android.os.Bundle
 import android.util.Log
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -42,7 +39,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.Measurable
 import androidx.compose.ui.layout.MeasurePolicy
@@ -58,6 +54,7 @@ import androidx.compose.ui.unit.dp
 import hr.squidpai.zetapi.CalendarDates
 import hr.squidpai.zetapi.Love
 import hr.squidpai.zetapi.Route
+import hr.squidpai.zetapi.RouteId
 import hr.squidpai.zetapi.ServiceId
 import hr.squidpai.zetapi.ServiceType
 import hr.squidpai.zetapi.ServiceTypes
@@ -78,6 +75,7 @@ import hr.squidpai.zetlive.timeToString
 import hr.squidpai.zetlive.ui.composables.CircularLoadingBox
 import hr.squidpai.zetlive.ui.composables.DirectionRow
 import hr.squidpai.zetlive.ui.composables.IconButton
+import hr.squidpai.zetlive.ui.composables.disabled
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import kotlin.math.max
@@ -85,14 +83,10 @@ import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
-class RouteScheduleActivity : ComponentActivity() {
+class RouteScheduleActivity : BaseAppActivity("RouteScheduleActivity") {
 
    companion object {
-      private const val TAG = "RouteScheduleActivity"
-
-      /**
-       * Array whose contents is `["Pon", "Uto", "Sri", "Čet", "Pet", "Sub", "Ned"]`
-       */
+      /** Array whose contents is `["Pon", "Uto", "Sri", "Čet", "Pet", "Sub", "Ned"]` */
       private val croatianShortDaysOfWeek = arrayOf(
          "Pon", "Uto", "Sri", "Čet", "Pet", "Sub", "Ned"
       )
@@ -111,58 +105,48 @@ class RouteScheduleActivity : ComponentActivity() {
 
    private val selectedDirection = mutableIntStateOf(0)
 
+   private lateinit var routeId: RouteId
+
    override fun onCreate(savedInstanceState: Bundle?) {
       super.onCreate(savedInstanceState)
 
-      val routeId = intent.getStringExtra(EXTRA_ROUTE_ID)
+      routeId = intent.getStringExtra(EXTRA_ROUTE_ID)
+         ?: run {
+            Log.w(TAG, "onCreate: No route id given, finishing activity early.")
 
-      if (routeId == null) {
-         Log.w(TAG, "onCreate: No route id given, finishing activity early.")
-
-         finish()
-         return
-      }
+            finish()
+            return
+         }
 
       if (intent.getIntExtra(EXTRA_DIRECTION, 0) == 1)
          selectedDirection.intValue = 1
+   }
 
-      enableEdgeToEdge()
-      setContent {
-         AppTheme {
-            val schedule = ScheduleManager.instance.collectAsState().value
+   @Composable
+   override fun Content() {
+      val schedule = ScheduleManager.instance.collectAsState().value
 
-            val route = schedule?.routes?.get(routeId)
+      val route = schedule?.routes?.get(routeId)
 
-            Scaffold(topBar = {
-               MyTopAppBar(
-                  when {
-                     route != null -> "${route.shortName} ${route.longName}"
-                     schedule == null -> "$routeId $LOADING_TEXT"
-                     else -> routeId
-                  }
-               )
-            }) { padding ->
-               if (schedule != null && route != null)
-                  MyContent(
-                     route = route,
-                     serviceTypes = schedule.serviceTypes,
-                     calendarDates = schedule.calendarDates,
-                     modifier = Modifier.padding(padding),
-                  )
-               else CircularLoadingBox(Modifier.padding(padding))
+      Scaffold(topBar = {
+         MyTopAppBar(
+            when {
+               route != null -> "${route.shortName} ${route.longName}"
+               schedule == null -> "$routeId $LOADING_TEXT"
+               else -> routeId
             }
-         }
+         )
+      }) { padding ->
+         if (schedule != null && route != null)
+            MyContent(
+               route = route,
+               serviceTypes = schedule.serviceTypes,
+               calendarDates = schedule.calendarDates,
+               modifier = Modifier.padding(padding),
+            )
+         else CircularLoadingBox(Modifier.padding(padding))
       }
-   }
 
-   override fun onPause() {
-      super.onPause()
-      ScheduleManager.realtimeDispatcher.removeListener(TAG)
-   }
-
-   override fun onResume() {
-      super.onResume()
-      ScheduleManager.realtimeDispatcher.addListener(TAG)
    }
 
    @OptIn(ExperimentalMaterial3Api::class)
@@ -345,11 +329,7 @@ class RouteScheduleActivity : ComponentActivity() {
       Layout(
          content = {
             val tint = when {
-               liveComparison < 0 -> lerp(
-                  MaterialTheme.colorScheme.onSurface,
-                  MaterialTheme.colorScheme.surface,
-                  fraction = .36f
-               )
+               liveComparison < 0 -> MaterialTheme.colorScheme.disabled
 
                liveComparison == 0 -> MaterialTheme.colorScheme.primary
                else -> MaterialTheme.colorScheme.onSurface
@@ -403,9 +383,7 @@ class RouteScheduleActivity : ComponentActivity() {
                maxLines = 3,
             )
          },
-         modifier = modifier.clickable {
-            TripDialogActivity.show(this, trip, selectedDate)
-         },
+         modifier = modifier.clickable { showTripDialog(trip, selectedDate) },
          measurePolicy = TripRowMeasurePolicy,
       )
    }
