@@ -110,6 +110,10 @@ public fun Collection<Route>.filter(trimmedInput: String): Collection<Route> {
    val splitInput = trimmedInput.split(' ')
 
    return filter { route ->
-      splitInput.all { route.longName.contains(it, ignoreCase = true) }
+      val extraKeywords = Love.giveMeTheExtraKeywordForRoute(route.id) ?: ""
+      splitInput.all {
+         route.longName.contains(it, ignoreCase = true) ||
+               extraKeywords.contains(it, ignoreCase = true)
+      }
    }
 }
