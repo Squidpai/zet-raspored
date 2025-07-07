@@ -15,6 +15,7 @@ import hr.squidpai.zetapi.RouteAtStop
 import hr.squidpai.zetapi.RouteId
 import hr.squidpai.zetapi.ServiceId
 import hr.squidpai.zetapi.Shape
+import hr.squidpai.zetapi.ShapeId
 import hr.squidpai.zetapi.Shapes
 import hr.squidpai.zetapi.Stop
 import hr.squidpai.zetapi.StopId
@@ -38,9 +39,12 @@ internal class GtfsTripLoader private constructor(
    private val stops: Stops,
    private val shapes: Shapes,
    private val realtimeDispatcher: RealtimeDispatcher,
+   private val onLoadProgress: (Float) -> Unit,
 ) {
 
    private lateinit var trips: Map<TripId, GtfsTrip>
+
+   private val fauxShapes = mutableMapOf<ShapeId, Shape>()
 
    private fun internalize(
       tripId: TripId,
@@ -79,11 +83,19 @@ internal class GtfsTripLoader private constructor(
       ).filterInPlaceAllNotNull()
          .associateBy { it.tripId }
 
+      onLoadProgress(.32f)
+
       loadStopTimes()
+
+      onLoadProgress(.84f)
 
       bindTripsToRoutes()
 
+      onLoadProgress(.90f)
+
       bindRoutesToStops()
+
+      onLoadProgress(.96f)
    }
 
    private fun loadStopTimes() {
@@ -106,10 +118,10 @@ internal class GtfsTripLoader private constructor(
          if (firstStopId != null)
             it += firstStopId.rawValue
       }
-      for (data in reader) {
+      reader.forEachIndexed { index, data ->
          val tripId = data[headerMap[0]]
          val departureTime = TimeOfDay(data[headerMap[1]])
-         val stopId = data.getOrNull(headerMap[2])?.toStopId() ?: continue
+         val stopId = data.getOrNull(headerMap[2])?.toStopId() ?: return@forEachIndexed
 
          if (currentTripId != tripId) {
             internalize(currentTripId, departureTimes, stopIds)
@@ -120,6 +132,9 @@ internal class GtfsTripLoader private constructor(
 
          departureTimes += departureTime.valueInSeconds
          stopIds += stopId.rawValue
+
+         if (index and (1 shl 14) - 1 != 0)
+            onLoadProgress(.32f + index / 4_000_000f)
       }
 
       internalize(currentTripId, departureTimes, stopIds)
@@ -134,7 +149,8 @@ internal class GtfsTripLoader private constructor(
                ?.get(trip.directionId) == trip.headsign,
             isFirstStopCommon = commonFirstStops[trip.route.id]
                ?.get(trip.serviceId)
-               ?.get(trip.directionId) == trip.stops.first().id.rawValue
+               ?.get(trip.directionId) == trip.stops.first().id.rawValue,
+            fauxShapes,
          )
       }
 
@@ -303,8 +319,12 @@ internal class GtfsTripLoader private constructor(
          stops: Stops,
          shapes: Shapes,
          realtimeDispatcher: RealtimeDispatcher,
-      ) = GtfsTripLoader(zip, routes, stops, shapes, realtimeDispatcher)
-         .loadTrips()
+         onLoadProgress: (Float) -> Unit,
+      ): Shapes {
+         val loader = GtfsTripLoader(zip, routes, stops, shapes, realtimeDispatcher, onLoadProgress)
+         loader.loadTrips()
+         return loader.fauxShapes
+      }
 
       private val tripHeaderMapping: CsvHeaderMapping = { header ->
          val headerMap = IntArray(7) { -1 }
@@ -340,7 +360,7 @@ internal class GtfsTripLoader private constructor(
       data: Array<out String>,
    ): GtfsTrip? {
       val route = routes[data[headerMap[0]]] ?: return null
-      val shape = shapes[data[headerMap[6]]] ?: return null
+      val shape = shapes[data[headerMap[6]]]
       return GtfsTrip(
          route,
          serviceId = data[headerMap[1]],
@@ -360,21 +380,28 @@ internal class GtfsTripLoader private constructor(
       val headsign: String,
       val directionId: DirectionId,
       val blockId: String,
-      val shape: Shape,
+      val shape: Shape?,
       val realtimeDispatcher: RealtimeDispatcher,
    ) {
       lateinit var stops: List<Stop>
       lateinit var departures: TimeOfDayList
       var stopSequenceId = -1
 
-      fun toTrip(isHeadsignCommon: Boolean, isFirstStopCommon: Boolean) = Trip(
+      @OptIn(ExperimentalStdlibApi::class)
+      fun toTrip(
+         isHeadsignCommon: Boolean,
+         isFirstStopCommon: Boolean,
+         fauxShapes: MutableMap<ShapeId, Shape>,
+      ) = Trip(
          route,
          serviceId,
          tripId,
          headsign,
          directionId,
          blockId,
-         shape,
+         shape ?: fauxShapes.getOrPut("${route.id}_${stops.hashCode().toHexString()}") {
+            Shape("", stops.map { listOf(Shape.Point(it.latitude, it.longitude, Float.NaN)) })
+         },
          stops,
          departures,
          stopSequenceId,
