@@ -29,6 +29,9 @@ object Data {
    private const val HIGHLIGHT_NEXT_STOP = "highlightNextStop"
    private const val HINTS = "hints"
 
+   private const val SCHEDULE_FIXED = "fixed"
+   var scheduleFixed = false
+
    private var file: File? = null
 
    /**
@@ -182,6 +185,8 @@ object Data {
 
                   HINTS -> hints.load(reader)
 
+                  SCHEDULE_FIXED -> scheduleFixed = reader.nextBoolean()
+
                   else -> reader.skipValue()
                }
             }
@@ -253,6 +258,10 @@ object Data {
 
             writer.name(HINTS)
             hints.save(writer)
+
+            if (scheduleFixed)
+               writer.name(SCHEDULE_FIXED)
+                  .value(true)
 
             writer.endObject()
          }
