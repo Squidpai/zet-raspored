@@ -12,7 +12,6 @@ import java.io.IOException
 import java.net.MalformedURLException
 import java.net.URI
 import java.net.URISyntaxException
-import java.nio.channels.Channels
 import java.util.zip.ZipFile
 
 public object GtfsScheduleLoader {
@@ -41,6 +40,7 @@ public object GtfsScheduleLoader {
       file: File,
       vararg cachedVersions: String?,
       link: String = LINK,
+      onDownloadProgress: (Float) -> Unit = { },
    ): DownloadResult {
       val url = try {
          URI(link).toURL()
@@ -71,17 +71,21 @@ public object GtfsScheduleLoader {
             .replace("\"", "")
       )
 
+      val contentLength = connection.contentLength.toFloat()
+
       val latestVersion = maxOf(*cachedVersions)
 
       if (latestVersion != null && latestVersion >= newVersion)
          return DownloadResult(ErrorType.UP_TO_DATE)
       else try {
+         val buffer = ByteArray(4096)
          connection.inputStream.use { input ->
             FileOutputStream(file).use { output ->
-               output.channel.transferFrom(
-                  Channels.newChannel(input),
-                  0L, Long.MAX_VALUE,
-               )
+               var count: Int
+               while (input.read(buffer).also { count = it } != -1) {
+                  output.write(buffer, 0, count)
+                  onDownloadProgress(count / contentLength)
+               }
             }
          }
       } catch (e: IOException) {
@@ -97,28 +101,39 @@ public object GtfsScheduleLoader {
    /** Loads the schedule in [gtfsScheduleZip]. */
    public fun load(
       gtfsScheduleZip: File,
-      realtimeDispatcher: RealtimeDispatcher
+      realtimeDispatcher: RealtimeDispatcher,
+      onLoadProgress: (Float) -> Unit,
    ): Schedule {
       ZipFile(gtfsScheduleZip).use { zip ->
          val feedInfo = FeedInfo.fromZip(zip)
          val routes = GtfsRoute.loadRoutes(zip)
             .apply { sortBy { it.sortOrder } }
             .associateBy { it.id }
-         val stops = Stops(loadStops(zip))
-         val shapes = loadShapes(zip)
+         onLoadProgress(.01f)
 
-         GtfsTripLoader.loadTrips(
+         val stops = Stops(loadStops(zip))
+         onLoadProgress(.07f)
+
+         var shapes = loadShapes(zip)
+         onLoadProgress(.30f)
+
+         val fauxShapes = GtfsTripLoader.loadTrips(
             zip,
             routes,
             stops,
             shapes,
-            realtimeDispatcher
+            realtimeDispatcher,
+            onLoadProgress,
          )
+         if (shapes is MutableMap)
+            shapes.putAll(fauxShapes)
+         else
+            shapes = shapes + fauxShapes
 
          val calendarDates = loadCalendarDates(zip)
+         val serviceIdTypes = Love.giveMeTheServiceIdTypes(routes, calendarDates)
 
-         val serviceIdTypes =
-            Love.giveMeTheServiceIdTypes(routes, calendarDates)
+         onLoadProgress(Float.NaN)
 
          return Schedule(
             feedInfo,
