@@ -1,10 +1,6 @@
 package hr.squidpai.zetlive.ui
 
 import android.content.Intent
-import android.os.Bundle
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
@@ -43,128 +39,116 @@ import hr.squidpai.zetlive.ui.composables.IconButton
 import hr.squidpai.zetlive.ui.composables.textButtonColorsOnInverseRichTooltip
 import kotlinx.coroutines.launch
 
-@Suppress("unused")
-private const val TAG = "MainActivity"
-
 /**
  * The main Activity of the app. Displays all routes and stops and all their schedules.
  *
  * TODO Will also display the map view soon.
  */
-class MainActivity : ComponentActivity() {
+class MainActivity : BaseAppActivity("MainActivity") {
 
    //private lateinit var appUpdateManager: AppUpdateManager
 
-   @OptIn(ExperimentalMaterial3Api::class)
-   override fun onCreate(savedInstanceState: Bundle?) {
+   /*override fun onCreate(savedInstanceState: Bundle?) {
       super.onCreate(savedInstanceState)
 
-      /*appUpdateManager = AppUpdateManagerFactory.create(this)
+      appUpdateManager = AppUpdateManagerFactory.create(this)
 
       appUpdateManager.appUpdateInfo
          .addOnSuccessListener { appUpdateInfo ->
             updateInfo = UpdateInfo.from(appUpdateInfo)
-         }*/
+         }
+   }*/
 
-      enableEdgeToEdge()
-      setContent {
-         AppTheme {
-            val schedule = ScheduleManager.instance.collectAsState().value
+   @OptIn(ExperimentalMaterial3Api::class)
+   @Composable
+   override fun Content() {
+      val schedule = ScheduleManager.instance.collectAsState().value
 
-            Scaffold(
-               topBar = { MyTopAppBar() },
-               snackbarHost = {
-                  if (schedule != null)
-                     LoadingSnackbar()
-               },
-               contentWindowInsets = WindowInsets.safeDrawing,
-            ) { padding ->
-               val outerModifier = Modifier.padding(padding)
-               if (schedule == null) {
-                  MainActivityLoading(
-                     errorType = ScheduleManager.lastDownloadError.collectAsState().value,
-                     modifier = outerModifier,
-                  )
-                  return@Scaffold
+      Scaffold(
+         topBar = { MyTopAppBar() },
+         snackbarHost = {
+            if (schedule != null)
+               LoadingSnackbar()
+         },
+         contentWindowInsets = WindowInsets.safeDrawing,
+      ) { padding ->
+         val outerModifier = Modifier.padding(padding)
+         if (schedule == null) {
+            MainActivityLoading(
+               errorType = ScheduleManager.lastDownloadError.collectAsState().value,
+               modifier = outerModifier,
+            )
+            return@Scaffold
+         }
+         Column(modifier = outerModifier) {
+            val scope = rememberCoroutineScope()
+
+            val pagerState = rememberPagerState { 2 }
+
+            val selectedPage = pagerState.currentPage
+
+            val keyboardController =
+               LocalSoftwareKeyboardController.current
+            val focusManager = LocalFocusManager.current
+
+            fun setSelectedPage(page: Int) {
+               keyboardController?.hide()
+               focusManager.clearFocus()
+               scope.launch { pagerState.animateScrollToPage(page) }
+            }
+
+            PrimaryTabRow(selectedTabIndex = selectedPage) {
+               Tab(
+                  selected = selectedPage == 0,
+                  onClick = { setSelectedPage(0) },
+                  text = {
+                     Text(
+                        "Linije",
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                     )
+                  },
+               )
+               Tab(
+                  selected = selectedPage == 1,
+                  onClick = { setSelectedPage(1) },
+                  text = {
+                     Text(
+                        "Postaje",
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                     )
+                  },
+               )
+            }
+
+            HorizontalPager(
+               state = pagerState,
+               pageNestedScrollConnection = object :
+                  NestedScrollConnection {
+                  // Make the child consume all the available scroll amount, so it
+                  // doesn't overscroll into the other pager state
+                  override fun onPostScroll(
+                     consumed: Offset,
+                     available: Offset,
+                     source: NestedScrollSource
+                  ) = available
                }
-               Column(modifier = outerModifier) {
-                  val scope = rememberCoroutineScope()
-
-                  val pagerState = rememberPagerState { 2 }
-
-                  val selectedPage = pagerState.currentPage
-
-                  val keyboardController =
-                     LocalSoftwareKeyboardController.current
-                  val focusManager = LocalFocusManager.current
-
-                  fun setSelectedPage(page: Int) {
-                     keyboardController?.hide()
-                     focusManager.clearFocus()
-                     scope.launch { pagerState.animateScrollToPage(page) }
-                  }
-
-                  PrimaryTabRow(selectedTabIndex = selectedPage) {
-                     Tab(
-                        selected = selectedPage == 0,
-                        onClick = { setSelectedPage(0) },
-                        text = {
-                           Text(
-                              "Linije",
-                              maxLines = 1,
-                              overflow = TextOverflow.Ellipsis
-                           )
-                        },
-                     )
-                     Tab(
-                        selected = selectedPage == 1,
-                        onClick = { setSelectedPage(1) },
-                        text = {
-                           Text(
-                              "Postaje",
-                              maxLines = 1,
-                              overflow = TextOverflow.Ellipsis
-                           )
-                        },
-                     )
-                  }
-
-                  HorizontalPager(
-                     state = pagerState,
-                     pageNestedScrollConnection = object :
-                        NestedScrollConnection {
-                        // Make the child consume all the available scroll amount, so it
-                        // doesn't overscroll into the other pager state
-                        override fun onPostScroll(
-                           consumed: Offset,
-                           available: Offset,
-                           source: NestedScrollSource
-                        ) = available
-                     }
-                  ) {
-                     when (it) {
-                        0 -> MainActivityRoutes(schedule.routes)
-                        1 -> MainActivityStops(schedule.stops.groupedStops)
-                     }
-                  }
-
-                  //PriorityLoadingDialog()
+            ) {
+               when (it) {
+                  0 -> MainActivityRoutes(schedule.routes)
+                  1 -> MainActivityStops(schedule.stops.groupedStops)
                }
             }
+
+            //PriorityLoadingDialog()
          }
       }
    }
 
-   override fun onPause() {
-      super.onPause()
-      ScheduleManager.realtimeDispatcher.removeListener(TAG)
-      //appUpdateManager.unregisterListener(installStateUpdatedListener)
-   }
-
-   override fun onResume() {
+   /*override fun onResume() {
       super.onResume()
-      ScheduleManager.realtimeDispatcher.addListener(TAG)
-      /*appUpdateManager.registerListener(installStateUpdatedListener)
+      appUpdateManager.registerListener(installStateUpdatedListener)
 
       appUpdateManager.appUpdateInfo.addOnSuccessListener { appUpdateInfo ->
          updateProgress =
@@ -189,8 +173,8 @@ class MainActivity : ComponentActivity() {
                AppUpdateOptions.newBuilder(AppUpdateType.IMMEDIATE).build(),
             )
          }
-      }*/
-   }
+      }
+   }*/
 
    /** Displays a Material 3 [TopAppBar]. */
    @OptIn(ExperimentalMaterial3Api::class)
@@ -251,17 +235,26 @@ class MainActivity : ComponentActivity() {
    @Composable
    private fun LoadingSnackbar() {
       val loadingState = ScheduleManager.downloadState.collectAsState().value
-      if (loadingState == ScheduleManager.DownloadState.DOWNLOADING ||
-         loadingState == ScheduleManager.DownloadState.LOADING_GTFS
+      val loadingOperation = loadingState?.operation
+      if (loadingOperation == ScheduleManager.DownloadOperation.DOWNLOADING ||
+         loadingOperation == ScheduleManager.DownloadOperation.LOADING_GTFS
       ) {
          Snackbar {
             Row(verticalAlignment = Alignment.CenterVertically) {
-               CircularProgressIndicator(
-                  color = MaterialTheme.colorScheme.inversePrimary,
-                  trackColor = MaterialTheme.colorScheme.inverseSurface,
-               )
+               if (loadingState.progress.isNaN())
+                  CircularProgressIndicator(
+                     color = MaterialTheme.colorScheme.inversePrimary,
+                     trackColor = MaterialTheme.colorScheme.inverseSurface,
+                  )
+               else
+                  CircularProgressIndicator(
+                     progress = { loadingState.progress },
+                     color = MaterialTheme.colorScheme.inversePrimary,
+                     trackColor = MaterialTheme.colorScheme.inverseSurface,
+                  )
+
                Text(
-                  if (loadingState == ScheduleManager.DownloadState.DOWNLOADING)
+                  if (loadingOperation == ScheduleManager.DownloadOperation.DOWNLOADING)
                      "Preuzimanje novog rasporeda${Typography.ellipsis}"
                   else "Ažuriranje rasporeda${Typography.ellipsis}",
                   Modifier.padding(start = 8.dp),
