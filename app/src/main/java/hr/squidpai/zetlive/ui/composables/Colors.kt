@@ -1,12 +1,14 @@
 package hr.squidpai.zetlive.ui.composables
 
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RichTooltipColors
 import androidx.compose.material3.TooltipDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.lerp
 
 @Suppress("UnusedReceiverParameter")
 @ExperimentalMaterial3Api
@@ -29,3 +31,5 @@ fun IconButtonDefaults.errorIconButtonColors() = filledIconButtonColors(
    containerColor = MaterialTheme.colorScheme.errorContainer,
    contentColor = MaterialTheme.colorScheme.onErrorContainer,
 )
+
+val ColorScheme.disabled get() = lerp(onSurface, surface, fraction = .36f)
