@@ -2,9 +2,6 @@ package hr.squidpai.zetlive.ui
 
 import android.os.Bundle
 import android.util.Log
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -65,48 +62,43 @@ import hr.squidpai.zetlive.gtfs.iconInfo
 import hr.squidpai.zetlive.orLoading
 import hr.squidpai.zetlive.ui.composables.CircularLoadingBox
 import hr.squidpai.zetlive.ui.composables.IconButton
+import hr.squidpai.zetlive.ui.composables.disabled
 
-class StopScheduleActivity : ComponentActivity() {
+class StopScheduleActivity : BaseAppActivity("StopScheduleActivity") {
 
-   companion object {
-      private const val TAG = "StopScheduleActivity"
-
-      const val EXTRA_STOP = "hr.squidpai.zetlive.extra.STOP"
-   }
+   private var stopId = StopId.Invalid
 
    override fun onCreate(savedInstanceState: Bundle?) {
       super.onCreate(savedInstanceState)
 
-      val stopId = intent.getIntExtra(EXTRA_STOP, StopId.Invalid.rawValue)
+      stopId = intent.getIntExtra(EXTRA_STOP, StopId.Invalid.rawValue)
          .asStopId()
 
-      if (stopId == StopId.Invalid) {
+      if (stopId.isInvalid()) {
          Log.w(TAG, "onCreate: No stop id given, finishing activity early.")
 
          finish()
          return
       }
+   }
 
-      enableEdgeToEdge()
-      setContent {
-         AppTheme {
-            val schedule = ScheduleManager.instance.collectAsState().value
+   @Composable
+   override fun Content() {
+      val schedule = ScheduleManager.instance.collectAsState().value
 
-            val groupedStop = schedule?.stops?.groupedStops?.get(stopId.stopNumber)
+      val groupedStop = schedule?.stops?.groupedStops?.get(stopId.stopNumber)
 
-            Scaffold(
-               topBar = { MyTopAppBar(groupedStop?.parentStop?.name.orLoading()) },
-               contentWindowInsets = WindowInsets.safeDrawing,
-            ) { padding ->
-               MyContent(
-                  groupedStop,
-                  defaultCode = stopId.stopCode,
-                  Modifier
-                     .fillMaxSize()
-                     .padding(padding),
-               )
-            }
-         }
+      Scaffold(
+         topBar = { MyTopAppBar(groupedStop?.parentStop?.name.orLoading()) },
+         contentWindowInsets = WindowInsets.safeDrawing,
+      ) { padding ->
+         MyContent(
+            groupedStop,
+            defaultCode = stopId.stopCode,
+            Modifier
+               .fillMaxSize()
+               .padding(padding),
+         )
       }
    }
 
@@ -263,11 +255,7 @@ class StopScheduleActivity : ComponentActivity() {
       liveSchedule: ActualStopLiveSchedule,
       selectedStopIndex: Int,
    ) {
-      val departedColor = lerp(
-         MaterialTheme.colorScheme.onSurface,
-         MaterialTheme.colorScheme.surface,
-         fraction = 0.36f,
-      )
+      val departedColor = MaterialTheme.colorScheme.disabled
 
       // TODO add option to view this stop's whole day schedule (similar to RouteScheduleActivity)
 
@@ -292,13 +280,7 @@ class StopScheduleActivity : ComponentActivity() {
 
             Row(
                Modifier
-                  .clickable {
-                     TripDialogActivity.show(
-                        this@StopScheduleActivity,
-                        entry.trip,
-                        entry.selectedDate,
-                     )
-                  }
+                  .clickable { showTripDialog(entry.trip, entry.selectedDate) }
                   .padding(vertical = 8.dp),
                verticalAlignment = Alignment.CenterVertically,
             ) {
