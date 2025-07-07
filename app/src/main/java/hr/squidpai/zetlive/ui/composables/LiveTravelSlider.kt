@@ -24,7 +24,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -35,7 +34,7 @@ import hr.squidpai.zetlive.Data
 import hr.squidpai.zetlive.gtfs.RouteScheduleEntry
 import hr.squidpai.zetlive.orLoading
 import hr.squidpai.zetlive.timeToString
-import hr.squidpai.zetlive.ui.TripDialogActivity
+import hr.squidpai.zetlive.ui.showTripDialog
 
 @Composable
 fun LiveTravelSlider(routeScheduleEntry: RouteScheduleEntry) {
@@ -55,22 +54,30 @@ fun LiveTravelSlider(routeScheduleEntry: RouteScheduleEntry) {
       departures = trip.departures,
       modifier = Modifier
          .padding(vertical = 6.dp)
-         .clickable { TripDialogActivity.show(context, trip, selectedDate) },
-      bottomStartLabel = if (isAtFirstStop) {
-         (if (departureTime >= 0) "kreće u ${departureTime.timeToString()}"
-         else "kreće za ${-departureTime - 1} min")
-            .let { if (isLate) "$it (kasni)" else it }
-      } else if (!trip.isFirstStopCommon)
-         "polazište ${trip.stops.first().name.orLoading()}"
-      else null,
+         .clickable { showTripDialog(context, trip, selectedDate) },
+      bottomStartLabel = when {
+         isCancelled -> "otkazano"
+         isAtFirstStop ->
+            (if (departureTime >= 0) "kreće u ${departureTime.timeToString()}"
+            else "kreće za ${-departureTime - 1} min")
+               .let { if (isLate) "$it (kasni)" else it }
+
+         !trip.isFirstStopCommon -> "polazište ${trip.stops.first().name.orLoading()}"
+         else -> null
+      },
       isBottomStartError = isAtFirstStop && isLate,
       bottomCenterLabel = specialLabel?.first,
       bottomEndLabel = specialLabel?.second
          ?: if (!trip.isHeadsignCommon) "smjer ${trip.headsign}" else null,
-      tint = if (!trip.isHeadsignCommon ||
-         !trip.isFirstStopCommon || specialLabel != null
-      ) MaterialTheme.colorScheme.tertiary
-      else MaterialTheme.colorScheme.primary,
+      tint = when {
+         isCancelled -> MaterialTheme.colorScheme.surfaceVariant
+
+         !trip.isHeadsignCommon || !trip.isFirstStopCommon || specialLabel != null ->
+            MaterialTheme.colorScheme.tertiary
+
+         else -> MaterialTheme.colorScheme.primary
+      },
+      disabled = isCancelled,
    )
 }
 
@@ -89,6 +96,7 @@ fun LiveTravelSlider(
    highlightNextStop: Boolean = Data.highlightNextStop,
    interactable: Boolean = true,
    tint: Color = MaterialTheme.colorScheme.primary,
+   disabled: Boolean = false,
 ) = Column(modifier) {
    val highlightedStopIndex =
       if (highlightNextStop) nextStopIndex
@@ -132,11 +140,7 @@ fun LiveTravelSlider(
                separator = " ${Typography.bullet} ",
                postfix = if (!highlightNextStop) " ${Typography.bullet} " else "",
             ),
-            color = lerp(
-               MaterialTheme.colorScheme.onSurface,
-               MaterialTheme.colorScheme.surface,
-               .36f
-            ),
+            color = MaterialTheme.colorScheme.disabled,
             style = MaterialTheme.typography.bodyMedium,
          )
       }
@@ -145,7 +149,7 @@ fun LiveTravelSlider(
             Icons.AutoMirrored.Filled.ArrowForward,
             modifier = Modifier.padding(horizontal = 8.dp),
             contentDescription = null,
-            tint = tint
+            tint = if (disabled) MaterialTheme.colorScheme.disabled else tint,
          )
 
          val textPaddingModifier =
@@ -154,6 +158,7 @@ fun LiveTravelSlider(
          Text(
             text = stopNames[highlightedStopIndex.coerceAtLeast(0)],
             modifier = textPaddingModifier,
+            color = if (disabled) MaterialTheme.colorScheme.disabled else Color.Unspecified,
             fontWeight = FontWeight.Medium,
          )
 
@@ -161,7 +166,7 @@ fun LiveTravelSlider(
             Icons.AutoMirrored.Filled.ArrowForward,
             modifier = Modifier.padding(horizontal = 8.dp),
             contentDescription = null,
-            tint = tint
+            tint = if (disabled) MaterialTheme.colorScheme.disabled else tint,
          )
       }
       if (highlightedStopIndex + 1 < stopNames.size) item {
@@ -173,11 +178,7 @@ fun LiveTravelSlider(
                separator = " ${Typography.bullet} ",
                prefix = if (highlightNextStop || isAtFirstStop) " ${Typography.bullet} " else "",
             ),
-            color = lerp(
-               MaterialTheme.colorScheme.onSurface,
-               MaterialTheme.colorScheme.surface,
-               .36f
-            ),
+            color = MaterialTheme.colorScheme.disabled,
             style = MaterialTheme.typography.bodyMedium,
          )
       }
@@ -188,6 +189,8 @@ fun LiveTravelSlider(
       departures = departures,
       modifier = Modifier.fillMaxWidth(),
       passedTrackColor = tint,
+      nextStopColor = if (disabled) MaterialTheme.colorScheme.onSurfaceVariant
+      else MaterialTheme.colorScheme.onSurface,
    )
 
    if (bottomStartLabel != null || bottomCenterLabel != null || bottomEndLabel != null)
@@ -200,16 +203,27 @@ fun LiveTravelSlider(
          if (bottomStartLabel != null)
             Text(
                text = bottomStartLabel,
-               color = if (isBottomStartError) MaterialTheme.colorScheme.error else Color.Unspecified,
+               color = when {
+                  disabled -> MaterialTheme.colorScheme.disabled
+                  isBottomStartError -> MaterialTheme.colorScheme.error
+                  else -> Color.Unspecified
+               },
                fontWeight = FontWeight.Medium.takeIf { isBottomStartError },
             )
          else // blank box to take up space
             Box(Modifier.size(0.dp))
 
          if (bottomCenterLabel != null)
-            Text(bottomCenterLabel)
+            Text(
+               bottomCenterLabel,
+               color = if (disabled) MaterialTheme.colorScheme.disabled else Color.Unspecified,
+            )
 
          if (bottomEndLabel != null)
-            Text(bottomEndLabel, textAlign = TextAlign.End)
+            Text(
+               bottomEndLabel,
+               color = if (disabled) MaterialTheme.colorScheme.disabled else Color.Unspecified,
+               textAlign = TextAlign.End,
+            )
       }
 }
