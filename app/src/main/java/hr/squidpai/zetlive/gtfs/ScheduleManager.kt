@@ -9,6 +9,7 @@ import hr.squidpai.zetapi.cached.CachedScheduleIO
 import hr.squidpai.zetapi.gtfs.ErrorType
 import hr.squidpai.zetapi.gtfs.GtfsScheduleLoader
 import hr.squidpai.zetapi.realtime.SingleThreadRealtimeDispatcher
+import hr.squidpai.zetlive.Data
 import hr.squidpai.zetlive.localEpochDate
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -29,11 +30,23 @@ object ScheduleManager {
    private val _lastDownloadError = MutableStateFlow<ErrorType?>(null)
    val lastDownloadError = _lastDownloadError.asStateFlow()
 
-   private val _downloadState = MutableStateFlow(DownloadState.NOOP)
+   private val _downloadState = MutableStateFlow<DownloadState?>(null)
    val downloadState = _downloadState.asStateFlow()
 
-   enum class DownloadState {
-      DOWNLOADING, LOADING_GTFS, LOADING_CACHED, NOOP;
+   private val onDownloadProgress = { progress: Float ->
+      _downloadState.value = DownloadState(DownloadOperation.DOWNLOADING, progress)
+   }
+
+   private val onTripLoadProgress = { progress: Float ->
+      _downloadState.value = DownloadState(DownloadOperation.LOADING_GTFS, progress)
+   }
+
+   data class DownloadState(val operation: DownloadOperation, val progress: Float = Float.NaN)
+
+   enum class DownloadOperation {
+      DOWNLOADING,
+      LOADING_CACHED,
+      LOADING_GTFS;
    }
 
    val realtimeDataState = MutableStateFlow(RealtimeDataState.UNINITIALIZED)
@@ -94,14 +107,20 @@ object ScheduleManager {
       }
       Log.d(TAG, "init: initializing")
 
+      // delete the old schedule which doesn't include trips without a shape
+      if (!Data.scheduleFixed) {
+         Data.updateData { scheduleFixed = true }
+         File(filesDir, SCHEDULE_NAME).delete()
+      }
+
       removeLegacyStopTimesDirectory(filesDir)
 
       val scheduleFile = File(filesDir, SCHEDULE_NAME)
 
       try {
-         _downloadState.value = DownloadState.LOADING_CACHED
+         _downloadState.value = DownloadState(DownloadOperation.LOADING_CACHED)
          _instance.value = CachedScheduleIO.load(scheduleFile, realtimeDispatcher)
-         _downloadState.value = DownloadState.NOOP
+         _downloadState.value = null
          initState = 2
          parentScope.launch { update0(filesDir) }
       } catch (e: Exception) {
@@ -146,9 +165,9 @@ object ScheduleManager {
       if (CachedScheduleIO.getFeedInfoOrNull(newScheduleFile)?.started(today) == true) {
          newScheduleFile.renameTo(scheduleFile)
          try {
-            _downloadState.value = DownloadState.LOADING_CACHED
+            _downloadState.value = DownloadState(DownloadOperation.LOADING_CACHED)
             _instance.value = CachedScheduleIO.load(scheduleFile, realtimeDispatcher)
-            _downloadState.value = DownloadState.NOOP
+            _downloadState.value = null
             initState = 2
             return
          } catch (e: Exception) {
@@ -159,8 +178,8 @@ object ScheduleManager {
          newDownloadFile.renameTo(downloadFile)
 
       if (!downloadFile.isFile) {
-         _downloadState.value = DownloadState.DOWNLOADING
-         val result = GtfsScheduleLoader.download(downloadFile)
+         _downloadState.value = DownloadState(DownloadOperation.DOWNLOADING)
+         val result = GtfsScheduleLoader.download(downloadFile, onDownloadProgress = onDownloadProgress)
          _lastDownloadError.value = result.errorType
          result.exception?.let { e ->
             Log.e(TAG, "init: error downloading schedule", e)
@@ -214,9 +233,10 @@ object ScheduleManager {
       }
 
       repeat(5) {
-         _downloadState.value = DownloadState.DOWNLOADING
+         _downloadState.value = DownloadState(DownloadOperation.DOWNLOADING)
          val result = GtfsScheduleLoader.download(
             downloadFile, link = GtfsScheduleLoader.versionLink(--previousVersion),
+            onDownloadProgress = onDownloadProgress,
          )
          _lastDownloadError.value = result.errorType
          result.exception?.let { e ->
@@ -236,15 +256,15 @@ object ScheduleManager {
 
    private fun initDownloadFile(downloadFile: File, scheduleFile: File) =
       try {
-         _downloadState.value = DownloadState.LOADING_GTFS
-         val gtfsSchedule = GtfsScheduleLoader.load(downloadFile, realtimeDispatcher)
+         _downloadState.value = DownloadState(DownloadOperation.LOADING_GTFS)
+         val gtfsSchedule = GtfsScheduleLoader.load(downloadFile, realtimeDispatcher, onTripLoadProgress)
          CachedScheduleIO.save(gtfsSchedule, scheduleFile)
          _instance.value = CachedScheduleIO.minimize(
             gtfsSchedule,
             scheduleFile,
             realtimeDispatcher
          )
-         _downloadState.value = DownloadState.NOOP
+         _downloadState.value = null
          initState = 2
          true
       } catch (e: Exception) {
@@ -280,8 +300,8 @@ object ScheduleManager {
       if (newDownloadedVersion != null && (newCachedFeedInfo == null ||
                newDownloadedVersion > newCachedFeedInfo.version)
       ) try {
-         _downloadState.value = DownloadState.LOADING_GTFS
-         val gtfsSchedule = GtfsScheduleLoader.load(newDownloadFile, realtimeDispatcher)
+         _downloadState.value = DownloadState(DownloadOperation.LOADING_GTFS)
+         val gtfsSchedule = GtfsScheduleLoader.load(newDownloadFile, realtimeDispatcher, onTripLoadProgress)
          CachedScheduleIO.save(gtfsSchedule, newScheduleFile)
 
          if (gtfsSchedule.feedInfo.started(today)) {
@@ -298,13 +318,13 @@ object ScheduleManager {
       } else if (newCachedFeedInfo?.started(today) == true) try {
          newScheduleFile.renameTo(scheduleFile)
          newDownloadFile.renameTo(downloadFile)
-         _downloadState.value = DownloadState.LOADING_CACHED
+         _downloadState.value = DownloadState(DownloadOperation.LOADING_CACHED)
          _instance.value = CachedScheduleIO.load(scheduleFile, realtimeDispatcher)
       } catch (e: Exception) {
          Log.e(TAG, "update: failed to init new schedule", e)
       }
 
-      _downloadState.value = DownloadState.NOOP
+      _downloadState.value = null
    }
 
    fun getNewScheduleFile(filesDir: File) = File(filesDir, NEW_SCHEDULE_NAME)
