@@ -27,6 +27,7 @@ import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.Json
 import java.io.File
+import java.nio.channels.FileChannel
 import java.util.zip.ZipFile
 import kotlin.reflect.KClass
 
@@ -77,7 +78,8 @@ internal class CachedRoute(
    private fun getTNS(): TNS {
       tns?.let { return it }
 
-      synchronized(scheduleFile) {
+      // gets a shared lock on the file
+      FileChannel.open(scheduleFile.toPath()).lock(0, Long.MAX_VALUE, true).use {
          ZipFile(scheduleFile).use { zip ->
             val reader = CSVReader(
                zip.getInputStream(zip.getEntry(id)).bufferedReader()
@@ -102,7 +104,7 @@ internal class CachedRoute(
                   headsign = data[2],
                   directionId,
                   blockId = data[4],
-                  shape = shapes[data[5]]!!,
+                  shape = shapes[data[5]] ?: throw NullPointerException("No shape id ${data[5]}"),
                   stops = stopSequences[directionId][stopSequenceId],
                   departures,
                   stopSequenceId,
