@@ -171,6 +171,9 @@ public object Love {
       1669[28 to "Oba smjera"] // Jelkovec - tržnica
    }
 
+   public fun giveMeTheLabelForStop(stopId: StopId): String? =
+      stopLabels[stopId.rawValue]
+
    private const val RIGHT = 1
    private const val LEFT = 2
    private const val UP = 3
@@ -199,6 +202,123 @@ public object Love {
       StopId(1402, 22).rawValue, DOWN, // Jelkovecka
    )
 
+   public fun giveMeTheIconCodeForStop(stopId: StopId): Int =
+      iconInfo.getOrElse(stopId.rawValue) { stopId.stopCode }
+
+   // TODO actually this can probably be read from the ZET website to make fully accessable route names
+   private val extraRouteKeywords = mapOf(
+      "1" to "Zapadni kolodvor",
+      "13" to "Kvaternikov",
+      "31" to "Savski",
+      "101" to "Britanski Gornje",
+      "102" to "Britanski",
+      "103" to "Britanski",
+      "104" to "Mihaljevac",
+      "106" to "Mirogoj Krematorij",
+      "108" to "Glavni kolodvor",
+      // Zag.(S.m).-D.S.-S.O. ?????????????????????????????????? hvala ti zet
+      "111" to "Zagreb Savski Most Donji Stupnik Stupnički Obrež",
+      "115" to "Ljubljanica Jankomir",
+      "116" to "Ljubljanica Podsused",
+      "118" to "Mažuranića",
+      "119" to "Črnomerec",
+      "120" to "Črnomerec",
+      "121" to "Črnomerec",
+      "122" to "Črnomerec",
+      "123" to "Podsusedsko",
+      "124" to "Gornji Stenjevec",
+      "125" to "Gornje",
+      "126" to "Črnomerec Gornja Kustošija",
+      "129" to "Šestinski",
+      "132" to "Savski Goli Brezovica",
+      "133" to "Savski Sveta",
+      "137" to "Črnomerec",
+      "138" to "Britanski trg Zelengaj",
+      "139" to "Reljkovićeva",
+      "141" to "Reljkovićeva",
+      "142" to "Vrapčanska aleja Jačkovina",
+      "143" to "Vrapčanska",
+      "144" to "Črnomerec Sveti",
+      "146" to "Reljkovićeva",
+      "147" to "Vrapčanska",
+      "148" to "Reljkovićeva Hercegovačka Bosanska",
+      "150" to "Tuškanac garaža Gornji grad bana Josipa Jelačića",
+      "151" to "Završje Stjepana",
+      "159" to "Savski Strmec",
+      "160" to "Savski Havidić Selo",
+      "161" to "Savski most Kupinečki kraljevec Štrpet",
+      "162" to "Savski",
+      "163" to "Savski most Doonji Trpuci Gornji",
+      "164" to "Zagreb Savski most",
+      "166" to "Zagreb Glavni kolodvor Donji Dragonožec",
+      "168" to "Savski Ježdovec",
+      "172" to "Zagreb Črnomerec",
+      "174" to "Zaprešić Hruševec Kupljenski",
+      "176" to "Zagreb Črnomerec Gornja",
+      "177" to "Zagreb Črnomerec Poljanica Gornja Bistra",
+      "201" to "Kvaternikov",
+      "202" to "Kvaternikov",
+      "204" to "Kvaternikov Horvatovac Voćarska",
+      "205" to "Dubrava Markuševec",
+      "207" to "Kvaternikov",
+      "210" to "Dubrava Studentski grad Novi retkovec",
+      "211" to "Branovečina",
+      "214" to "Koledinečka Kozari bok",
+      "215" to "Kvaternikov",
+      "216" to "Kvaternikov Ivanja",
+      "217" to "Kvaternikov Petruševečko naselje",
+      "218" to "Glavni",
+      "219" to "kolodvor",
+      "220" to "kolodvor",
+      "221" to "kolodvor",
+      "223" to "Trnovčica",
+      "225" to "Sesvete Kozari",
+      "226" to "Svetice",
+      "227" to "Gornji bukovac Gračansko",
+      "228" to "Borongaj",
+      "229" to "Glavni Mala",
+      "230" to "Granešinski",
+      "233" to "Markuševec",
+      "234" to "Glavni kolodvor Kajzerica Lanište",
+      "235" to "Kozari",
+      "237" to "Kvaternikov",
+      "239" to "Čučerje Dankovec Markuševečka Trnava",
+      "241" to "Glavni Veliko",
+      "242" to "kolodvor",
+      "243" to "Glavni kolodvor",
+      "261" to "Sesvete",
+      "262" to "Sesvete Planina",
+      "263" to "Sesvete Kašina Planina Gornja",
+      "264" to "Sesvete",
+      "268" to "Zagreb Glavni kolodvor Velika Gorica",
+      "269" to "Borongaj Sesvetski Kraljevec",
+      "271" to "Sesvete Glavnica",
+      "272" to "Sesvete",
+      "273" to "Sesvete",
+      "274" to "Zagreb Sesvete Laktec",
+      "276" to "Zagreb Kvaternikov trg Ivanja Reka Dumovec",
+      "277" to "Sesvetska",
+      "278" to "Sesvete Sesvetska Sela Kraljevečki",
+      "280" to "Sesvete Šimunčevec",
+      "281" to "Glavni kolodvor Novi",
+      "282" to "Novi",
+      "283" to "Brestje",
+      "284" to "Sesvete Ivanja Dumovec",
+      "290" to "Zagreb Kvaternikov trg Zračna luka Velika Gorica",
+      "295" to "Zaprešić Jakuševec",
+      "307" to "Zagreb Strmec Bukevski",
+      "308" to "Zagreb",
+      "310" to "Zagreb glavni kolodvor",
+      "311" to "Zagreb glavni kolodvor Cerovski",
+      "313" to "Zagreb glavni kolodvor",
+      "315" to "Zagreb Savski most",
+      "330" to "Zagreb Glavni kolodvor Velika Gorica linija",
+      "613" to "dolje",
+      "617" to "Gračansko Draškovićeva",
+   )
+
+   public fun giveMeTheExtraKeywordForRoute(routeId: RouteId): String? = extraRouteKeywords[routeId]
+
    /*@Suppress("unused") // Used for testing the icon info, TODO should probably be moved someplace else...
    public fun testLabels(stops: Stops, routesAtStops: RoutesAtStopMap) {
       for (stop in stops.list) {
@@ -209,12 +329,6 @@ public object Love {
          }
       }
    }*/
-
-   public fun giveMeTheLabelForStop(stopId: StopId): String? =
-      stopLabels[stopId.rawValue]
-
-   public fun giveMeTheIconCodeForStop(stopId: StopId): Int =
-      iconInfo.getOrElse(stopId.rawValue) { stopId.stopCode }
 
    private val specialTripLabels =
       HashMap<RouteId, Array<out Pair<Int, Pair<String?, String?>>>>().apply {
