@@ -27,8 +27,13 @@ fun MainActivityLoading(
 ) {
    if (errorType == null || errorType == ErrorType.ALREADY_DOWNLOADING) {
       val state = ScheduleManager.downloadState.collectAsState().value
-      state.message?.let { Text(it) }
-      CircularProgressIndicator(Modifier.padding(8.dp))
+      state?.operation.message?.let { Text(it) }
+
+      val progress = state?.progress ?: Float.NaN
+      if (progress.isNaN())
+         CircularProgressIndicator(Modifier.padding(8.dp))
+      else
+         CircularProgressIndicator({ progress }, Modifier.padding(8.dp))
    } else {
       Text(errorType.errorMessage.orEmpty())
 
@@ -39,9 +44,9 @@ fun MainActivityLoading(
    }
 }
 
-private val ScheduleManager.DownloadState.message
+private val ScheduleManager.DownloadOperation?.message
    get() = when (this) {
-      ScheduleManager.DownloadState.NOOP, ScheduleManager.DownloadState.LOADING_CACHED -> null
-      ScheduleManager.DownloadState.DOWNLOADING -> "Preuzimanje rasporeda${Typography.ellipsis}"
-      ScheduleManager.DownloadState.LOADING_GTFS -> "Pripremanje rasporeda${Typography.ellipsis}"
+      null, ScheduleManager.DownloadOperation.LOADING_CACHED -> null
+      ScheduleManager.DownloadOperation.DOWNLOADING -> "Preuzimanje rasporeda${Typography.ellipsis}"
+      ScheduleManager.DownloadOperation.LOADING_GTFS -> "Pripremanje rasporeda${Typography.ellipsis}"
    }
