@@ -37,7 +37,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -59,6 +59,7 @@ import hr.squidpai.zetlive.gtfs.getLiveSchedule
 import hr.squidpai.zetlive.gtfs.iconInfo
 import hr.squidpai.zetlive.gtfs.label
 import hr.squidpai.zetlive.ui.composables.IconButton
+import hr.squidpai.zetlive.ui.composables.disabled
 
 @Composable
 fun MainActivityStops(groupedStops: Map<StopNumber, Stops.Grouped>) =
@@ -233,11 +234,7 @@ private fun StopContent(
 						else -> null
 					}
 					Row(verticalAlignment = Alignment.CenterVertically) {
-						val color = lerp(
-							MaterialTheme.colorScheme.onSurface,
-							MaterialTheme.colorScheme.surface,
-							fraction = .36f
-						)
+						val color = MaterialTheme.colorScheme.disabled
 
 						iconInfo?.let {
 							Icon(
@@ -335,7 +332,7 @@ private fun StopContent(
 								StopScheduleActivity::class.java
 							).apply {
 								putExtra(
-									StopScheduleActivity.EXTRA_STOP,
+									EXTRA_STOP,
 									selectedStop.id.rawValue
 								)
 							})
@@ -381,35 +378,43 @@ private fun ColumnScope.StopLiveTravels(stop: Stop) {
 
 			for (entry in liveSchedule) Row(
 				Modifier
-					.clickable {
-						TripDialogActivity.show(
-							context,
-							entry.trip,
-							entry.selectedDate
-						)
-					}
+					.clickable { showTripDialog(context, entry.trip, entry.selectedDate) }
 					.padding(vertical = 4.dp),
 				verticalAlignment = Alignment.CenterVertically
 			) {
+				val tintColor: Color
+				val regularColor: Color
+				if (entry.isCancelled) {
+					tintColor = MaterialTheme.colorScheme.disabled
+					regularColor = tintColor
+				} else {
+					tintColor = MaterialTheme.colorScheme.primary
+					regularColor = Color.Unspecified
+				}
+
 				val routeStyle = MaterialTheme.typography.titleMedium
 				Text(
 					text = entry.route.id,
 					modifier = Modifier.width(with(LocalDensity.current) { (routeStyle.fontSize * 3.5f).toDp() }),
-					color = MaterialTheme.colorScheme.primary,
+					color = tintColor,
 					textAlign = TextAlign.Center,
 					style = routeStyle,
 				)
 				Text(
 					entry.headsign,
 					Modifier.weight(1f),
+					color = regularColor,
 					maxLines = 1,
 					overflow = TextOverflow.Ellipsis
 				)
 				Text(
-					if (entry.useRelative) "${(entry.relativeTime.coerceAtLeast(0)) / 60} min"
-					else entry.absoluteTime.toStringHHMM(),
+					when {
+					   entry.isCancelled -> "otkazano"
+					   entry.useRelative -> "${(entry.relativeTime.coerceAtLeast(0)) / 60} min"
+					   else -> entry.absoluteTime.toStringHHMM()
+					},
 					modifier = Modifier.padding(end = 4.dp),
-					color = MaterialTheme.colorScheme.primary,
+					color = tintColor,
 					fontWeight = FontWeight.Bold,
 				)
 			}
