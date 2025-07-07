@@ -99,6 +99,12 @@ class SettingsActivity : ComponentActivity() {
       ScheduleInfoEntry()
    }
 
+   private val semiTransparentColor @Composable get() = lerp(
+      LocalContentColor.current,
+      MaterialTheme.colorScheme.background,
+      .20f
+   )
+
    @Composable
    private fun HighlightedStationEntry() {
       var showDialog by remember { mutableStateOf(false) }
@@ -112,7 +118,7 @@ class SettingsActivity : ComponentActivity() {
          Text(
             if (Data.highlightNextStop) "Podebljaj sljedeću postaju"
             else "Podebljaj trenutnu postaju",
-            color = lerp(LocalContentColor.current, MaterialTheme.colorScheme.background, .20f),
+            color = semiTransparentColor,
             fontSize = 12.sp,
          )
       }
@@ -175,11 +181,7 @@ class SettingsActivity : ComponentActivity() {
          Text(
             if (feedInfo != null) "Verzija: ${feedInfo.version}"
             else "Nema preuzetog rasporeda",
-            color = lerp(
-               LocalContentColor.current,
-               MaterialTheme.colorScheme.background,
-               .20f
-            ),
+            color = semiTransparentColor,
             fontSize = 12.sp,
          )
       }
@@ -266,18 +268,21 @@ class SettingsActivity : ComponentActivity() {
    @Composable
    private fun UpdateState(setIsUpdating: (Boolean) -> Unit) {
       val loadingState = ScheduleManager.downloadState.collectAsState().value
-      if (loadingState == ScheduleManager.DownloadState.NOOP) {
+      if (loadingState == null) {
          setIsUpdating(false)
          return
       }
       setIsUpdating(true)
       // TODO check if Schedule exists and change this text then
       Text(
-         if (loadingState == ScheduleManager.DownloadState.DOWNLOADING)
+         if (loadingState.operation == ScheduleManager.DownloadOperation.DOWNLOADING)
             "Preuzimanje novog rasporeda${Typography.ellipsis}"
          else "Ažuriranje rasporeda${Typography.ellipsis}"
       )
-      LinearProgressIndicator()
+      if (loadingState.progress.isNaN())
+         LinearProgressIndicator()
+      else
+         LinearProgressIndicator(progress = { loadingState.progress })
    }
 
    /*@Composable
