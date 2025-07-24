@@ -17,11 +17,17 @@ public object Love {
 
       99[
          // Črnomerec
-         32 to "Peroni 1, 3, 4, 5, 9, 10",
+         //32 to "Peroni 1, 3, 4, 5, 9, 10",
+         101 to "Peron 1",
          31 to "Peron 2",
+         103 to "Peron 3",
+         104 to "Peron 4",
+         105 to "Peron 5",
          62 to "Peron 6",
          52 to "Peron 7",
          42 to "Peron 8",
+         109 to "Peron 9",
+         110 to "Peron 10",
          75 to "Peron 11",
          85 to "Peron 12",
          26 to "Peron 15",
@@ -83,9 +89,15 @@ public object Love {
          // Dubec
          71 to "Peron 1",
          61 to "Peron 2",
-         51 to "Peroni 3, 4, 6, 8, 9, 10",
+         //51 to "Peroni 3, 4, 6, 8, 9, 10",
+         103 to "Peron 3",
+         104 to "Peron 4",
          44 to "Peron 5",
+         106 to "Peron 6",
          42 to "Peron 7",
+         108 to "Peron 8",
+         109 to "Peron 9",
+         110 to "Peron 10",
          82 to "Peron 11",
       ]
 
@@ -318,6 +330,155 @@ public object Love {
    )
 
    public fun giveMeTheExtraKeywordForRoute(routeId: RouteId): String? = extraRouteKeywords[routeId]
+
+   private val extraStopKeywords = MutableIntObjectMap<String>().apply {
+      infix fun Int.to(value: String) {
+         put(this, value)
+      }
+
+      103 to "Trg doktora Franje Tuđmana"
+      106 to "Trg bana Josipa Jelačića"
+      112 to "Branimirova tržnica"
+      113 to "Autobusni kolodvor"
+      128 to "Radićevo šetalište"
+      170 to "Folnegovićevo naselje"
+      171 to "Folnegovićevo naselje"
+      277 to "Muzej suvremene umjetnosti"
+      278 to "Muzej suvremene umjetnosti"
+      286 to "Studentski dom Stjepan Radić"
+      287 to "Studentski dom Stjepan Radić"
+      296 to "Trg hrvatskih velikana"
+      297 to "Trg kralja Petra Krešimira IV."
+      298 to "Trg republike Hrvatske"
+      299 to "Trg žrtava fašizma"
+      305 to "Učiteljski fakultet"
+      313 to "Zagrebački transporti"
+      323 to "Soblinec - raskrižje - škola"
+      339 to "Glavnica Donja okretište"
+      350 to "Vurnovec - Banov brijeg - Kusova"
+      353 to "Prepuštovec - izletište"
+      376 to "Markovo polje - raskrižje"
+      379 to "Vugrovec Donji - groblje"
+      385 to "Bistrička - osnovna škola"
+      433 to "Institut Ruđer Bošković"
+      450 to "Nacionalna i sveučilišna knjižnica"
+      451 to "Trnjanska Savica"
+      459 to "Robni terminali Žitnjak"
+      471 to "ZET - garaža Podsused"
+      526 to "Remetinečka osnovna škola"
+      551 to "Crkva svete Mati Slobode"
+      567 to "Vatikanska - Svetog Mateja"
+      569 to "Robni terminali Jankomir"
+      571 to "Oktavijana Miletića"
+      628 to "Trg Stjepana Severa"
+      629 to "Zastavnice - nadvožnjak"
+      635 to "Jadranska avenija - Arena"
+      646 to "Šestinski dol odvojak"
+      657 to "Ivane Brlić Mažuranić"
+      662 to "Perjavica - Dominika Mandića"
+      667 to "Tekstilno-tehnički fakultet"
+      685 to "Gornjodragonožečka - Stari dom"
+      687 to "Gornjodragonožečka - spomenik"
+      694 to "Brezovička - pod kestenima"
+      704 to "Kraljevečki brijegi - III. odvojak"
+      705 to "Kraljevečki brijegi - VI. odvojak"
+      706 to "Kupinečki Kraljevec - škola"
+      707 to "Kraljevečki brijegi - Lojeni"
+      708 to "Kraljevečki brijegi - Starjak"
+      709 to "Kraljevečki brijegi - Vodosprema"
+      771 to "Donja Bistra - centar"
+      772 to "Poljanica - kod škole"
+      777 to "Gornja Bistra - okretište"
+      795 to "Poljanica - Zeleni brijeg"
+      919 to "Sarajevska - Jakuševečka"
+      927 to "Kosnica - izbjegličko naselje"
+      934 to "Črnkovec, put za Strmec"
+      939 to "Strmec Bukevski, okretište"
+      971 to "Avenija Gojka Šuška - MUP"
+      980 to "Markuševečka Trnava - Vida Ročića"
+      981 to "Markuševečka Trnava 56"
+      982 to "Markuševečka Trnava 84"
+      1001 to "Markuševečki Popovec 62"
+      1044 to "Veterinarski fakultet"
+      1066 to "Ivanja Reka - okretište"
+      1067 to "Svetog Ivana - Dane Grubera"
+      1079 to "Petručevec Im odvojak V"
+      1104 to "Brestovečka - društveni dom"
+      1124 to "Bolnica Jordanovac"
+      1135 to "I. Štefanovečki zavoj"
+      1136 to "Štefanovečka - studentski kampus"
+      1139 to "Branimirova - Aleja Javora"
+      1141 to "Svetošimunska - trgovina"
+      1145 to "VIII. Jazbinski odvojak"
+      // TODO 1168 to "??????????????" (Gor Prekvršje P.i T.)
+      1192 to "Hrašće Turopoljsko"
+      1203 to "Velika Gorica - groblje"
+      1216 to "Šašinovec - vatrogasni dom"
+      1252 to "Put za Gornju Lomnicu"
+      1252 to "Lomnica, Deverićeva 4"
+      1256 to "Lomnica, Stepanska 6, okretište"
+      1259 to "Gradići, Kralja Tomislava 85"
+      1261 to "Gradići, društveni dom"
+      1264 to "Petrovina, društveni dom"
+      1266 to "Lukavec - Dolenska društveni dom"
+      1271 to "Dubranec, vikend naselje"
+      1288 to "Sisačka, nadvožnjak sjever"
+      1295 to "Lukavec - put za Dubranec"
+      1296 to "Lukavec - Školska - Lužec"
+      1335 to "Trg doktora Franje Tuđmana"
+      1350 to "Zrakoplovna tehnička škola"
+      1355 to "Ljubijska - Hrvatskog proljeća"
+      1375 to "Sveučilišna aleja"
+      1385 to "Gornji Trpuci, okretište"
+      1387 to "Svetog Leopolda Mandića"
+      1389 to "Trg doktora Franje Tuđmana"
+      1405 to "Selnička - Puđak Kate, okretište"
+      1413 to "Turopoljska - Markulini"
+      1417 to "Dobrodol - Šimunčevečka"
+      1421 to "Šimunčevec - društveni dom"
+      1464 to "Sarajevska - Vatikanska"
+      1465 to "Sarajevska - Ukrajinska"
+      1518 to "Dominika Mandića - Međašni klanac"
+      1559 to "Kosirnikova - Jelenovac"
+      1536 to "Šercerova - Šercerov prečac"
+      1565 to "Kosirnikova - SRC Jelenovac"
+      1634 to "Bolnica Jankomir"
+      1660 to "Voćarska - društveni dom"
+      1662 to "Kozari put I - odvojak V"
+      1666 to "Ljudevita Posavskog - Kelekova"
+      1667 to "144. brigade - Ljudevita Posavskog"
+      1670 to "Rimski put - dječje igralište"
+      1672 to "Ljudevita Posavskog - Rimski put"
+      1673 to "Vrapče - željeznička stanica"
+      1726 to "Planinarski dom Grafičar"
+      1727 to "Apartmanska kuća Snježna kraljica"
+      1741 to "Željeznička - Vukomerička"
+      1742 to "Gradići, kralja Tomislava 46"
+      1743 to "Gradići, kralja Tomislava 57"
+      1774 to "Slavonska - Ljudevita Posavskog"
+      1849 to "Trg bana Josipa Jelačića"
+      1870 to "Kupljenski Hruševec - škola"
+      1872 to "Kupljenski Hruševec - okretište"
+      1903 to "Markovo Polje - mrtvačnica"
+      1904 to "Markovo Polje - parkiralište"
+      1905 to "Markovo Polje - istočni ulaz"
+      1906 to "Markovo Polje - okretište"
+      1919 to "Branimirova - Škrnjugova"
+      1923 to "Tišinska ulica III. odvojak"
+      1971 to "Gimnazija Lucijana Vranjanin"
+      1999 to "Zagrebački velesajam"
+      2025 to "Branimirova - Zagrebačka"
+      2028 to "Ulica Kaktusa 34"
+      2029 to "Mjesni odbor Novo Brestje"
+      2031 to "Ulica Kaktusa 47"
+      2036 to "Planinarski dom Runolist"
+      2065 to "Zelena magistrala - Rušiščak"
+      2070 to "Savski nasip Park & Ride"
+      2103 to "Prilaz baruna Filipovića"
+   }
+
+   public fun giveMeTheExtraKeywordForStop(stopNumber: StopNumber): String? =
+      extraStopKeywords[stopNumber]
 
    /*@Suppress("unused") // Used for testing the icon info, TODO should probably be moved someplace else...
    public fun testLabels(stops: Stops, routesAtStops: RoutesAtStopMap) {
@@ -573,5 +734,81 @@ public object Love {
    bikes and tell the user to check the official route schedule for specifics.
    routes: 102, 103, 140
     */
+
+   private val betterStopMapper = HashMap<StopId, (Stop) -> List<Stop>>()
+
+   private val routeToBetterStopMapper = HashMap<StopId, Map<RouteId, StopId>>()
+
+   private class BetterStopMapper(
+      val routeStopMapper: Array<out Pair<StopCode, Set<RouteId>>>
+   ) : (Stop) -> List<Stop> {
+      override fun invoke(stop: Stop): List<Stop> {
+         val remainingRoutes = stop.routes.keys.mapTo(mutableSetOf()) { it.id }
+         val stops = ArrayList<Stop>()
+         for ((newStopCode, mappedRoutes) in routeStopMapper) {
+            stops += stop.copy(newStopCode, mappedRoutes)
+            remainingRoutes -= mappedRoutes
+         }
+         if (remainingRoutes.isNotEmpty())
+            stops += stop.copy(stop.routes.filterKeys { it.id in remainingRoutes })
+         return stops
+      }
+   }
+
+   private fun putBetterStopMapping(
+      stopIdToTransform: String,
+      vararg routeStopMapper: Pair<StopCode, Set<RouteId>>
+   ) {
+      val stopId = stopIdToTransform.toStopId()
+      val stopNumber = stopId.stopNumber
+      betterStopMapper[stopId] = BetterStopMapper(routeStopMapper)
+      val betterRouteMap = mutableMapOf<RouteId, StopId>()
+      for ((newStopCode, mappedRoutes) in routeStopMapper) {
+         for (routeId in mappedRoutes)
+            betterRouteMap[routeId] = StopId(stopNumber, newStopCode)
+      }
+      routeToBetterStopMapper[stopId] = betterRouteMap
+   }
+
+   internal fun makeMeABetterStopMapper() {
+      putBetterStopMapping(
+         stopIdToTransform = "99_32",
+         101 to setOf("136"),
+         103 to setOf("122", "123", "131"),
+         104 to setOf("119", "120"),
+         105 to setOf("117", "134"),
+         109 to setOf("124", "130"),
+         110 to setOf("176", "177"),
+      )
+      putBetterStopMapping(
+         stopIdToTransform = "205_51",
+         103 to setOf("261", "262"),
+         104 to setOf("263"),
+         106 to setOf("267", "280"),
+         108 to setOf("264", "271", "272"),
+         109 to setOf("270", "273"),
+         110 to setOf("274"),
+      )
+      // TODO merge Sopot Izlaz 1794_12 to obicni sopot
+      // todo isto i za zaprude zitnjak maksimir
+   }
+
+   internal fun releaseTheBetterStopMapper() {
+      betterStopMapper.clear()
+      routeToBetterStopMapper.clear()
+   }
+
+   internal fun giveMeBetterStops(stop: Stop): List<Stop>? {
+      return betterStopMapper[stop.id]?.invoke(stop)
+   }
+
+   internal fun redirectMeToTheBetterStopId(forRoute: RouteId, stopId: StopId): StopId {
+      return routeToBetterStopMapper[stopId]?.get(forRoute) ?: stopId
+   }
+
+   init {
+      // TODO move to GtfsScheduleLoader when everything else is moved there
+      makeMeABetterStopMapper()
+   }
 
 }
