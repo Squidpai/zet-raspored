@@ -1,0 +1,20 @@
+99_36: WEST
+135_26: SOUTH
+136_30: NORTH
+205_25: EAST
+211_25: SOUTH # Elka
+458_26: WEST
+524_25: EAST # Spansko-okretiste
+933_23: WEST # Crnkovec
+933_24: EAST # Crnkovec
+933_27: NORTH # Crnkovec
+933_28: SOUTH # Crnkovec
+954_23: WEST # Jordanovac (bus)
+954_27: NORTH # Jordanovac (bus)
+954_28: SOUTH # Jordanovac (bus)
+1059_26: WEST
+1164_28: EAST # Reber Habeki
+1248_27: WEST # Cehi-Buliceva
+1248_28: EAST # Cehi-Buliceva
+1402_26: WEST # Jelkovecka
+1402_22: SOUTH # Jelkovecka
