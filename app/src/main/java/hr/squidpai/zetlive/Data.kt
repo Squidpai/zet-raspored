@@ -11,6 +11,9 @@ import hr.squidpai.zetapi.RouteId
 import hr.squidpai.zetapi.StopId
 import hr.squidpai.zetapi.StopNumber
 import hr.squidpai.zetapi.toStopId
+import hr.squidpai.zetlive.Data.directionSwapped
+import hr.squidpai.zetlive.Data.load
+import hr.squidpai.zetlive.Data.save
 import java.io.File
 import java.io.FileNotFoundException
 import java.io.IOException
@@ -20,259 +23,270 @@ import java.io.IOException
  */
 object Data {
 
-   private const val TAG = "Data"
+    private const val TAG = "Data"
 
-   private const val PINNED_ROUTES = "pinnedRoutes"
-   private const val PINNED_STOPS = "pinnedStops"
-   private const val DIRECTION_SWAPPED = "directionSwapped"
-   private const val DEFAULT_STOP_CODES = "defaultStopCodes"
-   private const val HIGHLIGHT_NEXT_STOP = "highlightNextStop"
-   private const val HINTS = "hints"
+    private const val PINNED_ROUTES = "pinnedRoutes"
+    private const val PINNED_STOPS = "pinnedStops"
+    private const val DIRECTION_SWAPPED = "directionSwapped"
+    private const val DEFAULT_STOP_CODES = "defaultStopCodes"
+    private const val HIGHLIGHT_NEXT_STOP = "highlightNextStop"
+    private const val USE_FULL_ROUTE_NAMES = "useFullRouteNames"
+    private const val USE_FULL_STOP_NAMES = "useFullStopNames"
+    private const val USE_FULL_HEADSIGN_NAMES = "useFullHeadsignNames"
+    private const val HINTS = "hints"
 
-   private const val SCHEDULE_FIXED = "fixed"
-   var scheduleFixed = false
+    private var file: File? = null
 
-   private var file: File? = null
+    /**
+     * The set of routes pinned to the top of the route list
+     * in `MainActivityRoutes`, specifically, their IDs.
+     */
+    val pinnedRoutes = mutableStateSetOf<RouteId>()
 
-   /**
-    * The set of routes pinned to the top of the route list
-    * in `MainActivityRoutes`, specifically, their IDs.
-    */
-   val pinnedRoutes = mutableStateSetOf<RouteId>()
+    /**
+     * The set of stops pinned to the top of the stop list
+     * in `MainActivityStops`, specifically, their **stop number**.
+     */
+    val pinnedStops = mutableStateSetOf<StopNumber>()
 
-   /**
-    * The set of stops pinned to the top of the stop list
-    * in `MainActivityStops`, specifically, their **stop number**.
-    */
-   val pinnedStops = mutableStateSetOf<StopNumber>()
+    /**
+     * The set of routes for which the user selected the opposite direction to view.
+     *
+     * Used in `MainActivityRoutes` and `RouteScheduleActivity` to remember and
+     * show the direction which the user previously selected.
+     */
+    val directionSwapped = mutableSetOf<RouteId>()
 
-   /**
-    * The set of routes for which the user selected the opposite direction to view.
-    *
-    * Used in `MainActivityRoutes` and `RouteScheduleActivity` to remember and
-    * show the direction which the user previously selected.
-    */
-   val directionSwapped = mutableSetOf<RouteId>()
+    /** Returns the preferred direction based on [directionSwapped]. */
+    fun getDirectionForRoute(routeId: RouteId) = (routeId in directionSwapped).toInt()
 
-   /** Returns the preferred direction based on [directionSwapped]. */
-   fun getDirectionForRoute(routeId: RouteId) = (routeId in directionSwapped).toInt()
+    /**
+     * A map containing the station code of the last selected child stop from
+     * a grouped stop, the key being the **station number**, and the value
+     * being the **station code**.
+     *
+     * Used in `MainActivityStops` to remember and show the stop which the
+     * user previously selected, as the user will probably often check on
+     * one specific stop.
+     */
+    val defaultStopCodes = MutableIntIntMap()
 
-   /**
-    * A map containing the station code of the last selected child stop from
-    * a grouped stop, the key being the **station number**, and the value
-    * being the **station code**.
-    *
-    * Used in `MainActivityStops` to remember and show the stop which the
-    * user previously selected, as the user will probably often check on
-    * one specific stop.
-    */
-   val defaultStopCodes = MutableIntIntMap()
+    /**
+     * If `true`, the next station is highlighted. Otherwise, the
+     * current station is highlighted.
+     */
+    var highlightNextStop by mutableStateOf(true)
 
-   /**
-    * If `true`, the next station is highlighted. Otherwise, the
-    * current station is highlighted.
-    */
-   var highlightNextStop by mutableStateOf(true)
+    /** If `true`, `Route.fullName` will be used instead of `Route.longName`. */
+    var useFullRouteNames by mutableStateOf(true)
+    var useFullStopNames by mutableStateOf(true)
+    var useFullHeadsignNames by mutableStateOf(true)
 
-   // this class and its entries are used as properties
-   @Suppress("ClassName", "EnumEntryName")
-   enum class hints(val hintText: String, private vararg val dependencies: hints) {
-      swapDirection("Pritisnite na strelicu (⇄) da se prikaže vozni red za suprotni smjer.");
+    // this class and its entries are used as properties
+    @Suppress("ClassName", "EnumEntryName")
+    enum class hints(val hintText: String, private vararg val dependencies: hints) {
+        swapDirection("Pritisnite na strelicu (⇄) da se prikaže vozni red za suprotni smjer.");
 
-      private var satisfied = false
+        private var satisfied = false
 
-      fun satisfyWithoutUpdate() {
-         if (shouldBeVisible())
-            satisfied = true
-      }
+        fun satisfyWithoutUpdate() {
+            if (shouldBeVisible())
+                satisfied = true
+        }
 
-      fun satisfy() {
-         if (shouldBeVisible()) {
-            satisfied = true
-            save()
-         }
-      }
+        fun satisfy() {
+            if (shouldBeVisible()) {
+                satisfied = true
+                save()
+            }
+        }
 
-      fun shouldBeVisible() = !satisfied && dependencies.all { it.satisfied }
+        fun shouldBeVisible() = !satisfied && dependencies.all { it.satisfied }
 
-      companion object {
-         internal fun load(reader: JsonReader) {
+        companion object {
+            internal fun load(reader: JsonReader) {
+                reader.beginArray()
+                while (reader.hasNext())
+                    try {
+                        valueOf(reader.nextString()).satisfied = true
+                    } catch (_: IllegalArgumentException) {
+                    }
+                reader.endArray()
+            }
+
+            internal fun save(writer: JsonWriter) {
+                writer.beginArray()
+                for (entry in entries)
+                    if (entry.satisfied)
+                        writer.value(entry.name)
+                writer.endArray()
+            }
+        }
+    }
+
+    /**
+     * Tries loading the data from [file].
+     *
+     * If loading fails for whatever reason, the data
+     * successfully loaded up until the error occurred will still
+     * be loaded and no exception will be thrown.
+     */
+    fun load(file: File) {
+        this.file = file
+
+        try {
+            JsonReader(file.bufferedReader()).use { reader ->
+                reader.beginObject()
+
+                while (reader.hasNext())
+                    loadNext(reader)
+
+                reader.endObject()
+            }
+        } catch (_: FileNotFoundException) {
+            // no data to load
+        } catch (e: IllegalStateException) {
+            Log.w(TAG, "load: IllegalStateException occurred while loading data", e)
+        } catch (e: IOException) {
+            Log.w(TAG, "load: IOException occurred while loading data", e)
+        }
+    }
+
+    private fun loadNext(reader: JsonReader) = when (reader.nextName()) {
+        PINNED_ROUTES -> {
             reader.beginArray()
+
+            val list = ArrayList<RouteId>()
             while (reader.hasNext())
-               try {
-                  valueOf(reader.nextString()).satisfied = true
-               } catch (_: IllegalArgumentException) {
-               }
+                list += reader.nextString()
+
+            pinnedRoutes.clear()
+            pinnedRoutes.addAll(list)
+
             reader.endArray()
-         }
+        }
 
-         internal fun save(writer: JsonWriter) {
-            writer.beginArray()
-            for (entry in entries)
-               if (entry.satisfied)
-                  writer.value(entry.name)
-            writer.endArray()
-         }
-      }
-   }
+        PINNED_STOPS -> {
+            reader.beginArray()
 
-   /**
-    * Tries loading the data from [file].
-    *
-    * If loading fails for whatever reason, the data
-    * successfully loaded up until the error occurred will still
-    * be loaded and no exception will be thrown.
-    */
-   fun load(file: File) {
-      this.file = file
+            val list = ArrayList<Int>()
+            while (reader.hasNext())
+                list += reader.nextInt() //.let { if (it >= 65536) it / 65536 else it }
 
-      try {
-         JsonReader(file.bufferedReader()).use { reader ->
-            reader.beginObject()
+            pinnedStops.clear()
+            pinnedStops.addAll(list)
 
+            reader.endArray()
+        }
+
+        DIRECTION_SWAPPED -> {
+            reader.beginArray()
+
+            directionSwapped.clear()
+            while (reader.hasNext())
+                directionSwapped += reader.nextString()
+
+            reader.endArray()
+        }
+
+        DEFAULT_STOP_CODES -> {
+            reader.beginArray()
+
+            defaultStopCodes.clear()
             while (reader.hasNext()) {
-               when (reader.nextName()) {
-                  PINNED_ROUTES -> {
-                     reader.beginArray()
+                val (number, code) = reader.nextString().toStopId()
 
-                     val list = ArrayList<RouteId>()
-                     while (reader.hasNext())
-                        list += reader.nextString()
-
-                     pinnedRoutes.clear()
-                     pinnedRoutes.addAll(list)
-
-                     reader.endArray()
-                  }
-
-                  PINNED_STOPS -> {
-                     reader.beginArray()
-
-                     val list = ArrayList<Int>()
-                     while (reader.hasNext())
-                        list += reader.nextInt() //.let { if (it >= 65536) it / 65536 else it }
-
-                     pinnedStops.clear()
-                     pinnedStops.addAll(list)
-
-                     reader.endArray()
-                  }
-
-                  DIRECTION_SWAPPED -> {
-                     reader.beginArray()
-
-                     directionSwapped.clear()
-                     while (reader.hasNext())
-                        directionSwapped += reader.nextString()
-
-                     reader.endArray()
-                  }
-
-                  DEFAULT_STOP_CODES -> {
-                     reader.beginArray()
-
-                     defaultStopCodes.clear()
-                     while (reader.hasNext()) {
-                        val (number, code) = reader.nextString().toStopId()
-
-                        defaultStopCodes[number] = code
-                     }
-
-                     reader.endArray()
-                  }
-
-                  HIGHLIGHT_NEXT_STOP -> highlightNextStop = reader.nextBoolean()
-
-                  HINTS -> hints.load(reader)
-
-                  SCHEDULE_FIXED -> scheduleFixed = reader.nextBoolean()
-
-                  else -> reader.skipValue()
-               }
+                defaultStopCodes[number] = code
             }
 
-            reader.endObject()
-         }
-      } catch (_: FileNotFoundException) {
-         // no data to load
-      } catch (e: IllegalStateException) {
-         Log.w(TAG, "load: IllegalStateException occurred while loading data", e)
-      } catch (e: IOException) {
-         Log.w(TAG, "load: IOException occurred while loading data", e)
-      }
-   }
+            reader.endArray()
+        }
 
-   /**
-    * Saves the data to the file last loaded from in [load].
-    *
-    * If [load] was never called, the method does nothing.
-    */
-   fun save() {
-      val file = file ?: run {
-         Log.e(TAG, "save: No file to save to.")
-         return
-      }
+        HIGHLIGHT_NEXT_STOP -> highlightNextStop = reader.nextBoolean()
+        HINTS -> hints.load(reader)
+        USE_FULL_ROUTE_NAMES -> useFullRouteNames = reader.nextBoolean()
+        USE_FULL_STOP_NAMES -> useFullStopNames = reader.nextBoolean()
+        USE_FULL_HEADSIGN_NAMES -> useFullHeadsignNames = reader.nextBoolean()
 
-      try {
-         JsonWriter(file.bufferedWriter()).use { writer ->
-            writer.beginObject()
+        else -> reader.skipValue()
+    }
 
-            val routes = pinnedRoutes.toSet()
-            if (routes.isNotEmpty()) {
-               writer.name(PINNED_ROUTES)
-                  .beginArray()
-               for (route in routes)
-                  writer.value(route)
-               writer.endArray()
+    /**
+     * Saves the data to the file last loaded from in [load].
+     *
+     * If [load] was never called, the method does nothing.
+     */
+    fun save() {
+        val file = file ?: run {
+            Log.e(TAG, "save: No file to save to.")
+            return
+        }
+
+        try {
+            JsonWriter(file.bufferedWriter()).use { writer ->
+                writer.beginObject()
+
+                val routes = pinnedRoutes.toSet()
+                if (routes.isNotEmpty()) {
+                    writer.name(PINNED_ROUTES)
+                        .beginArray()
+                    for (route in routes)
+                        writer.value(route)
+                    writer.endArray()
+                }
+
+                val stops = pinnedStops.toSet()
+                if (stops.isNotEmpty()) {
+                    writer.name(PINNED_STOPS)
+                        .beginArray()
+                    for (stop in stops)
+                        writer.value(stop)
+                    writer.endArray()
+                }
+
+                if (directionSwapped.isNotEmpty()) {
+                    writer.name(DIRECTION_SWAPPED)
+                        .beginArray()
+                    directionSwapped.forEach { route ->
+                        writer.value(route)
+                    }
+                    writer.endArray()
+                }
+
+                if (defaultStopCodes.isNotEmpty()) {
+                    writer.name(DEFAULT_STOP_CODES)
+                        .beginArray()
+                    defaultStopCodes.forEach { k, v ->
+                        writer.value(StopId(k, v).toString())
+                    }
+                    writer.endArray()
+                }
+
+                writer.name(HIGHLIGHT_NEXT_STOP)
+                    .value(highlightNextStop)
+
+                if (!useFullRouteNames)
+                    writer.name(USE_FULL_ROUTE_NAMES).value(false)
+
+                if (!useFullStopNames)
+                    writer.name(USE_FULL_STOP_NAMES).value(false)
+
+                if (!useFullHeadsignNames)
+                    writer.name(USE_FULL_HEADSIGN_NAMES).value(false)
+
+                writer.name(HINTS)
+                hints.save(writer)
+
+                writer.endObject()
             }
+        } catch (e: IOException) {
+            Log.w(TAG, "save: IOException occurred while saving", e)
+        }
+    }
 
-            val stops = pinnedStops.toSet()
-            if (stops.isNotEmpty()) {
-               writer.name(PINNED_STOPS)
-                  .beginArray()
-               for (stop in stops)
-                  writer.value(stop)
-               writer.endArray()
-            }
-
-            if (directionSwapped.isNotEmpty()) {
-               writer.name(DIRECTION_SWAPPED)
-                  .beginArray()
-               directionSwapped.forEach { route ->
-                  writer.value(route)
-               }
-               writer.endArray()
-            }
-
-            if (defaultStopCodes.isNotEmpty()) {
-               writer.name(DEFAULT_STOP_CODES)
-                  .beginArray()
-               defaultStopCodes.forEach { k, v ->
-                  writer.value(StopId(k, v).toString())
-               }
-               writer.endArray()
-            }
-
-            writer.name(HIGHLIGHT_NEXT_STOP)
-               .value(highlightNextStop)
-
-            writer.name(HINTS)
-            hints.save(writer)
-
-            if (scheduleFixed)
-               writer.name(SCHEDULE_FIXED)
-                  .value(true)
-
-            writer.endObject()
-         }
-      } catch (e: IOException) {
-         Log.w(TAG, "save: IOException occurred while saving", e)
-      }
-   }
-
-   /**
-    * Calls [block] with the current data and then calls [save].
-    */
-   inline fun <R> updateData(block: Data.() -> R) = this.block().also { save() }
+    /**
+     * Calls [block] with the current data and then calls [save].
+     */
+    inline fun <R> updateData(block: Data.() -> R) = this.block().also { save() }
 
 }
