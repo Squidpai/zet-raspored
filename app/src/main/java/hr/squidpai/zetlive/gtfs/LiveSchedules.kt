@@ -307,6 +307,7 @@ fun Stop.getLiveSchedule(
    keepDeparted: Boolean,
    maxSize: Int,
    routesFiltered: List<RouteId>? = null,
+   millis: Long = 0L,
 ): StopLiveSchedule? {
    val schedule = ScheduleManager.instance.collectAsState().value
       ?: return null
@@ -325,6 +326,7 @@ fun Stop.getLiveSchedule(
             routesFiltered,
             calendarDates,
             schedule.serviceTypes,
+            millis = if (millis == 0L) localCurrentTimeMillis() else millis
          )
          delay(20000)
       }
@@ -342,12 +344,10 @@ private fun Stop.getLiveSchedule(
    routesFiltered: List<RouteId>?,
    calendarDates: CalendarDates,
    serviceTypes: ServiceTypes?,
+   millis: Long,
 ): StopLiveSchedule {
-   val currentMillis = localCurrentTimeMillis()
-   val timeOfDay = TimeOfDay(
-      (currentMillis % MILLIS_IN_DAY).toInt() / MILLIS_IN_SECONDS
-   )
-   val dateEpoch = currentMillis / MILLIS_IN_DAY
+   val timeOfDay = TimeOfDay((millis % MILLIS_IN_DAY).toInt() / MILLIS_IN_SECONDS)
+   val dateEpoch = millis / MILLIS_IN_DAY
 
    val result = mutableListOf<StopScheduleEntry>()
 
@@ -478,7 +478,7 @@ private fun Stop.getTripsOfDay(
    return tripsOfDay
 }
 
-private data class RealtimeTrip(
+data class RealtimeTrip(
    val trip: Trip,
    val realtimeDepartures: TimeOfDayList,
    val isCancelled: Boolean,
