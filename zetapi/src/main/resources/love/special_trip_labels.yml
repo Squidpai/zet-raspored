@@ -1,0 +1,66 @@
+132:
+  635_23: ["po Jadranskoj aveniji", ~] # Jadranska av.-Arena (sjeverno)
+  635_24: [~, "po Jadranskoj aveniji"] # Jadranska av.-Arena (juzno)
+
+140:
+  1727_23: [~, "preko A.K. Snježna Kraljica"] # A.K.Snjezna Kraljica
+
+162:
+  -719_24: ["ne vozi preko Gajana", ~] # Gajani
+
+172: 
+  # Every trip stops at the stop, so the label is unnecessary
+  #161_22: [~, "Terminal"] # Zapresic (peron 7)
+  135_22: ["staje na Vrapčanskoj", ~] # Vrapcanska (zapadno)
+
+# Every trip stops at the stop, so the label is unnecessary
+#174:
+#  1916_21: [~, "preko Kupljenskog Hruševca"] # Hrusevecka (istocno)
+#  1916_22: ["preko Kupljenskog Hruševca", ~] # Hrusevecka (istocno)
+
+182:
+  1641_22: [~, "preko Groblja Zaprešić"] # Groblje Zapresic
+
+212:
+  -1028_21: [~, "ne vozi preko Selčine"] # Trg Lovre Matacica
+
+220:
+  1093_23: ["preko Travnog", ~] # Božidara Magovca 111
+
+229: 
+  1086_22: ["preko Sloboštine", ~] # Slobostina (zapadno)
+  1086_21: [~, "preko Sloboštine"] # Slobostina (istocno)
+
+268: 
+  565_24: ["preko S.R. Njemačke", ~] # Islandska (juzno)
+  565_22: [~, "preko S.R. Njemačke"] # Islandska (zapadno)
+
+269: 
+  1133_21: ["staje na Maksimirskim naseljima", ~] # Maksimirska naselja (istocno)
+  1133_22: [~, "staje na Maksimirskim naseljima"] # Maksimirska naselja (zapadno)
+
+276:
+  1889_23: [~, "preko IKEA-e"] # IKEA
+
+284: 
+  1404_23: [~, "preko Sesvetske Selnice"] # Ferde Kocha (sjeverno)
+  1404_24: ["preko Sesvetske Selnice", ~] # Ferde Kocha (juzno)
+
+# These lines no longer exist
+#302:
+#  1839_22: [~, "preko Ključić brda"] # Kljucic brdo
+
+#304:
+#  874_21: [~, "preko Sisačke ceste"] # Sisacka-Mraclinska (istocno)
+#  874_22: ["preko Sisačke ceste", ~] # Sisacka-Mraclinska (zapadno)
+
+307:
+  943_23: [~, "preko Sasa"] # Sasi, okretiste (sjeverno)
+
+# These lines no longer exist
+#321:
+#  943_23: [~, "preko Sasa"] # Sasi, okretiste (sjeverno)
+#  1201_22: [~, "preko Zabrebačke"] # Zagrebacka 42
+
+#335:
+#  -1298_22: ["ne vozi preko Kurilovca", ~] # Kolodvorska 76

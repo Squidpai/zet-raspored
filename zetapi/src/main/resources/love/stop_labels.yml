@@ -1,0 +1,147 @@
+99: # Črnomerec
+  #32: Peroni 1, 3, 4, 5, 9, 10
+  101: Peron 1
+  31: Peron 2
+  103: Peron 3
+  104: Peron 4
+  105: Peron 5
+  62: Peron 6
+  52: Peron 7
+  42: Peron 8
+  109: Peron 9
+  110: Peron 10
+  75: Peron 11
+  85: Peron 12
+  26: Peron 15
+
+104: # Britanski trg
+  24: Peron 1
+  23: Peron 2
+  22: Peron 3
+
+110: # Glavni kolodvor
+  72: Peron 1
+  62: Peron 2
+  52: Peron 3
+  82: Peron 4
+  42: Peron 5
+  46: Peron 6
+  32: Peron 7
+  36: Peron 8
+  41: Peron 10
+  51: Peron 11
+  61: Peron 12
+
+136: # Vrapcanska aleja
+  26: Peron 2
+  27: Peron 3
+  29: Peron 4
+
+161: # Zapresic
+  26: Peron 1
+  21: Peron 3
+  31: Peron 4
+  22: Peron 7
+
+176: # Mihaljevac
+  28: Peron 1
+  34: Peron 2
+  27: Peron 3
+
+185: # Zaprude
+  14: Ulaz 14
+
+192: # Borongaj (bus)
+  42: Peron 1
+  32: Peron 2
+
+193: # Borongaj (tram)
+  2: Ulaz
+
+205: # Dubec
+  71: Peron 1
+  61: Peron 2
+  #51: Peroni 3, 4, 6, 8, 9, 10
+  103: Peron 3
+  104: Peron 4
+  44: Peron 5
+  106: Peron 6
+  42: Peron 7
+  108: Peron 8
+  109: Peron 9
+  110: Peron 10
+  82: Peron 11
+
+208: # Dubrava
+  44: Peron 1
+  34: Peron 2
+  24: Peron 3
+  54: Peron 4
+  23: Peron 5
+  33: Peron 6
+  53: Peron 7
+  63: Peron 8
+  43: Peron 9
+
+244: # Ljubljanica (bus)
+  24: Peron 1
+  34: Peron 2
+  44: Peron 3
+  54: Peron 4
+
+245: # Ljubljanica (tram)
+  1: Ulaz
+
+259: # Precko (tram)
+  1: Ulaz
+
+266: # Savisce
+  3: Ulaz
+
+271: # Savski most
+  23: Peron 1
+  33: Peron 2
+  43: Peron 3
+  53: Peron 4
+  63: Peron 5
+  27: Peron 6
+  21: Peron 7
+
+272: # Savski most
+  3: Ulaz
+
+290: # Svetice
+  43: Peron 1
+  33: Peron 2
+  23: Peron 3
+
+420: # Kaptol
+  23: Peron 1
+  25: Peron 2
+  27: Peron 3
+
+611: # Prečko-terminal
+  27: Oba perona
+
+663: # Reljkoviceva
+  23: Oba perona
+
+1043: # Kvaternikov trg
+  74: Peron 1
+  64: Peron 2
+  25: Peron 3
+  54: Peron 4
+  24: Peron 5
+  34: Peron 6
+  44: Peron 7
+
+1665: # Sesvete-ukrcaj
+  32: Peron 1
+  42: Peron 2
+  52: Peron 3
+  62: Peron 4
+  72: Peron 5
+  92: Peron 6
+
+1669: # Jelkovec-tržnica
+  28: Oba smjera
