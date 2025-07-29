@@ -53,6 +53,14 @@ public class Trip internal constructor(
    public val isFirstStopCommon: Boolean,
    private val realtimeDispatcher: RealtimeDispatcher,
 ) {
+
+   private var _fullHeadsign: String? = null
+
+   public val fullHeadsign: String
+      get() = _fullHeadsign
+         ?: (Love.giveMeTheFullNameForHeadsign(headsign) ?: headsign)
+            .also { _fullHeadsign = it }
+
    /**
     * Returns the realtime departures for this trip.
     *
@@ -131,12 +139,3 @@ public fun Pair<Iterable<Trip>, Iterable<Trip>>.sortedByDepartures():
       Pair<List<Trip>, List<Trip>> =
    first.sortedBy { it.departures.first() } to
          second.sortedBy { it.departures.first() }
-
-public fun List<Trip>.findFirstDeparture(timeOfDay: TimeOfDay): Int {
-   val firstIndex = binarySearch {
-      it.departures.last() - timeOfDay.valueInSeconds
-   }
-
-   return if (firstIndex >= 0) firstIndex
-   else -firstIndex - 1
-}
