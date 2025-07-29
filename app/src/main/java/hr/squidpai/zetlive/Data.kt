@@ -32,7 +32,7 @@ object Data {
     private const val HIGHLIGHT_NEXT_STOP = "highlightNextStop"
     private const val USE_FULL_ROUTE_NAMES = "useFullRouteNames"
     private const val USE_FULL_STOP_NAMES = "useFullStopNames"
-    private const val USE_FULL_HEADSIGN_NAMES = "useFullHeadsignNames"
+    private const val USE_FULL_HEADSIGNS = "useFullHeadsigns"
     private const val HINTS = "hints"
 
     private var file: File? = null
@@ -79,8 +79,12 @@ object Data {
 
     /** If `true`, `Route.fullName` will be used instead of `Route.longName`. */
     var useFullRouteNames by mutableStateOf(true)
+
+    /** If `true`, `Stop.fullName` will be used instead of `Stop.name`. */
     var useFullStopNames by mutableStateOf(true)
-    var useFullHeadsignNames by mutableStateOf(true)
+
+    /** If `true`, `Trip.fullHeadsign` will be used instead of `Trip.headsign`. */
+    var useFullHeadsigns by mutableStateOf(true)
 
     // this class and its entries are used as properties
     @Suppress("ClassName", "EnumEntryName")
@@ -206,7 +210,7 @@ object Data {
         HINTS -> hints.load(reader)
         USE_FULL_ROUTE_NAMES -> useFullRouteNames = reader.nextBoolean()
         USE_FULL_STOP_NAMES -> useFullStopNames = reader.nextBoolean()
-        USE_FULL_HEADSIGN_NAMES -> useFullHeadsignNames = reader.nextBoolean()
+        USE_FULL_HEADSIGNS -> useFullHeadsigns = reader.nextBoolean()
 
         else -> reader.skipValue()
     }
@@ -271,8 +275,8 @@ object Data {
                 if (!useFullStopNames)
                     writer.name(USE_FULL_STOP_NAMES).value(false)
 
-                if (!useFullHeadsignNames)
-                    writer.name(USE_FULL_HEADSIGN_NAMES).value(false)
+                if (!useFullHeadsigns)
+                    writer.name(USE_FULL_HEADSIGNS).value(false)
 
                 writer.name(HINTS)
                 hints.save(writer)
