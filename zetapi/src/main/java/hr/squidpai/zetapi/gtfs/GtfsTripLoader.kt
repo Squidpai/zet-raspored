@@ -55,7 +55,8 @@ internal class GtfsTripLoader private constructor(
       // the trip id in the stop times file doesn't exist (?!) -> skip
          ?: return
       val stops = List(stopIds.size) {
-         this.stops[stopIds[it].asStopId()] ?: return
+         this.stops[Love.redirectMeToTheBetterStopId(trip.route.id, stopIds[it].asStopId())]
+            ?: return
       }
 
       val dirStopSequences = trip.route.stopSequences[trip.directionId]
