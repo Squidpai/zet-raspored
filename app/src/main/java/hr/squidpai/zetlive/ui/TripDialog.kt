@@ -44,6 +44,8 @@ import hr.squidpai.zetapi.Stop
 import hr.squidpai.zetapi.TimeOfDay
 import hr.squidpai.zetapi.Trip
 import hr.squidpai.zetlive.gtfs.getUpdatingLiveDisplayData
+import hr.squidpai.zetlive.gtfs.preferredHeadsign
+import hr.squidpai.zetlive.gtfs.preferredName
 import hr.squidpai.zetlive.localEpochDate
 import hr.squidpai.zetlive.ui.composables.HintIconButton
 import hr.squidpai.zetlive.ui.composables.IconButton
@@ -83,7 +85,7 @@ fun TripDialog(
       title = {
          Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-               text = "${data.trip.route.shortName} smjer ${data.trip.headsign}",
+               text = "${data.trip.route.shortName} smjer ${data.trip.preferredHeadsign}",
                modifier = Modifier.weight(1f),
             )
 
@@ -160,7 +162,7 @@ private fun DialogContent(
                      stopColor = Color.Unspecified
                      timeColor = MaterialTheme.colorScheme.primary
                   }
-                  Text(stop.name, color = stopColor)
+                  Text(stop.preferredName, color = stopColor)
                   Text(
                      buildAnnotatedString {
                         val t = realtimeDeparture.minusSeconds(timeOfDay)
@@ -211,18 +213,17 @@ private fun DialogContent(
                   )
                }
 
-               if (data.trip.departures !== realtimeDepartures && i == (nextStopIndex - 1).coerceAtLeast(
-                     0
-                  )
+               if (realtimeDepartures != null &&
+                  data.trip.departures !== realtimeDepartures &&
+                  i == (nextStopIndex - 1).coerceAtLeast(0)
+               ) HintIconButton(
+                  Symbols.MyLocation,
+                  contentDescription = null,
+                  tooltipTitle = "GPS praćenje",
+                  tooltipText = "Ovom vozilu moguće je pratiti lokaciju. " +
+                        "Raspored prikazan ovdje prilagođen je prema " +
+                        "lokaciji vozila."
                )
-                  HintIconButton(
-                     Symbols.MyLocation,
-                     contentDescription = null,
-                     tooltipTitle = "GPS praćenje",
-                     tooltipText = "Ovom vozilu moguće je pratiti lokaciju. " +
-                           "Raspored prikazan ovdje prilagođen je prema " +
-                           "lokaciji vozila."
-                  )
             },
             modifier = Modifier
                .fillMaxWidth()
