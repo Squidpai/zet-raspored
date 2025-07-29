@@ -49,230 +49,231 @@ import hr.squidpai.zetlive.Data
 import hr.squidpai.zetlive.gtfs.ActualRouteLiveSchedule
 import hr.squidpai.zetlive.gtfs.RouteNoLiveSchedule
 import hr.squidpai.zetlive.gtfs.getLiveSchedule
+import hr.squidpai.zetlive.gtfs.preferredName
 import hr.squidpai.zetlive.ui.composables.DirectionRow
 import hr.squidpai.zetlive.ui.composables.IconButton
 import hr.squidpai.zetlive.ui.composables.LiveTravelSlider
 
 @Composable
 fun MainActivityRoutes(routes: Routes) = Column(Modifier.fillMaxSize()) {
-   val inputState = rememberSaveable { mutableStateOf("") }
+    val inputState = rememberSaveable { mutableStateOf("") }
 
-   val pinnedRoutes = Data.pinnedRoutes.toSet()
-   val list = remember(routes) {
-      mutableStateListOf<Route>().apply {
-         addAll(routes.values.filter(inputState.value.trim()))
-      }
-   }
+    val pinnedRoutes = Data.pinnedRoutes.toSet()
+    val list = remember(routes) {
+        mutableStateListOf<Route>().apply {
+            addAll(routes.values.filter(inputState.value.trim()))
+        }
+    }
 
-   val lazyListState = rememberLazyListState()
+    val lazyListState = rememberLazyListState()
 
-   RouteFilterSearchBar(
-      inputState, routes, list, lazyListState,
-      modifier = Modifier
-         .fillMaxWidth()
-         .padding(8.dp)
-   )
+    RouteFilterSearchBar(
+        inputState, routes, list, lazyListState,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(8.dp)
+    )
 
-   LazyColumn(state = lazyListState) {
-      if (inputState.value.isBlank())
-         for (pinnedRouteId in pinnedRoutes) {
-            val route = routes[pinnedRouteId] ?: continue
-            item(key = pinnedRouteId.hashCode()) {
-               RouteContent(
-                  route, pinned = true,
-                  modifier = Modifier
-                     .fillParentMaxWidth()
-                     .animateItem(),
-               )
+    LazyColumn(state = lazyListState) {
+        if (inputState.value.isBlank())
+            for (pinnedRouteId in pinnedRoutes) {
+                val route = routes[pinnedRouteId] ?: continue
+                item(key = pinnedRouteId.hashCode()) {
+                    RouteContent(
+                        route, pinned = true,
+                        modifier = Modifier
+                            .fillParentMaxWidth()
+                            .animateItem(),
+                    )
+                }
             }
-         }
 
-      items(list.size, key = { list[it].id }) {
-         val route = list[it]
-         RouteContent(
-            route, pinned = route.id in pinnedRoutes,
-            modifier = Modifier
-               .fillParentMaxWidth()
-               .animateItem(),
-         )
-      }
-   }
+        items(list.size, key = { list[it].id }) {
+            val route = list[it]
+            RouteContent(
+                route, pinned = route.id in pinnedRoutes,
+                modifier = Modifier
+                    .fillParentMaxWidth()
+                    .animateItem(),
+            )
+        }
+    }
 
 }
 
 @Composable
 private fun RouteFilterSearchBar(
-   inputState: MutableState<String>,
-   routes: Routes,
-   list: SnapshotStateList<Route>,
-   lazyListState: LazyListState,
-   modifier: Modifier = Modifier,
+    inputState: MutableState<String>,
+    routes: Routes,
+    list: SnapshotStateList<Route>,
+    lazyListState: LazyListState,
+    modifier: Modifier = Modifier,
 ) {
-   val (input, setInput) = inputState
+    val (input, setInput) = inputState
 
-   val updateInput = updateInput@{ newInput: String ->
-      if (newInput.length > 100) return@updateInput
-      setInput(newInput)
+    val updateInput = updateInput@{ newInput: String ->
+        if (newInput.length > 100) return@updateInput
+        setInput(newInput)
 
-      val newInputTrimmed = newInput.trim()
-      val oldInputTrimmed = input.trim()
+        val newInputTrimmed = newInput.trim()
+        val oldInputTrimmed = input.trim()
 
-      if (newInputTrimmed != oldInputTrimmed) {
-         lazyListState.requestScrollToItem(0)
+        if (newInputTrimmed != oldInputTrimmed) {
+            lazyListState.requestScrollToItem(0)
 
-         val newList =
-            if (input in newInput) list.filter(newInputTrimmed)
-            else routes.values.filter(newInputTrimmed)
+            val newList =
+                if (input in newInput) list.filter(newInputTrimmed)
+                else routes.values.filter(newInputTrimmed)
 
-         list.clear()
-         list.addAll(newList)
-      }
-   }
+            list.clear()
+            list.addAll(newList)
+        }
+    }
 
-   val keyboardController = LocalSoftwareKeyboardController.current
+    val keyboardController = LocalSoftwareKeyboardController.current
 
-   OutlinedTextField(
-      value = input,
-      onValueChange = updateInput,
-      modifier = modifier,
-      label = { Text("Pretraži linije", maxLines = 1, overflow = TextOverflow.Ellipsis) },
-      leadingIcon = { Icon(Symbols.Search, null) },
-      trailingIcon = {
-         if (input.isNotEmpty())
-            IconButton(
-               Symbols.Close,
-               "Izbriši unos",
-               onClick = { updateInput("") }
-            )
-      },
-      keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-      keyboardActions = KeyboardActions { keyboardController?.hide() },
-   )
+    OutlinedTextField(
+        value = input,
+        onValueChange = updateInput,
+        modifier = modifier,
+        label = { Text("Pretraži linije", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        leadingIcon = { Icon(Symbols.Search, null) },
+        trailingIcon = {
+            if (input.isNotEmpty())
+                IconButton(
+                    Symbols.Close,
+                    "Izbriši unos",
+                    onClick = { updateInput("") }
+                )
+        },
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+        keyboardActions = KeyboardActions { keyboardController?.hide() },
+    )
 }
 
 @Composable
 private fun RouteContent(route: Route, pinned: Boolean, modifier: Modifier) {
-   val (expanded, setExpanded) =
-      rememberSaveable(key = "re${route.id}") { mutableStateOf(false) }
+    val (expanded, setExpanded) =
+        rememberSaveable(key = "re${route.id}") { mutableStateOf(false) }
 
-   val context = LocalContext.current
+    val context = LocalContext.current
 
-   Surface(
-      modifier = modifier
-         .padding(4.dp)
-         .animateContentSize(),
-      tonalElevation = if (expanded) 2.dp else 0.dp,
-   ) {
-      Column {
-         Row(
-            modifier = Modifier
-               .clickable { setExpanded(!expanded) }
-               .minimumInteractiveComponentSize(),
-            verticalAlignment = Alignment.CenterVertically,
-         ) {
-            val shortNameStyle = MaterialTheme.typography.titleMedium
-            Text(
-               route.shortName,
-               modifier = Modifier.width(with(LocalDensity.current) { (shortNameStyle.fontSize * 3.5f).toDp() }),
-               color = MaterialTheme.colorScheme.primary,
-               textAlign = TextAlign.Center,
-               style = shortNameStyle,
-            )
-            Text(route.longName, Modifier.weight(1f))
-
-            if (expanded || pinned)
-               IconButton(
-                  if (pinned) Symbols.PushPinFilled else Symbols.PushPin,
-                  if (pinned) "Otkvači s vrha popisa" else "Zakvači na vrh popisa",
-                  onClick = {
-                     Data.updateData {
-                        if (route.id !in pinnedRoutes) pinnedRoutes += route.id
-                        else pinnedRoutes -= route.id
-                     }
-                  }
-               )
-         }
-
-         if (expanded) {
-            val directionState =
-               rememberSaveable { mutableIntStateOf(Data.getDirectionForRoute(route.id)) }
-
+    Surface(
+        modifier = modifier
+            .padding(4.dp)
+            .animateContentSize(),
+        tonalElevation = if (expanded) 2.dp else 0.dp,
+    ) {
+        Column {
             Row(
-               modifier = Modifier
-                  .fillMaxWidth()
-                  .padding(8.dp),
-               horizontalArrangement = Arrangement.SpaceAround,
+                modifier = Modifier
+                    .clickable { setExpanded(!expanded) }
+                    .minimumInteractiveComponentSize(),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-               OutlinedButton(onClick = {
-                  context.startActivity(
-                     Intent(context, RouteScheduleActivity::class.java)
-                        .putExtra(EXTRA_ROUTE_ID, route.id)
-                        .putExtra(EXTRA_DIRECTION, directionState.intValue)
-                  )
-               }) {
-                  Text("Raspored")
-               }
-               /*TextButton(onClick = {
-                 // TODO show map
-               }) {
-                 Text("Prikaži na karti")
-               }*/
+                val shortNameStyle = MaterialTheme.typography.titleMedium
+                Text(
+                    route.shortName,
+                    modifier = Modifier.width(with(LocalDensity.current) { (shortNameStyle.fontSize * 3.5f).toDp() }),
+                    color = MaterialTheme.colorScheme.primary,
+                    textAlign = TextAlign.Center,
+                    style = shortNameStyle,
+                )
+                Text(route.preferredName, Modifier.weight(1f))
+
+                if (expanded || pinned)
+                    IconButton(
+                        if (pinned) Symbols.PushPinFilled else Symbols.PushPin,
+                        if (pinned) "Otkvači s vrha popisa" else "Zakvači na vrh popisa",
+                        onClick = {
+                            Data.updateData {
+                                if (route.id !in pinnedRoutes) pinnedRoutes += route.id
+                                else pinnedRoutes -= route.id
+                            }
+                        }
+                    )
             }
 
-            RouteLiveTravels(route, directionState)
-         }
-      }
-   }
+            if (expanded) {
+                val directionState =
+                    rememberSaveable { mutableIntStateOf(Data.getDirectionForRoute(route.id)) }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(8.dp),
+                    horizontalArrangement = Arrangement.SpaceAround,
+                ) {
+                    OutlinedButton(onClick = {
+                        context.startActivity(
+                            Intent(context, RouteScheduleActivity::class.java)
+                                .putExtra(EXTRA_ROUTE_ID, route.id)
+                                .putExtra(EXTRA_DIRECTION, directionState.intValue)
+                        )
+                    }) {
+                        Text("Raspored")
+                    }
+                    /*TextButton(onClick = {
+                      // TODO show map
+                    }) {
+                      Text("Prikaži na karti")
+                    }*/
+                }
+
+                RouteLiveTravels(route, directionState)
+            }
+        }
+    }
 }
 
 @Composable
 private fun ColumnScope.RouteLiveTravels(route: Route, directionState: MutableIntState) {
-   val liveSchedule = route.getLiveSchedule()
+    val liveSchedule = route.getLiveSchedule()
 
-   if (liveSchedule == null) {
-      CircularProgressIndicator(
-         Modifier
-            .align(Alignment.CenterHorizontally)
-            .padding(vertical = 8.dp)
-      )
-      return
-   }
+    if (liveSchedule == null) {
+        CircularProgressIndicator(
+            Modifier
+                .align(Alignment.CenterHorizontally)
+                .padding(vertical = 8.dp)
+        )
+        return
+    }
 
-   when (liveSchedule) {
-      is RouteNoLiveSchedule -> Text(
-         liveSchedule.noLiveMessage,
-         Modifier
-            .padding(vertical = 8.dp)
-            .align(Alignment.CenterHorizontally)
-      )
+    when (liveSchedule) {
+        is RouteNoLiveSchedule -> Text(
+            liveSchedule.noLiveMessage,
+            Modifier
+                .padding(vertical = 8.dp)
+                .align(Alignment.CenterHorizontally)
+        )
 
-      is ActualRouteLiveSchedule -> {
-         val (direction, setDirection) = directionState
+        is ActualRouteLiveSchedule -> {
+            val (direction, setDirection) = directionState
 
-         val isRoundRoute =
-            if (liveSchedule.first.isNotEmpty()) liveSchedule.second.isEmpty()
-            else liveSchedule.commonHeadsign.second.isEmpty()
+            val isRoundRoute =
+                if (liveSchedule.first.isNotEmpty()) liveSchedule.second.isEmpty()
+                else liveSchedule.commonHeadsign.second.isEmpty()
 
-         DirectionRow(
-            routeId = route.id,
-            commonHeadsign = liveSchedule.commonHeadsign,
-            direction, setDirection,
-            isRoundRoute,
-         )
-
-         val liveTravels =
-            if (direction == 0 || isRoundRoute) liveSchedule.first
-            else liveSchedule.second
-
-         if (liveTravels.isEmpty())
-            Text(
-               "Linija nema više trenutno polazaka.",
-               Modifier
-                  .padding(vertical = 8.dp)
-                  .align(Alignment.CenterHorizontally)
+            DirectionRow(
+                routeId = route.id,
+                commonHeadsign = liveSchedule.commonHeadsign,
+                direction, setDirection,
+                isRoundRoute,
             )
-         else for (entry in liveTravels)
-            LiveTravelSlider(entry)
-      }
-   }
+
+            val liveTravels =
+                if (direction == 0 || isRoundRoute) liveSchedule.first
+                else liveSchedule.second
+
+            if (liveTravels.isEmpty())
+                Text(
+                    "Linija nema više trenutno polazaka.",
+                    Modifier
+                        .padding(vertical = 8.dp)
+                        .align(Alignment.CenterHorizontally)
+                )
+            else for (entry in liveTravels)
+                LiveTravelSlider(entry)
+        }
+    }
 }

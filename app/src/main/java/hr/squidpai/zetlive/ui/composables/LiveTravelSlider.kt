@@ -32,6 +32,8 @@ import androidx.compose.ui.unit.dp
 import hr.squidpai.zetapi.Love
 import hr.squidpai.zetlive.Data
 import hr.squidpai.zetlive.gtfs.RouteScheduleEntry
+import hr.squidpai.zetlive.gtfs.preferredHeadsign
+import hr.squidpai.zetlive.gtfs.preferredName
 import hr.squidpai.zetlive.orLoading
 import hr.squidpai.zetlive.timeToString
 import hr.squidpai.zetlive.ui.showTripDialog
@@ -50,7 +52,7 @@ fun LiveTravelSlider(routeScheduleEntry: RouteScheduleEntry) {
    LiveTravelSlider(
       nextStopIndex = nextStopIndex,
       sliderValue = sliderValue,
-      stopNames = trip.stops.map { it.name },
+      stopNames = trip.stops.map { it.preferredName },
       departures = trip.departures,
       modifier = Modifier
          .padding(vertical = 6.dp)
@@ -62,13 +64,13 @@ fun LiveTravelSlider(routeScheduleEntry: RouteScheduleEntry) {
             else "kreće za ${-departureTime - 1} min")
                .let { if (isLate) "$it (kasni)" else it }
 
-         !trip.isFirstStopCommon -> "polazište ${trip.stops.first().name.orLoading()}"
+         !trip.isFirstStopCommon -> "polazište ${trip.stops.first().preferredName.orLoading()}"
          else -> null
       },
       isBottomStartError = isAtFirstStop && isLate,
       bottomCenterLabel = specialLabel?.first,
       bottomEndLabel = specialLabel?.second
-         ?: if (!trip.isHeadsignCommon) "smjer ${trip.headsign}" else null,
+         ?: if (!trip.isHeadsignCommon) "smjer ${trip.preferredHeadsign}" else null,
       tint = when {
          isCancelled -> MaterialTheme.colorScheme.surfaceVariant
 
