@@ -3,6 +3,8 @@ package hr.squidpai.zetapi.cached
 import com.opencsv.CSVReader
 import com.opencsv.CSVWriter
 import hr.squidpai.zetapi.DirectionId
+import hr.squidpai.zetapi.Love
+import hr.squidpai.zetapi.PairAsListSerializer
 import hr.squidpai.zetapi.Route
 import hr.squidpai.zetapi.RouteId
 import hr.squidpai.zetapi.ServiceId
@@ -17,19 +19,12 @@ import hr.squidpai.zetapi.readNextIntList
 import hr.squidpai.zetapi.realtime.RealtimeDispatcher
 import hr.squidpai.zetapi.toStopId
 import hr.squidpai.zetapi.writeNext
-import kotlinx.serialization.ExperimentalSerializationApi
-import kotlinx.serialization.KSerializer
-import kotlinx.serialization.builtins.ArraySerializer
 import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
-import kotlinx.serialization.descriptors.SerialDescriptor
-import kotlinx.serialization.encoding.Decoder
-import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.Json
 import java.io.File
 import java.nio.channels.FileChannel
 import java.util.zip.ZipFile
-import kotlin.reflect.KClass
 
 /** Trips 'N' Stop sequences */
 private typealias TNS = Pair<Trips, Pair<List<List<Stop>>, List<List<Stop>>>>
@@ -71,7 +66,7 @@ internal class CachedRoute(
 
    private fun CSVReader.readStops(): List<Stop> {
       val next = readNext()
-      return List(next.size) { stops[next[it].toStopId()]!! }
+      return List(next.size) { stops[Love.redirectMeToTheBetterStopId(id, next[it].toStopId())]!! }
    }
 
    @Synchronized
@@ -157,34 +152,5 @@ internal class CachedRoute(
 
 private val CommonHeadsignsSerializer = MapSerializer(
    keySerializer = String.serializer(),
-   valueSerializer = PairSerializer(String.serializer()),
+   valueSerializer = PairAsListSerializer(String.serializer()),
 )
-
-private inline fun <reified T : Any> PairSerializer(
-   elementSerializer: KSerializer<T>
-) = PairSerializer(T::class, elementSerializer)
-
-@OptIn(ExperimentalSerializationApi::class)
-private class PairSerializer<T : Any>(
-   kClass: KClass<T>,
-   elementSerializer: KSerializer<T>
-) : KSerializer<Pair<T, T>> {
-   private val delegateSerializer = ArraySerializer(kClass, elementSerializer)
-
-   override val descriptor = SerialDescriptor(
-      "kotlin.Pair<String,String>",
-      delegateSerializer.descriptor
-   )
-
-   override fun serialize(encoder: Encoder, value: Pair<T, T>) =
-      @Suppress("UNCHECKED_CAST")
-      encoder.encodeSerializableValue(
-         delegateSerializer,
-         arrayOf<Any>(value.first, value.second) as Array<T>,
-      )
-
-   override fun deserialize(decoder: Decoder): Pair<T, T> {
-      val data = decoder.decodeSerializableValue(delegateSerializer)
-      return data[0] to data[1]
-   }
-}
