@@ -107,12 +107,6 @@ object ScheduleManager {
       }
       Log.d(TAG, "init: initializing")
 
-      // delete the old schedule which doesn't include trips without a shape
-      if (!Data.scheduleFixed) {
-         Data.updateData { scheduleFixed = true }
-         File(filesDir, SCHEDULE_NAME).delete()
-      }
-
       removeLegacyStopTimesDirectory(filesDir)
 
       val scheduleFile = File(filesDir, SCHEDULE_NAME)
