@@ -28,13 +28,13 @@ internal object CachedStop {
    )
 
    operator fun invoke(data: Array<out String>, routes: Routes) = Stop(
-      id = data[0].toStopId(),
-      code = data[1].toInt(),
-      name = data[2],
-      latitude = data[3].toFloat(),
-      longitude = data[4].toFloat(),
-      parentId = data[5].toInt(),
-      routes = Json.decodeFromString(RoutesSerializer(routes), data[6])
+       id = data[0].toStopId(),
+       code = data[1].toInt(),
+       name = data[2],
+       latitude = data[3].toFloat(),
+       longitude = data[4].toFloat(),
+       parentId = data[5].toInt(),
+       routes = Json.decodeFromString(RoutesSerializer(routes), data[6])
    )
 }
 
