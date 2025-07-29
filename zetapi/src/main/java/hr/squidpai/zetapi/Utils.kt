@@ -136,3 +136,10 @@ public fun <T : Comparable<T>> maxOf(vararg elements: T?): T? {
       max = maxOf(max, elements[i])
    return max
 }
+
+internal inline fun <K, V, R> Map<K, V>.mapValuesNotNull(transform: (V) -> R?): Map<K, R & Any> {
+   val newMap = mutableMapOf<K, R & Any>()
+   for ((key, value) in this)
+      newMap[key] = transform(value) ?: continue
+   return newMap
+}
