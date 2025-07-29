@@ -47,6 +47,7 @@ import androidx.compose.ui.layout.MeasureScope
 import androidx.compose.ui.layout.layoutId
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
@@ -61,15 +62,18 @@ import hr.squidpai.zetapi.ServiceTypes
 import hr.squidpai.zetapi.TimeOfDay
 import hr.squidpai.zetapi.Trip
 import hr.squidpai.zetapi.filterByServiceId
-import hr.squidpai.zetapi.findFirstDeparture
 import hr.squidpai.zetapi.sortedByDepartures
 import hr.squidpai.zetapi.splitByDirection
 import hr.squidpai.zetlive.LOADING_TEXT
 import hr.squidpai.zetlive.MILLIS_IN_DAY
 import hr.squidpai.zetlive.MILLIS_IN_SECONDS
 import hr.squidpai.zetlive.SECONDS_IN_DAY
+import hr.squidpai.zetlive.gtfs.RealtimeTrip
 import hr.squidpai.zetlive.gtfs.ScheduleManager
 import hr.squidpai.zetlive.gtfs.contentColor
+import hr.squidpai.zetlive.gtfs.preferredCommonHeadsigns
+import hr.squidpai.zetlive.gtfs.preferredHeadsign
+import hr.squidpai.zetlive.gtfs.preferredName
 import hr.squidpai.zetlive.localCurrentTimeMillis
 import hr.squidpai.zetlive.timeToString
 import hr.squidpai.zetlive.ui.composables.CircularLoadingBox
@@ -85,427 +89,445 @@ import kotlin.time.Duration.Companion.seconds
 
 class RouteScheduleActivity : BaseAppActivity("RouteScheduleActivity") {
 
-   companion object {
-      /** Array whose contents is `["Pon", "Uto", "Sri", "Čet", "Pet", "Sub", "Ned"]` */
-      private val croatianShortDaysOfWeek = arrayOf(
-         "Pon", "Uto", "Sri", "Čet", "Pet", "Sub", "Ned"
-      )
-   }
+    companion object {
+        /** Array whose contents is `["Pon", "Uto", "Sri", "Čet", "Pet", "Sub", "Ned"]` */
+        private val croatianShortDaysOfWeek = arrayOf(
+            "Pon", "Uto", "Sri", "Čet", "Pet", "Sub", "Ned"
+        )
+    }
 
-   private val measuredTime = localCurrentTimeMillis()
-   private val todaysDate = measuredTime / MILLIS_IN_DAY
-   private val todaysTime = (measuredTime % MILLIS_IN_DAY).toInt()
-   private val cachedDateStrings = Array(11) {
-      val localDate = LocalDate.ofEpochDay(todaysDate + it - 2)
-      "${croatianShortDaysOfWeek[localDate.dayOfWeek.ordinal]} ${localDate.dayOfMonth}.${localDate.monthValue}."
-   }
+    private val measuredTime = localCurrentTimeMillis()
+    private val todaysDate = measuredTime / MILLIS_IN_DAY
+    private val todaysTime = (measuredTime % MILLIS_IN_DAY).toInt()
+    private val cachedDateStrings = Array(11) {
+        val localDate = LocalDate.ofEpochDay(todaysDate + it - 2)
+        "${croatianShortDaysOfWeek[localDate.dayOfWeek.ordinal]} ${localDate.dayOfMonth}.${localDate.monthValue}."
+    }
 
-   private fun getLabel(differenceFromToday: Int) =
-      cachedDateStrings[differenceFromToday + 2]
+    private fun getLabel(differenceFromToday: Int) =
+        cachedDateStrings[differenceFromToday + 2]
 
-   private val selectedDirection = mutableIntStateOf(0)
+    private val selectedDirection = mutableIntStateOf(0)
 
-   private lateinit var routeId: RouteId
+    private lateinit var routeId: RouteId
 
-   override fun onCreate(savedInstanceState: Bundle?) {
-      super.onCreate(savedInstanceState)
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
 
-      routeId = intent.getStringExtra(EXTRA_ROUTE_ID)
-         ?: run {
-            Log.w(TAG, "onCreate: No route id given, finishing activity early.")
+        routeId = intent.getStringExtra(EXTRA_ROUTE_ID)
+            ?: run {
+                Log.w(TAG, "onCreate: No route id given, finishing activity early.")
 
-            finish()
-            return
-         }
-
-      if (intent.getIntExtra(EXTRA_DIRECTION, 0) == 1)
-         selectedDirection.intValue = 1
-   }
-
-   @Composable
-   override fun Content() {
-      val schedule = ScheduleManager.instance.collectAsState().value
-
-      val route = schedule?.routes?.get(routeId)
-
-      Scaffold(topBar = {
-         MyTopAppBar(
-            when {
-               route != null -> "${route.shortName} ${route.longName}"
-               schedule == null -> "$routeId $LOADING_TEXT"
-               else -> routeId
+                finish()
+                return
             }
-         )
-      }) { padding ->
-         if (schedule != null && route != null)
-            MyContent(
-               route = route,
-               serviceTypes = schedule.serviceTypes,
-               calendarDates = schedule.calendarDates,
-               modifier = Modifier.padding(padding),
+
+        if (intent.getIntExtra(EXTRA_DIRECTION, 0) == 1)
+            selectedDirection.intValue = 1
+    }
+
+    @Composable
+    override fun Content() {
+        val schedule = ScheduleManager.instance.collectAsState().value
+
+        val route = schedule?.routes?.get(routeId)
+
+        Scaffold(topBar = {
+            MyTopAppBar(
+                when {
+                    route != null -> "${route.shortName} ${route.preferredName}"
+                    schedule == null -> "$routeId $LOADING_TEXT"
+                    else -> routeId
+                }
             )
-         else CircularLoadingBox(Modifier.padding(padding))
-      }
+        }) { padding ->
+            if (schedule != null && route != null)
+                MyContent(
+                    route = route,
+                    serviceTypes = schedule.serviceTypes,
+                    calendarDates = schedule.calendarDates,
+                    modifier = Modifier.padding(padding),
+                )
+            else CircularLoadingBox(Modifier.padding(padding))
+        }
 
-   }
+    }
 
-   @OptIn(ExperimentalMaterial3Api::class)
-   @Composable
-   private fun MyTopAppBar(titleText: String) = TopAppBar(
-      title = {
-         Text(
-            titleText,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-         )
-      },
-      navigationIcon = {
-         IconButton(
-            Icons.AutoMirrored.Outlined.ArrowBack,
-            contentDescription = "Natrag",
-            onClick = { finish() }
-         )
-      },
-      windowInsets = WindowInsets.safeDrawing
-         .only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top),
-   )
-
-   @Composable
-   private fun MyContent(
-      route: Route,
-      serviceTypes: ServiceTypes?,
-      calendarDates: CalendarDates,
-      modifier: Modifier = Modifier,
-   ) = Column(modifier) {
-      val yesterdayServiceId = calendarDates[todaysDate - 1]
-      val isYesterdayUnfinished = yesterdayServiceId != null &&
-            route.trips.values.any {
-               it.serviceId == yesterdayServiceId &&
-                     it.departures.last() - 1 * SECONDS_IN_DAY > todaysTime / MILLIS_IN_SECONDS
-            }
-      val todayTabOffset = if (isYesterdayUnfinished) 2 else 1
-      val serviceIds = calendarDates.relativeSubRange(
-         todaysDate,
-         if (isYesterdayUnfinished) -2..7 else -1..7
-      )
-
-      val pagerState = rememberPagerState(initialPage = 1) {
-         if (isYesterdayUnfinished) 10 else 9
-      }
-
-      val scope = rememberCoroutineScope()
-
-      ServiceTabRow(
-         serviceIds,
-         todayTabOffset,
-         selectedTabIndex = pagerState.currentPage,
-         onSetSelectedTabIndex = {
-            scope.launch { pagerState.animateScrollToPage(it) }
-         },
-         serviceTypes,
-      )
-
-      HorizontalPager(pagerState, verticalAlignment = Alignment.Top) {
-         val serviceId = serviceIds.getOrNull(it)
-         val date = todaysDate + it - todayTabOffset
-
-         val filteredTrips =
-            if (serviceId != null)
-               route.trips
-                  .filterByServiceId(serviceId)
-                  .splitByDirection()
-                  .sortedByDepartures()
-            else // this date does not have a schedule associated with it
-               emptyList<Trip>() to emptyList()
-
-         DateContent(
-            route,
-            tripsLists = filteredTrips,
-            selectedServiceId = serviceId,
-            selectedDate = date,
-            serviceTypes = serviceTypes,
-         )
-      }
-   }
-
-   @Composable
-   private fun DateContent(
-      route: Route,
-      tripsLists: Pair<List<Trip>, List<Trip>>,
-      selectedServiceId: ServiceId?,
-      selectedDate: Long,
-      serviceTypes: ServiceTypes?,
-   ) = Column {
-      val (direction, setDirection) = selectedDirection
-
-      val commonHeadsigns = route.commonHeadsigns[selectedServiceId]
-
-      val currentTime = localCurrentTimeMillis().milliseconds
-      val timeOffset = selectedDate.days
-
-      val states = remember(key1 = System.identityHashCode(tripsLists)) {
-         val timeOfDay = TimeOfDay(currentTime - timeOffset)
-         LazyListState(tripsLists.first.findFirstDeparture(timeOfDay)) to
-               LazyListState(tripsLists.second.findFirstDeparture(timeOfDay))
-      }
-
-      val isRoundRoute =
-         if (tripsLists.first.isNotEmpty()) tripsLists.second.isEmpty()
-         else commonHeadsigns?.second?.isEmpty() ?: false
-
-      val list: List<Trip>
-      val state: LazyListState
-      if (direction == 0 || isRoundRoute) {
-         list = tripsLists.first
-         state = states.first
-      } else {
-         list = tripsLists.second
-         state = states.second
-      }
-
-      if (commonHeadsigns != null)
-         DirectionRow(
-            route.id,
-            commonHeadsigns,
-            direction,
-            setDirection,
-            isRoundRoute
-         )
-
-      if (list.isEmpty())
-         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            val specialLabel =
-               Love.giveMeTheSpecialLabelForNoTrips(
-                  route,
-                  selectedServiceId,
-                  selectedDate,
-                  serviceTypes,
-               )
-            Text(specialLabel, Modifier.padding(horizontal = 16.dp))
-         }
-      else LazyColumn(state = state) {
-         val firstOfNextDay =
-            list.indexOfFirst { TimeOfDay(it.departures.first()).isTomorrow() }
-
-         items(list.size) { i ->
-            val trip = list[i]
-
-            if (i == firstOfNextDay) {
-               HorizontalDivider(Modifier.padding(horizontal = 4.dp))
-               Text(
-                  getLabel((selectedDate + 1 - todaysDate).toInt()),
-                  Modifier
-                     .fillMaxWidth()
-                     .background(
-                        MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp)
-                     ),
-                  textAlign = TextAlign.Center,
-                  style = MaterialTheme.typography.titleMedium,
-               )
-            }
-            HorizontalDivider(Modifier.padding(horizontal = 4.dp))
-            TripRow(
-               trip,
-               liveComparison = when {
-                  currentTime < trip.departures.first().seconds + timeOffset -> 1
-                  currentTime < trip.departures.last().seconds + timeOffset -> 0
-                  else -> -1
-               },
-               selectedDate
+    @OptIn(ExperimentalMaterial3Api::class)
+    @Composable
+    private fun MyTopAppBar(titleText: String) = TopAppBar(
+        title = {
+            Text(
+                titleText,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
-         }
-      }
-   }
+        },
+        navigationIcon = {
+            IconButton(
+                Icons.AutoMirrored.Outlined.ArrowBack,
+                contentDescription = "Natrag",
+                onClick = { finish() }
+            )
+        },
+        windowInsets = WindowInsets.safeDrawing
+            .only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top),
+    )
 
-   @Composable
-   private fun TripRow(
-      trip: Trip,
-      liveComparison: Int,
-      selectedDate: Long,
-      modifier: Modifier = Modifier,
-   ) {
-      val specialLabel = Love.giveMeTheSpecialTripLabel(trip)
+    @Composable
+    private fun MyContent(
+        route: Route,
+        serviceTypes: ServiceTypes?,
+        calendarDates: CalendarDates,
+        modifier: Modifier = Modifier,
+    ) = Column(modifier) {
+        val yesterdayServiceId = calendarDates[todaysDate - 1]
+        val isYesterdayUnfinished = yesterdayServiceId != null &&
+                route.trips.values.any {
+                    it.serviceId == yesterdayServiceId &&
+                            it.departures.last() - 1 * SECONDS_IN_DAY > todaysTime / MILLIS_IN_SECONDS
+                }
+        val todayTabOffset = if (isYesterdayUnfinished) 2 else 1
+        val serviceIds = calendarDates.relativeSubRange(
+            todaysDate,
+            if (isYesterdayUnfinished) -2..7 else -1..7
+        )
 
-      Layout(
-         content = {
-            val tint = when {
-               liveComparison < 0 -> MaterialTheme.colorScheme.disabled
+        val pagerState = rememberPagerState(initialPage = 1) {
+            if (isYesterdayUnfinished) 10 else 9
+        }
 
-               liveComparison == 0 -> MaterialTheme.colorScheme.primary
-               else -> MaterialTheme.colorScheme.onSurface
-            }
-            val weight = if (liveComparison == 0) FontWeight.SemiBold else null
+        val scope = rememberCoroutineScope()
 
-            val startLabel = specialLabel?.first
-               ?: if (!trip.isFirstStopCommon) trip.stops.first().name else null
+        ServiceTabRow(
+            serviceIds,
+            todayTabOffset,
+            selectedTabIndex = pagerState.currentPage,
+            onSetSelectedTabIndex = {
+                scope.launch { pagerState.animateScrollToPage(it) }
+            },
+            serviceTypes,
+        )
 
-            if (startLabel != null) Text(
-               text = startLabel,
-               color = tint,
-               fontWeight = weight,
-               textAlign = TextAlign.Center,
-               maxLines = 3,
+        HorizontalPager(pagerState, verticalAlignment = Alignment.Top) {
+            val serviceId = serviceIds.getOrNull(it)
+            val date = todaysDate + it - todayTabOffset
+
+            val filteredTrips =
+                if (serviceId != null)
+                    route.trips
+                        .filterByServiceId(serviceId)
+                        .splitByDirection()
+                        .sortedByDepartures()
+                else // this date does not have a schedule associated with it
+                    emptyList<Trip>() to emptyList()
+
+            DateContent(
+                route,
+                unsortedTripList = filteredTrips,
+                selectedServiceId = serviceId,
+                selectedDate = date,
+                serviceTypes = serviceTypes,
+            )
+        }
+    }
+
+    private fun List<RealtimeTrip>.findFirstDeparture(timeOfDay: TimeOfDay): Int {
+        val firstIndex = indexOfFirst {
+            it.realtimeDepartures.last() > timeOfDay.valueInSeconds
+        }
+
+        return if (firstIndex >= 0) firstIndex
+        else -firstIndex - 1
+    }
+
+    @Composable
+    private fun DateContent(
+        route: Route,
+        unsortedTripList: Pair<List<Trip>, List<Trip>>,
+        selectedServiceId: ServiceId?,
+        selectedDate: Long,
+        serviceTypes: ServiceTypes?,
+    ) = Column {
+        val tripsLists = unsortedTripList.first.map { RealtimeTrip(it) } to
+                unsortedTripList.second.map { RealtimeTrip(it) }
+
+        val (direction, setDirection) = selectedDirection
+
+        val commonHeadsigns = route.preferredCommonHeadsigns[selectedServiceId]
+
+        val currentTime = localCurrentTimeMillis().milliseconds
+        val timeOffset = selectedDate.days
+
+        val states = remember(key1 = System.identityHashCode(tripsLists)) {
+            val timeOfDay = TimeOfDay(currentTime - timeOffset)
+            LazyListState(tripsLists.first.findFirstDeparture(timeOfDay)) to
+                    LazyListState(tripsLists.second.findFirstDeparture(timeOfDay))
+        }
+
+        val isRoundRoute =
+            if (tripsLists.first.isNotEmpty()) tripsLists.second.isEmpty()
+            else commonHeadsigns?.second?.isEmpty() ?: false
+
+        val list: List<RealtimeTrip>
+        val state: LazyListState
+        if (direction == 0 || isRoundRoute) {
+            list = tripsLists.first
+            state = states.first
+        } else {
+            list = tripsLists.second
+            state = states.second
+        }
+
+        if (commonHeadsigns != null)
+            DirectionRow(
+                route.id,
+                commonHeadsigns,
+                direction,
+                setDirection,
+                isRoundRoute
             )
 
-            Row(
-               Modifier
-                  .padding(horizontal = 8.dp)
-                  .layoutId(TripRowMeasurePolicy.TIME_LAYOUT_ID),
-               verticalAlignment = Alignment.CenterVertically
-            ) {
-               Text(
-                  text = trip.departures.first().timeToString(),
-                  color = tint,
-                  fontWeight = weight,
-                  textAlign = TextAlign.End,
-               )
-               Icon(
-                  Icons.AutoMirrored.Filled.ArrowForward,
-                  contentDescription = null,
-                  modifier = Modifier.padding(horizontal = 8.dp),
-                  tint = tint,
-               )
-               Text(
-                  trip.departures.last().timeToString(),
-                  color = tint,
-                  fontWeight = weight
-               )
+        if (list.isEmpty())
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                val specialLabel =
+                    Love.giveMeTheSpecialLabelForNoTrips(
+                        route,
+                        selectedServiceId,
+                        selectedDate,
+                        serviceTypes,
+                    )
+                Text(specialLabel, Modifier.padding(horizontal = 16.dp))
+            }
+        else LazyColumn(state = state) {
+            val firstOfNextDay =
+                list.indexOfFirst { TimeOfDay(it.trip.departures.first()).isTomorrow() }
+
+            items(list.size) { i ->
+                val realtimeTrip = list[i]
+
+                if (i == firstOfNextDay) {
+                    HorizontalDivider(Modifier.padding(horizontal = 4.dp))
+                    Text(
+                        getLabel((selectedDate + 1 - todaysDate).toInt()),
+                        Modifier
+                           .fillMaxWidth()
+                           .background(MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp)),
+                        textAlign = TextAlign.Center,
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                }
+                HorizontalDivider(Modifier.padding(horizontal = 4.dp))
+                TripRow(
+                    trip = realtimeTrip.trip,
+                    liveComparison = when {
+                        currentTime < realtimeTrip.realtimeDepartures.first().seconds + timeOffset -> 1
+                        currentTime < realtimeTrip.realtimeDepartures.last().seconds + timeOffset -> 0
+                        else -> -1
+                    },
+                    isCancelled = realtimeTrip.isCancelled,
+                    selectedDate = selectedDate,
+                )
+            }
+        }
+    }
+
+    @Composable
+    private fun TripRow(
+        trip: Trip,
+        liveComparison: Int,
+        isCancelled: Boolean,
+        selectedDate: Long,
+        modifier: Modifier = Modifier,
+    ) {
+        val specialLabel = Love.giveMeTheSpecialTripLabel(trip)
+
+        Layout(
+            content = {
+                val tint = when {
+                    isCancelled || liveComparison < 0 -> MaterialTheme.colorScheme.disabled
+
+                    liveComparison == 0 -> MaterialTheme.colorScheme.primary
+                    else -> MaterialTheme.colorScheme.onSurface
+                }
+                val weight = if (liveComparison == 0) FontWeight.SemiBold else null
+
+                val startLabel = specialLabel?.first
+                    ?: if (!trip.isFirstStopCommon) trip.stops.first().preferredName else null
+
+                val textDecoration = if (isCancelled) TextDecoration.LineThrough else null
+
+                if (startLabel != null) Text(
+                    text = startLabel,
+                    color = tint,
+                    fontWeight = weight,
+                    textDecoration = textDecoration,
+                    textAlign = TextAlign.Center,
+                    maxLines = 3,
+                )
+
+                Row(
+                    Modifier
+                       .padding(horizontal = 8.dp)
+                       .layoutId(TripRowMeasurePolicy.TIME_LAYOUT_ID),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = trip.departures.first().timeToString(),
+                        color = tint,
+                        fontWeight = weight,
+                        textDecoration = textDecoration,
+                        textAlign = TextAlign.End,
+                    )
+                    Icon(
+                        Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = null,
+                        modifier = Modifier.padding(horizontal = 8.dp),
+                        tint = tint,
+                    )
+                    Text(
+                        trip.departures.last().timeToString(),
+                        color = tint,
+                        fontWeight = weight,
+                        textDecoration = textDecoration,
+                    )
+                }
+
+                val endLabel = specialLabel?.second
+                    ?: if (!trip.isHeadsignCommon) trip.preferredHeadsign else null
+
+                if (endLabel != null) Text(
+                    text = endLabel,
+                    color = tint,
+                    fontWeight = weight,
+                    textDecoration = textDecoration,
+                    textAlign = TextAlign.Center,
+                    maxLines = 3,
+                )
+            },
+            modifier = modifier.clickable { showTripDialog(trip, selectedDate) },
+            measurePolicy = TripRowMeasurePolicy,
+        )
+    }
+
+    private data object TripRowMeasurePolicy : MeasurePolicy {
+
+        const val TIME_LAYOUT_ID = "time"
+
+        override fun MeasureScope.measure(
+            measurables: List<Measurable>,
+            constraints: Constraints
+        ): MeasureResult {
+            if (measurables.size == 1) {
+                val timePlaceable = measurables[0].measure(constraints)
+
+                val actualHeight = max(48.dp.roundToPx(), timePlaceable.height)
+                val yOffset = (actualHeight - timePlaceable.height) / 2
+
+                return layout(constraints.maxWidth, actualHeight) {
+                    timePlaceable.place(
+                        (constraints.maxWidth - timePlaceable.width) / 2,
+                        yOffset
+                    )
+                }
             }
 
-            val endLabel = specialLabel?.second
-               ?: if (!trip.isHeadsignCommon) trip.headsign else null
+            val timeIndex =
+                measurables.indexOfFirst { TIME_LAYOUT_ID == it.layoutId }
 
-            if (endLabel != null) Text(
-               text = endLabel,
-               color = tint,
-               fontWeight = weight,
-               textAlign = TextAlign.Center,
-               maxLines = 3,
-            )
-         },
-         modifier = modifier.clickable { showTripDialog(trip, selectedDate) },
-         measurePolicy = TripRowMeasurePolicy,
-      )
-   }
+            val timePlaceable = measurables[timeIndex].measure(constraints)
 
-   private data object TripRowMeasurePolicy : MeasurePolicy {
+            val leftTextMeasurable =
+                if (timeIndex != 0) measurables.first() else null
+            val rightTextMeasurable =
+                if (timeIndex != measurables.lastIndex) measurables.last() else null
 
-      const val TIME_LAYOUT_ID = "time"
+            if (constraints.maxWidth - timePlaceable.width >= 180.dp.roundToPx()) {
+                val maxTextWidth = (constraints.maxWidth - timePlaceable.width) / 2
 
-      override fun MeasureScope.measure(
-         measurables: List<Measurable>,
-         constraints: Constraints
-      ): MeasureResult {
-         if (measurables.size == 1) {
-            val timePlaceable = measurables[0].measure(constraints)
+                val leftPlaceable =
+                    leftTextMeasurable?.measure(constraints.copy(maxWidth = maxTextWidth))
+                val rightPlaceable =
+                    rightTextMeasurable?.measure(constraints.copy(maxWidth = maxTextWidth))
 
-            val actualHeight = max(48.dp.roundToPx(), timePlaceable.height)
-            val yOffset = (actualHeight - timePlaceable.height) / 2
+                var actualHeight = 48.dp.roundToPx()
+                if (timePlaceable.height > actualHeight) actualHeight =
+                    timePlaceable.height
+                if (leftPlaceable != null && leftPlaceable.height > actualHeight) actualHeight =
+                    leftPlaceable.height
+                if (rightPlaceable != null && rightPlaceable.height > actualHeight) actualHeight =
+                    rightPlaceable.height
 
-            return layout(constraints.maxWidth, actualHeight) {
-               timePlaceable.place(
-                  (constraints.maxWidth - timePlaceable.width) / 2,
-                  yOffset
-               )
+                return layout(constraints.maxWidth, actualHeight) {
+                    leftPlaceable?.place(
+                        ((constraints.maxWidth - timePlaceable.width) / 2 - leftPlaceable.width) / 2,
+                        (actualHeight - leftPlaceable.height) / 2,
+                    )
+                    timePlaceable.place(
+                        (constraints.maxWidth - timePlaceable.width) / 2,
+                        (actualHeight - timePlaceable.height) / 2,
+                    )
+                    rightPlaceable?.place(
+                        (constraints.maxWidth + timePlaceable.width) / 2 + ((constraints.maxWidth - timePlaceable.width) / 2 - rightPlaceable.width) / 2,
+                        (actualHeight - rightPlaceable.height) / 2,
+                    )
+                }
             }
-         }
 
-         val timeIndex =
-            measurables.indexOfFirst { TIME_LAYOUT_ID == it.layoutId }
+            val leftPlaceable = leftTextMeasurable?.measure(constraints)
+            val rightPlaceable = rightTextMeasurable?.measure(constraints)
 
-         val timePlaceable = measurables[timeIndex].measure(constraints)
+            val height =
+                (leftPlaceable?.height
+                    ?: 0) + timePlaceable.height + (rightPlaceable?.height ?: 0)
 
-         val leftTextMeasurable =
-            if (timeIndex != 0) measurables.first() else null
-         val rightTextMeasurable =
-            if (timeIndex != measurables.lastIndex) measurables.last() else null
-
-         if (constraints.maxWidth - timePlaceable.width >= 180.dp.roundToPx()) {
-            val maxTextWidth = (constraints.maxWidth - timePlaceable.width) / 2
-
-            val leftPlaceable =
-               leftTextMeasurable?.measure(constraints.copy(maxWidth = maxTextWidth))
-            val rightPlaceable =
-               rightTextMeasurable?.measure(constraints.copy(maxWidth = maxTextWidth))
-
-            var actualHeight = 48.dp.roundToPx()
-            if (timePlaceable.height > actualHeight) actualHeight =
-               timePlaceable.height
-            if (leftPlaceable != null && leftPlaceable.height > actualHeight) actualHeight =
-               leftPlaceable.height
-            if (rightPlaceable != null && rightPlaceable.height > actualHeight) actualHeight =
-               rightPlaceable.height
-
-            return layout(constraints.maxWidth, actualHeight) {
-               leftPlaceable?.place(
-                  ((constraints.maxWidth - timePlaceable.width) / 2 - leftPlaceable.width) / 2,
-                  (actualHeight - leftPlaceable.height) / 2,
-               )
-               timePlaceable.place(
-                  (constraints.maxWidth - timePlaceable.width) / 2,
-                  (actualHeight - timePlaceable.height) / 2,
-               )
-               rightPlaceable?.place(
-                  (constraints.maxWidth + timePlaceable.width) / 2 + ((constraints.maxWidth - timePlaceable.width) / 2 - rightPlaceable.width) / 2,
-                  (actualHeight - rightPlaceable.height) / 2,
-               )
+            return layout(constraints.maxWidth, height) {
+                leftPlaceable?.place(0, 0)
+                timePlaceable.place(
+                    (constraints.maxWidth - timePlaceable.width) / 2,
+                    leftPlaceable?.height ?: 0
+                )
+                rightPlaceable?.place(
+                    constraints.maxWidth - rightPlaceable.width,
+                    (leftPlaceable?.height ?: 0) + timePlaceable.height,
+                )
             }
-         }
+        }
+    }
 
-         val leftPlaceable = leftTextMeasurable?.measure(constraints)
-         val rightPlaceable = rightTextMeasurable?.measure(constraints)
-
-         val height =
-            (leftPlaceable?.height
-               ?: 0) + timePlaceable.height + (rightPlaceable?.height ?: 0)
-
-         return layout(constraints.maxWidth, height) {
-            leftPlaceable?.place(0, 0)
-            timePlaceable.place(
-               (constraints.maxWidth - timePlaceable.width) / 2,
-               leftPlaceable?.height ?: 0
+    @OptIn(ExperimentalMaterial3Api::class)
+    @Composable
+    private fun ServiceTabRow(
+        serviceIds: List<ServiceId?>,
+        todayTabOffset: Int,
+        selectedTabIndex: Int,
+        onSetSelectedTabIndex: (Int) -> Unit,
+        serviceTypes: ServiceTypes?,
+        modifier: Modifier = Modifier,
+    ) = PrimaryScrollableTabRow(
+        selectedTabIndex, modifier,
+        indicator = {
+            TabRowDefaults.PrimaryIndicator(
+                Modifier.tabIndicatorOffset(
+                    selectedTabIndex,
+                    matchContentSize = true
+                ),
+                width = Dp.Unspecified,
+                color = (serviceTypes?.get(serviceIds[selectedTabIndex])
+                    ?: ServiceType.WEEKDAY).contentColor
             )
-            rightPlaceable?.place(
-               constraints.maxWidth - rightPlaceable.width,
-               (leftPlaceable?.height ?: 0) + timePlaceable.height,
+        }
+    ) {
+        serviceIds.forEachIndexed { i, serviceId ->
+            val type = serviceTypes?.get(serviceId) ?: ServiceType.WEEKDAY
+
+            Tab(
+                selected = selectedTabIndex == i,
+                onClick = { onSetSelectedTabIndex(i) },
+                text = { Text(getLabel(i - todayTabOffset)) },
+                selectedContentColor = type.contentColor,
             )
-         }
-      }
-   }
-
-   @OptIn(ExperimentalMaterial3Api::class)
-   @Composable
-   private fun ServiceTabRow(
-      serviceIds: List<ServiceId?>,
-      todayTabOffset: Int,
-      selectedTabIndex: Int,
-      onSetSelectedTabIndex: (Int) -> Unit,
-      serviceTypes: ServiceTypes?,
-      modifier: Modifier = Modifier,
-   ) = PrimaryScrollableTabRow(
-      selectedTabIndex, modifier,
-      indicator = {
-         TabRowDefaults.PrimaryIndicator(
-            Modifier.tabIndicatorOffset(
-               selectedTabIndex,
-               matchContentSize = true
-            ),
-            width = Dp.Unspecified,
-            color = (serviceTypes?.get(serviceIds[selectedTabIndex])
-               ?: ServiceType.WEEKDAY).contentColor
-         )
-      }
-   ) {
-      serviceIds.forEachIndexed { i, serviceId ->
-         val type = serviceTypes?.get(serviceId) ?: ServiceType.WEEKDAY
-
-         Tab(
-            selected = selectedTabIndex == i,
-            onClick = { onSetSelectedTabIndex(i) },
-            text = { Text(getLabel(i - todayTabOffset)) },
-            selectedContentColor = type.contentColor,
-         )
-      }
-   }
+        }
+    }
 
 }
