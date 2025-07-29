@@ -16,7 +16,7 @@ internal typealias CsvHeaderMapping = (header: Array<out String>) -> IntArray
  * the object of type `T`.
  */
 internal typealias CsvFactory<T> =
-         (headerMap: IntArray, data: Array<out String>) -> T
+            (headerMap: IntArray, data: Array<out String>) -> T
 
 /**
  * Function that takes in the data from csv and using
@@ -31,9 +31,9 @@ internal typealias CsvFactory<T> =
  * for example, because new data was appended to the previous element.
  */
 internal typealias SequentialCsvFactory<T> = (
-   headerMap: IntArray,
-   data: Array<out String>,
-   previous: T?,
+    headerMap: IntArray,
+    data: Array<out String>,
+    previous: T?,
 ) -> T?
 
 /**
@@ -42,9 +42,9 @@ internal typealias SequentialCsvFactory<T> = (
  * **Note:** it is the caller's responsibility to close the zip file.
  */
 internal fun <T> ZipFile.csvToListFromEntry(
-   name: String,
-   headerMapping: CsvHeaderMapping,
-   factory: CsvFactory<T>
+    name: String,
+    headerMapping: CsvHeaderMapping,
+    factory: CsvFactory<T>
 ) = getInputStream(getEntry(name)).use { it.csvToList(headerMapping, factory) }
 
 /**
@@ -54,8 +54,8 @@ internal fun <T> ZipFile.csvToListFromEntry(
  * **Note:** it is the caller's responsibility to close the input stream.
  */
 internal fun <T> InputStream.csvToList(
-   headerMapping: CsvHeaderMapping,
-   factory: CsvFactory<T>
+    headerMapping: CsvHeaderMapping,
+    factory: CsvFactory<T>
 ) = CSVReader(this.bufferedReader()).toList(headerMapping, factory)
 
 /**
@@ -67,26 +67,26 @@ internal fun <T> InputStream.csvToList(
  * while reading the data
  */
 internal fun <T> CSVReader.toList(
-   headerMapping: CsvHeaderMapping,
-   factory: CsvFactory<T>
-): MutableList<T> { // TODO change this to non-mutable list
-   val allEntries = this.readAll()
-   val entryIterator = allEntries.iterator()
+    headerMapping: CsvHeaderMapping,
+    factory: CsvFactory<T>
+): MutableList<T> {
+    val allEntries = this.readAll()
+    val entryIterator = allEntries.iterator()
 
-   if (!entryIterator.hasNext()) {
-      return mutableListOf()
-   }
+    if (!entryIterator.hasNext()) {
+        return mutableListOf()
+    }
 
-   val headerMap = headerMapping(entryIterator.next())
+    val headerMap = headerMapping(entryIterator.next())
 
-   return MutableList(allEntries.size - 1) {
-      val line = entryIterator.next()
-      try {
-         factory(headerMap, line)
-      } catch (e: Exception) {
-         throw MalformedCsvException("for line ${line.contentToString()}", e)
-      }
-   }
+    return MutableList(allEntries.size - 1) {
+        val line = entryIterator.next()
+        try {
+            factory(headerMap, line)
+        } catch (e: Exception) {
+            throw MalformedCsvException("for line ${line.contentToString()}", e)
+        }
+    }
 }
 
 /**
@@ -95,16 +95,16 @@ internal fun <T> CSVReader.toList(
  * **Note:** it is the caller's responsibility to close the zip file.
  */
 internal fun <T> ZipFile.csvToListSequentialFromEntry(
-   name: String,
-   estimatedListSize: Int,
-   headerMapping: CsvHeaderMapping,
-   factory: SequentialCsvFactory<T>,
+    name: String,
+    estimatedListSize: Int,
+    headerMapping: CsvHeaderMapping,
+    factory: SequentialCsvFactory<T>,
 ) = getInputStream(getEntry(name)).use {
-   it.csvToListSequential(
-      estimatedListSize,
-      headerMapping,
-      factory,
-   )
+    it.csvToListSequential(
+        estimatedListSize,
+        headerMapping,
+        factory,
+    )
 }
 
 /**
@@ -114,13 +114,13 @@ internal fun <T> ZipFile.csvToListSequentialFromEntry(
  * **Note:** it is the caller's responsibility to close the input stream.
  */
 internal fun <T> InputStream.csvToListSequential(
-   estimatedListSize: Int,
-   headerMapping: CsvHeaderMapping,
-   factory: SequentialCsvFactory<T>,
+    estimatedListSize: Int,
+    headerMapping: CsvHeaderMapping,
+    factory: SequentialCsvFactory<T>,
 ) = CSVReader(this.bufferedReader()).toListSequential(
-   estimatedListSize,
-   headerMapping,
-   factory,
+    estimatedListSize,
+    headerMapping,
+    factory,
 )
 
 /**
@@ -134,40 +134,40 @@ internal fun <T> InputStream.csvToListSequential(
  * @throws MalformedCsvException if any [Exception] is thrown while reading the data
  */
 internal fun <T> CSVReader.toListSequential(
-   estimatedListSize: Int,
-   headerMapping: CsvHeaderMapping,
-   factory: SequentialCsvFactory<T>,
+    estimatedListSize: Int,
+    headerMapping: CsvHeaderMapping,
+    factory: SequentialCsvFactory<T>,
 ): MutableList<T> {
-   val headerMap = headerMapping(readNext() ?: return mutableListOf())
+    val headerMap = headerMapping(readNext() ?: return mutableListOf())
 
-   val list = ArrayList<T>(estimatedListSize)
+    val list = ArrayList<T>(estimatedListSize)
 
-   var previous: T? = null
-   var count = 0
+    var previous: T? = null
+    var count = 0
 
-   while (true) {
-      val line = readNext() ?: break
-      count++
+    while (true) {
+        val line = readNext() ?: break
+        count++
 
-      /*if (count and (1 shl 14) - 1 == 0)
-         onUpdateLoadingState(count.toFloat() / estimatedListSize)*/
+        /*if (count and (1 shl 14) - 1 == 0)
+           onUpdateLoadingState(count.toFloat() / estimatedListSize)*/
 
-      val current = try {
-         factory(headerMap, line, previous)
-      } catch (e: Exception) {
-         throw MalformedCsvException("for line ${line.contentToString()}", e)
-      }
+        val current = try {
+            factory(headerMap, line, previous)
+        } catch (e: Exception) {
+            throw MalformedCsvException("for line ${line.contentToString()}", e)
+        }
 
-      if (current != null) {
-         list += current
-         previous = current
-      }
-   }
+        if (current != null) {
+            list += current
+            previous = current
+        }
+    }
 
-   return list
+    return list
 }
 
 internal class MalformedCsvException(
-   message: String,
-   cause: Exception? = null
+    message: String,
+    cause: Exception? = null
 ) : RuntimeException(message, cause)
