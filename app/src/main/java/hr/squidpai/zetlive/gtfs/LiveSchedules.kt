@@ -185,7 +185,7 @@ private fun Route.getLiveSchedule(
       return@yesterday if (first.isNotEmpty() || second.isNotEmpty()) {
          val schedule = ActualRouteLiveSchedule(
             first, second,
-            commonHeadsign = commonHeadsigns[serviceId] ?: ("" to ""),
+            commonHeadsign = preferredCommonHeadsigns[serviceId] ?: ("" to ""),
          )
          if (first.size >= 4 && second.size >= 4)
             return schedule
@@ -258,15 +258,15 @@ private fun Route.getLiveSchedule(
          return ActualRouteLiveSchedule(
             first = first + tomorrowFirst,
             second = second + tomorrowSecond,
-            commonHeadsign = commonHeadsigns[serviceId]
-               ?: commonHeadsigns[tomorrowServiceId]
+            commonHeadsign = preferredCommonHeadsigns[serviceId]
+               ?: preferredCommonHeadsigns[tomorrowServiceId]
                ?: ("" to ""),
          )
    }
 
    return ActualRouteLiveSchedule(
       first, second,
-      commonHeadsign = commonHeadsigns[serviceId] ?: ("" to "")
+      commonHeadsign = preferredCommonHeadsigns[serviceId] ?: ("" to "")
    )
 }
 
@@ -276,7 +276,6 @@ private fun Route.getLiveSchedule(
  */
 data class StopScheduleEntry(
    val route: Route,
-   val headsign: String,
    val trip: Trip,
    val absoluteTime: TimeOfDay,
    val relativeTime: Int,
@@ -626,7 +625,6 @@ private class StopLiveScheduleBuilder(
 
       return StopScheduleEntry(
          route = trip.route,
-         headsign = trip.headsign,
          trip,
          absoluteTime,
          relativeTime,
