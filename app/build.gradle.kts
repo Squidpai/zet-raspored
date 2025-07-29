@@ -12,8 +12,12 @@ android {
       applicationId = "hr.squidpai.zetlive"
       minSdk = 26
       targetSdk = 35
-      versionCode = 22
-      versionName = "0.9.0-alpha3"
+      versionCode = 23
+      // TODO VERY IMPORTANT BUG: WHEN PEOPLE UPDATE THE VERSION THE APP CRASHES ONCE
+      // my theory is that the previous schedule is incorrectly still loaded
+      // when the schedule is updated
+      // The app CANNOT be released from alpha until this is fixed!!!
+      versionName = "0.9.0-alpha4"
 
       testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
       vectorDrawables {
