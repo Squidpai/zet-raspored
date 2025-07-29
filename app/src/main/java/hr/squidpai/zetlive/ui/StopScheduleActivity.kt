@@ -7,7 +7,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
@@ -19,7 +18,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
@@ -43,14 +41,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import hr.squidpai.zetapi.RouteId
+import hr.squidpai.zetapi.Stop
 import hr.squidpai.zetapi.StopId
 import hr.squidpai.zetapi.Stops
 import hr.squidpai.zetapi.asStopId
@@ -59,10 +54,10 @@ import hr.squidpai.zetlive.gtfs.ScheduleManager
 import hr.squidpai.zetlive.gtfs.StopNoLiveSchedule
 import hr.squidpai.zetlive.gtfs.getLiveSchedule
 import hr.squidpai.zetlive.gtfs.iconInfo
+import hr.squidpai.zetlive.gtfs.preferredName
 import hr.squidpai.zetlive.orLoading
 import hr.squidpai.zetlive.ui.composables.CircularLoadingBox
 import hr.squidpai.zetlive.ui.composables.IconButton
-import hr.squidpai.zetlive.ui.composables.disabled
 
 class StopScheduleActivity : BaseAppActivity("StopScheduleActivity") {
 
@@ -89,7 +84,7 @@ class StopScheduleActivity : BaseAppActivity("StopScheduleActivity") {
       val groupedStop = schedule?.stops?.groupedStops?.get(stopId.stopNumber)
 
       Scaffold(
-         topBar = { MyTopAppBar(groupedStop?.parentStop?.name.orLoading()) },
+         topBar = { MyTopAppBar(groupedStop?.parentStop?.preferredName.orLoading()) },
          contentWindowInsets = WindowInsets.safeDrawing,
       ) { padding ->
          MyContent(
@@ -223,40 +218,27 @@ class StopScheduleActivity : BaseAppActivity("StopScheduleActivity") {
       Spacer(Modifier.height(4.dp))
 
       when (liveSchedule) {
-         is StopNoLiveSchedule -> NoLiveSchedule(liveSchedule, filterEmpty)
-         is ActualStopLiveSchedule -> ActualLiveSchedule(
-            liveSchedule,
-            selectedStopIndex
-         )
+         is StopNoLiveSchedule -> NoLiveSchedule(liveSchedule)
+         is ActualStopLiveSchedule -> ActualLiveSchedule(selectedStop, liveSchedule)
       }
    }
 
    @Composable
-   private fun NoLiveSchedule(
-      liveSchedule: StopNoLiveSchedule,
-      filterEmpty: Boolean,
-   ) = Box(
+   private fun NoLiveSchedule(liveSchedule: StopNoLiveSchedule) = Box(
       Modifier
          .fillMaxSize()
          .background(MaterialTheme.colorScheme.background),
       contentAlignment = Alignment.Center,
    ) {
       Text(
-         liveSchedule.noLiveMessage
-            ?: if (filterEmpty) "Nema polazaka na postaji uskoro."
-            else "Izabrane linije nemaju nikakvih polazaka uskoro.",
+         liveSchedule.noLiveMessage,
          Modifier.padding(horizontal = 16.dp),
          textAlign = TextAlign.Center,
       )
    }
 
    @Composable
-   private fun ActualLiveSchedule(
-      liveSchedule: ActualStopLiveSchedule,
-      selectedStopIndex: Int,
-   ) {
-      val departedColor = MaterialTheme.colorScheme.disabled
-
+   private fun ActualLiveSchedule(stop: Stop, liveSchedule: ActualStopLiveSchedule) {
       // TODO add option to view this stop's whole day schedule (similar to RouteScheduleActivity)
 
       LazyColumn(
@@ -276,43 +258,13 @@ class StopScheduleActivity : BaseAppActivity("StopScheduleActivity") {
       ) {
          items(liveSchedule.size) {
             val entry = liveSchedule[it]
-            val departed = entry.relativeTime < 0
-
-            Row(
+            LiveStopRow(
+               stop,
+               entry,
                Modifier
                   .clickable { showTripDialog(entry.trip, entry.selectedDate) }
                   .padding(vertical = 8.dp),
-               verticalAlignment = Alignment.CenterVertically,
-            ) {
-               val routeStyle = MaterialTheme.typography.titleMedium
-               Text(
-                  text = entry.route.id,
-                  modifier = Modifier.width(with(LocalDensity.current) {
-                     (routeStyle.fontSize * 3.5f).toDp()
-                  }),
-                  color = if (departed) departedColor
-                  else MaterialTheme.colorScheme.primary,
-                  textAlign = TextAlign.Center,
-                  style = routeStyle,
-               )
-               Text(
-                  entry.headsign,
-                  Modifier.weight(1f),
-                  color = if (departed) departedColor else Color.Unspecified,
-                  maxLines = 1,
-                  overflow = TextOverflow.Ellipsis,
-               )
-               Text(
-                  if (entry.useRelative) {
-                     if (!departed) "${entry.relativeTime / 60} min"
-                     else "prije ${-entry.relativeTime / 60} min"
-                  } else entry.absoluteTime.toStringHHMM(),
-                  modifier = Modifier.padding(end = 4.dp),
-                  color = if (departed) departedColor
-                  else MaterialTheme.colorScheme.primary,
-                  fontWeight = FontWeight.Bold.takeUnless { departed },
-               )
-            }
+            )
          }
       }
    }
