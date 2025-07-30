@@ -90,7 +90,7 @@ public object GtfsScheduleLoader {
             return DownloadResult(ErrorType.UP_TO_DATE)
         else if (useHeadMethod)
             // there is no body, simply send a successful response
-            return DownloadResult(version = latestVersion)
+            return DownloadResult(version = newVersion)
         else try {
             val buffer = ByteArray(4096)
             connection.inputStream.use { input ->
@@ -149,6 +149,9 @@ public object GtfsScheduleLoader {
             val routes = GtfsRoute.loadRoutes(zip)
                 .apply { sortBy { it.sortOrder } }
                 .associateBy { it.id }
+
+            // magic numbers given in onLoadProgress are approximate values
+            // calculated from practical tests
             onLoadProgress(.01f)
 
             val stops = Stops(Love.giveMeBetterStops(loadStops(zip)))
