@@ -19,6 +19,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.prof18.rssparser.model.RssItem
 import hr.squidpai.zetlive.news.NewsLoader
+import hr.squidpai.zetlive.ui.composables.disabled
 
 @Composable
 fun MainActivityNews(source: NewsLoader) {
@@ -56,8 +57,16 @@ private fun NewsEntry(item: RssItem) = Surface(
     modifier = Modifier.fillMaxWidth()
         .padding(8.dp),
 ) {
-    item.title?.let { Text(it, style = MaterialTheme.typography.titleLarge) }
-    item.description?.let {
-        Text(it, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    Column {
+        item.title?.let { Text(it, style = MaterialTheme.typography.titleLarge) }
+        item.description?.let {
+            Text(
+                text = it,
+                color = MaterialTheme.colorScheme.disabled,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
     }
 }
