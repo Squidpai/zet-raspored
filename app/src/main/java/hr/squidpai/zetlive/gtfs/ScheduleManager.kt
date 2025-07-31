@@ -133,20 +133,24 @@ object ScheduleManager {
 
     private fun removeLegacyStopTimesDirectory(filesDir: File) {
         val stopTimes = File(filesDir, LEGACY_STOP_TIMES)
-        if (stopTimes.isDirectory)
+        val stopTimesIsDirectory = stopTimes.isDirectory
+        if (stopTimesIsDirectory)
             stopTimes.deleteRecursively()
 
         val newStopTimes = File(filesDir, LEGACY_NEW_STOP_TIMES)
-        if (newStopTimes.isDirectory)
+        val newStopTimesIsDirectory = newStopTimes.isDirectory
+        if (newStopTimesIsDirectory)
             newStopTimes.deleteRecursively()
 
-        val scheduleFile = File(filesDir, SCHEDULE_NAME)
-        if (scheduleFile.isFile)
-            scheduleFile.renameTo(File(filesDir, DOWNLOADED_SCHEDULE))
+        if (stopTimesIsDirectory || newStopTimesIsDirectory) {
+            val scheduleFile = File(filesDir, SCHEDULE_NAME)
+            if (scheduleFile.isFile)
+                scheduleFile.renameTo(File(filesDir, DOWNLOADED_SCHEDULE))
 
-        val newScheduleFile = File(filesDir, NEW_SCHEDULE_NAME)
-        if (newScheduleFile.isFile)
-            newScheduleFile.renameTo(File(filesDir, NEW_DOWNLOADED_SCHEDULE))
+            val newScheduleFile = File(filesDir, NEW_SCHEDULE_NAME)
+            if (newScheduleFile.isFile)
+                newScheduleFile.renameTo(File(filesDir, NEW_DOWNLOADED_SCHEDULE))
+        }
     }
 
     fun update(filesDir: File): Job {
