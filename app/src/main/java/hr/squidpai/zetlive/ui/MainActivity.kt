@@ -2,6 +2,7 @@ package hr.squidpai.zetlive.ui
 
 import android.content.Intent
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
@@ -39,6 +40,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import hr.squidpai.zetlive.Data
 import hr.squidpai.zetlive.gtfs.ScheduleManager
+import hr.squidpai.zetlive.news.NewsManager
 import hr.squidpai.zetlive.ui.composables.HintIconButton
 import hr.squidpai.zetlive.ui.composables.IconButton
 import hr.squidpai.zetlive.ui.composables.textButtonColorsOnInverseRichTooltip
@@ -52,7 +54,7 @@ import kotlinx.coroutines.launch
 class MainActivity : BaseAppActivity("MainActivity") {
 
     enum class Screen(val icon: ImageVector, val label: String) {
-        News(Symbols.MyLocation, "Aktualnost"), // TODO add icons for these
+        News(Symbols.MyLocation, "Aktualnosti"), // TODO add icons for these
         Schedule(Symbols.Schedule, "Raspored"),
     }
 
@@ -72,88 +74,141 @@ class MainActivity : BaseAppActivity("MainActivity") {
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     override fun Content() {
-        val schedule = ScheduleManager.instance.collectAsState().value
-
         Scaffold(
             topBar = { MyTopAppBar() },
             bottomBar = { MyBottomAppBar() },
-            snackbarHost = {
-                if (schedule != null)
-                    LoadingSnackbar()
-            },
+            snackbarHost = { LoadingSnackbar() },
             contentWindowInsets = WindowInsets.safeDrawing,
-        ) { padding ->
-            val outerModifier = Modifier.padding(padding)
-            if (schedule == null) {
-                MainActivityLoading(
-                    errorType = ScheduleManager.lastDownloadError.collectAsState().value,
-                    modifier = outerModifier,
+        ) { outerPadding ->
+            when (Data.currentMainActivityScreen) {
+                Screen.News -> NewsContent(outerPadding)
+                Screen.Schedule -> ScheduleContent(outerPadding)
+            }
+        }
+    }
+
+    @OptIn(ExperimentalMaterial3Api::class)
+    @Composable
+    private fun NewsContent(outerPadding: PaddingValues) {
+        Column(modifier = Modifier.padding(outerPadding)) {
+            val scope = rememberCoroutineScope()
+
+            val pagerState = rememberPagerState { 2 }
+
+            val selectedPage = pagerState.currentPage
+
+            fun setSelectedPage(page: Int) {
+                scope.launch { pagerState.animateScrollToPage(page) }
+            }
+
+            PrimaryTabRow(selectedTabIndex = selectedPage) {
+                Tab(
+                    selected = selectedPage == 0,
+                    onClick = { setSelectedPage(0) },
+                    text = {
+                        Text(
+                            "Vijesti",
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    },
                 )
-                return@Scaffold
+                Tab(
+                    selected = selectedPage == 1,
+                    onClick = { setSelectedPage(1) },
+                    text = {
+                        Text(
+                            "Izmjene u prometu",
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    },
+                )
             }
-            Column(modifier = outerModifier) {
-                val scope = rememberCoroutineScope()
 
-                val pagerState = rememberPagerState { 2 }
-
-                val selectedPage = pagerState.currentPage
-
-                val keyboardController =
-                    LocalSoftwareKeyboardController.current
-                val focusManager = LocalFocusManager.current
-
-                fun setSelectedPage(page: Int) {
-                    keyboardController?.hide()
-                    focusManager.clearFocus()
-                    scope.launch { pagerState.animateScrollToPage(page) }
+            HorizontalPager(state = pagerState) {
+                when (it) {
+                    0 -> MainActivityNews(NewsManager.newsLoader)
+                    1 -> MainActivityNews(NewsManager.trafficChangesLoader)
                 }
-
-                PrimaryTabRow(selectedTabIndex = selectedPage) {
-                    Tab(
-                        selected = selectedPage == 0,
-                        onClick = { setSelectedPage(0) },
-                        text = {
-                            Text(
-                                "Linije",
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        },
-                    )
-                    Tab(
-                        selected = selectedPage == 1,
-                        onClick = { setSelectedPage(1) },
-                        text = {
-                            Text(
-                                "Postaje",
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        },
-                    )
-                }
-
-                HorizontalPager(
-                    state = pagerState,
-                    pageNestedScrollConnection = object :
-                        NestedScrollConnection {
-                        // Make the child consume all the available scroll amount, so it
-                        // doesn't overscroll into the other pager state
-                        override fun onPostScroll(
-                            consumed: Offset,
-                            available: Offset,
-                            source: NestedScrollSource
-                        ) = available
-                    }
-                ) {
-                    when (it) {
-                        0 -> MainActivityRoutes(schedule.routes)
-                        1 -> MainActivityStops(schedule.stops.groupedStops)
-                    }
-                }
-
-                //PriorityLoadingDialog()
             }
+        }
+    }
+
+    @OptIn(ExperimentalMaterial3Api::class)
+    @Composable
+    private fun ScheduleContent(outerPadding: PaddingValues) {
+        val schedule = ScheduleManager.instance.collectAsState().value
+
+        val outerModifier = Modifier.padding(outerPadding)
+        if (schedule == null) {
+            MainActivityLoading(
+                errorType = ScheduleManager.lastDownloadError.collectAsState().value,
+                modifier = outerModifier,
+            )
+            return
+        }
+        Column(modifier = outerModifier) {
+            val scope = rememberCoroutineScope()
+
+            val pagerState = rememberPagerState { 2 }
+
+            val selectedPage = pagerState.currentPage
+
+            val keyboardController =
+                LocalSoftwareKeyboardController.current
+            val focusManager = LocalFocusManager.current
+
+            fun setSelectedPage(page: Int) {
+                keyboardController?.hide()
+                focusManager.clearFocus()
+                scope.launch { pagerState.animateScrollToPage(page) }
+            }
+
+            PrimaryTabRow(selectedTabIndex = selectedPage) {
+                Tab(
+                    selected = selectedPage == 0,
+                    onClick = { setSelectedPage(0) },
+                    text = {
+                        Text(
+                            "Linije",
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    },
+                )
+                Tab(
+                    selected = selectedPage == 1,
+                    onClick = { setSelectedPage(1) },
+                    text = {
+                        Text(
+                            "Postaje",
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    },
+                )
+            }
+
+            HorizontalPager(
+                state = pagerState,
+                pageNestedScrollConnection = object : NestedScrollConnection {
+                    // Make the child consume all the available scroll amount, so it
+                    // doesn't overscroll into the other pager state
+                    override fun onPostScroll(
+                        consumed: Offset,
+                        available: Offset,
+                        source: NestedScrollSource
+                    ) = available
+                }
+            ) {
+                when (it) {
+                    0 -> MainActivityRoutes(schedule.routes)
+                    1 -> MainActivityStops(schedule.stops.groupedStops)
+                }
+            }
+
+            //PriorityLoadingDialog()
         }
     }
 
@@ -193,7 +248,7 @@ class MainActivity : BaseAppActivity("MainActivity") {
     private fun MyTopAppBar() = TopAppBar(
         title = {
             Text(
-                "Raspored",
+                Data.currentMainActivityScreen.label,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -257,6 +312,9 @@ class MainActivity : BaseAppActivity("MainActivity") {
 
     @Composable
     private fun LoadingSnackbar() {
+        if (ScheduleManager.instance.collectAsState().value == null)
+            return
+
         val loadingState = ScheduleManager.downloadState.collectAsState().value
         val loadingOperation = loadingState?.operation
         if (loadingOperation == ScheduleManager.DownloadOperation.DOWNLOADING ||
