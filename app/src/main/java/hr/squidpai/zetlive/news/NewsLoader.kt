@@ -126,7 +126,7 @@ class NewsLoader(
             }
 
             mState.value = State.FAILURE
-        }
+        }.invokeOnCompletion { alreadyLoading.store(false) }
     }
 
     /**
