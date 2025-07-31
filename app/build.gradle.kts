@@ -60,7 +60,7 @@ dependencies {
     implementation("androidx.compose.ui:ui:1.8.3")
     implementation("androidx.compose.ui:ui-graphics:1.8.3")
     implementation("androidx.compose.ui:ui-tooling-preview:1.8.3")
-    implementation("androidx.compose.material3:material3:1.5.0-alpha01")
+    implementation("androidx.compose.material3:material3:1.3.2")
     //implementation("com.google.android.play:app-update:2.1.0")
     //implementation("com.google.android.play:app-update-ktx:2.1.0")
     implementation("androidx.lifecycle:lifecycle-process:2.9.2")
