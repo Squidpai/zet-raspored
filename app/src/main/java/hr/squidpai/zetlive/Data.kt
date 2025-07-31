@@ -14,6 +14,7 @@ import hr.squidpai.zetapi.toStopId
 import hr.squidpai.zetlive.Data.directionSwapped
 import hr.squidpai.zetlive.Data.load
 import hr.squidpai.zetlive.Data.save
+import hr.squidpai.zetlive.ui.MainActivity
 import java.io.File
 import java.io.FileNotFoundException
 import java.io.IOException
@@ -25,6 +26,7 @@ object Data {
 
     private const val TAG = "Data"
 
+    private const val CURRENT_MAIN_ACTIVITY_SCREEN = "mainScreen"
     private const val PINNED_ROUTES = "pinnedRoutes"
     private const val PINNED_STOPS = "pinnedStops"
     private const val DIRECTION_SWAPPED = "directionSwapped"
@@ -36,6 +38,8 @@ object Data {
     private const val HINTS = "hints"
 
     private var file: File? = null
+
+    var currentMainActivityScreen by mutableStateOf(MainActivity.Screen.Schedule)
 
     /**
      * The set of routes pinned to the top of the route list
@@ -157,6 +161,9 @@ object Data {
     }
 
     private fun loadNext(reader: JsonReader) = when (reader.nextName()) {
+        CURRENT_MAIN_ACTIVITY_SCREEN ->
+            currentMainActivityScreen = MainActivity.Screen.valueOf(reader.nextString())
+
         PINNED_ROUTES -> {
             reader.beginArray()
 
@@ -229,6 +236,10 @@ object Data {
         try {
             JsonWriter(file.bufferedWriter()).use { writer ->
                 writer.beginObject()
+
+                if (currentMainActivityScreen != MainActivity.Screen.Schedule)
+                    writer.name(CURRENT_MAIN_ACTIVITY_SCREEN)
+                        .value(currentMainActivityScreen.name)
 
                 val routes = pinnedRoutes.toSet()
                 if (routes.isNotEmpty()) {
