@@ -9,17 +9,13 @@ import hr.squidpai.zetapi.TripId
 import hr.squidpai.zetapi.csvToListFromEntry
 import java.util.zip.ZipFile
 
-private val spaceHyphenSpaceRegex = Regex(" *- *")
-
 internal class GtfsRoute(
     headerMap: IntArray,
     data: Array<out String>,
 ) : Route(
     id = data[headerMap[0]],
     shortName = data.getOrNull(headerMap[1]).orEmpty(),
-    longName = data.getOrNull(headerMap[2])
-        // TODO i dont really like this, may remove it or move it to CachedRoute or smth
-        ?.replace(spaceHyphenSpaceRegex, " ${Typography.ndash} ").orEmpty(),
+    longName = data.getOrNull(headerMap[2]).orEmpty(),
     type = Type(data.getOrNull(headerMap[3])),
     sortOrder = data.getOrNull(headerMap[4])?.toIntOrNull()
         ?: data[headerMap[0]].let { id ->
