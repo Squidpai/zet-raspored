@@ -1,5 +1,8 @@
 package hr.squidpai.zetlive
 
+import android.content.Intent
+import android.os.Build
+import android.os.Bundle
 import androidx.collection.IntIntMap
 import androidx.collection.IntList
 import androidx.collection.IntObjectMap
@@ -9,6 +12,7 @@ import androidx.collection.MutableIntObjectMap
 import androidx.compose.ui.Modifier
 import java.io.DataInputStream
 import java.io.DataOutputStream
+import java.io.Serializable
 import java.time.LocalDate
 import kotlin.enums.enumEntries
 
@@ -27,11 +31,11 @@ inline fun Boolean.toInt(trueValue: () -> Int) = if (this) trueValue() else 0
  * Converts the string of contents "YYYYMMDD" into a [LocalDate].
  */
 fun String.dateToLocalDate(): LocalDate {
-  val year = this.substring(0, 4).toInt()
-  val month = this.substring(4, 6).toInt()
-  val date = this.substring(6, 8).toInt()
+    val year = this.substring(0, 4).toInt()
+    val month = this.substring(4, 6).toInt()
+    val date = this.substring(6, 8).toInt()
 
-  return LocalDate.of(year, month, date)
+    return LocalDate.of(year, month, date)
 }
 
 fun String.toIntOrHashCode() = toIntOrNull() ?: hashCode()
@@ -54,23 +58,23 @@ inline fun String?.orLoading() = this ?: LOADING_TEXT
  * otherwise, returns `this`.
  */
 inline fun <T : R, R> T.alsoIf(condition: Boolean, block: T.() -> R) =
-  if (condition) this.block() else this
+    if (condition) this.block() else this
 
 /**
  * Concatenates this modifier with [block] if [condition] is `false`,
  * otherwise, returns just this modifier.
  */
 inline fun Modifier.alsoIfNot(condition: Boolean, block: Modifier.() -> Modifier) =
-  if (!condition) this.block() else this
+    if (!condition) this.block() else this
 
 /**
  * Concatenates `this` with [ifTrue] if [condition] is `true`,
  * and with [ifFalse] otherwise.
  */
 inline fun <T : R, R> T.ifElse(
-  condition: Boolean,
-  ifTrue: T.() -> R,
-  ifFalse: T.() -> R,
+    condition: Boolean,
+    ifTrue: T.() -> R,
+    ifFalse: T.() -> R,
 ) = if (condition) this.ifTrue() else this.ifFalse()
 
 /**
@@ -78,16 +82,16 @@ inline fun <T : R, R> T.ifElse(
  * to each element in the original `IntList`.
  */
 inline fun <R> IntList.map(transform: (Int) -> R) =
-  List(this.size) { transform(get(it)) }
+    List(this.size) { transform(get(it)) }
 
 /**
  * Returns a list containing only the non-null results of applying the given [transform] function
  * to each element in the original `IntList`.
  */
 inline fun <R : Any> IntList.mapNotNull(transform: (Int) -> R?): List<R> {
-  val list = ArrayList<R>()
-  forEach { element -> transform(element)?.let { list.add(it) } }
-  return list
+    val list = ArrayList<R>()
+    forEach { element -> transform(element)?.let { list.add(it) } }
+    return list
 }
 
 /**
@@ -97,17 +101,17 @@ inline fun <R : Any> IntList.mapNotNull(transform: (Int) -> R?): List<R> {
  * If any two elements are equal, the last one gets added to the map.
  */
 inline fun <V> IntList.associateWith(valueSelector: (Int) -> V): IntObjectMap<V> {
-  val result = MutableIntObjectMap<V>(size)
-  forEach {
-    result[it] = valueSelector(it)
-  }
-  return result
+    val result = MutableIntObjectMap<V>(size)
+    forEach {
+        result[it] = valueSelector(it)
+    }
+    return result
 }
 
 /** Returns `true` if no elements match the given [predicate]. */
 inline fun IntList.none(predicate: (Int) -> Boolean): Boolean {
-  forEach { if (predicate(it)) return false }
-  return true
+    forEach { if (predicate(it)) return false }
+    return true
 }
 
 /**
@@ -115,9 +119,9 @@ inline fun IntList.none(predicate: (Int) -> Boolean): Boolean {
  * to each element in the original `IntSet`.
  */
 inline fun <R> IntSet.map(transform: (Int) -> R): List<R> {
-  val list = ArrayList<R>(size)
-  forEach { list += transform(it) }
-  return list
+    val list = ArrayList<R>(size)
+    forEach { list += transform(it) }
+    return list
 }
 
 /**
@@ -125,11 +129,11 @@ inline fun <R> IntSet.map(transform: (Int) -> R): List<R> {
  * the original `IntSet`.
  */
 fun IntSet.toIntArray(): IntArray {
-  val array = IntArray(size)
-  var i = 0
-  forEach { array[i++] = it }
+    val array = IntArray(size)
+    var i = 0
+    forEach { array[i++] = it }
 
-  return array
+    return array
 }
 
 /**
@@ -141,76 +145,77 @@ fun IntSet.toIntArray(): IntArray {
  * @constructor Creates a new instance of Pair.
  */
 data class IntObjectPair<out B>(val first: Int, val second: B) {
-  override fun toString() = "($first, $second)"
+    override fun toString() = "($first, $second)"
 }
 
 @Suppress("NOTHING_TO_INLINE")
 inline infix fun <B> Int.to(that: B) = IntObjectPair(this, that)
 
-fun <V> intObjectMapOf(vararg pairs: IntObjectPair<V>): IntObjectMap<V> = MutableIntObjectMap<V>().apply {
-  for ((key, value) in pairs) {
-    put(key, value)
-  }
-}
+fun <V> intObjectMapOf(vararg pairs: IntObjectPair<V>): IntObjectMap<V> =
+    MutableIntObjectMap<V>().apply {
+        for ((key, value) in pairs) {
+            put(key, value)
+        }
+    }
 
 
 data class IntPair(val first: Int, val second: Int) {
-  override fun toString() = "($first, $second)"
+    override fun toString() = "($first, $second)"
 }
 
 @Suppress("NOTHING_TO_INLINE")
 inline infix fun Int.to(that: Int) = IntPair(this, that)
 
 fun intIntMapOf(vararg pairs: IntPair): IntIntMap = MutableIntIntMap().apply {
-  for ((key, value) in pairs) {
-    put(key, value)
-  }
+    for ((key, value) in pairs) {
+        put(key, value)
+    }
 }
 
 inline fun <V> buildIntObjectMap(builderAction: MutableIntObjectMap<V>.() -> Unit): IntObjectMap<V> =
-  MutableIntObjectMap<V>().apply(builderAction)
+    MutableIntObjectMap<V>().apply(builderAction)
 
 private val intExtractRegex = Regex("\\D")
 
 fun String.extractInt(): Int {
-  val num = this.replace(intExtractRegex, "")
-  return if (num.isEmpty()) -1 else num.toLong().toInt()
+    val num = this.replace(intExtractRegex, "")
+    return if (num.isEmpty()) -1 else num.toLong().toInt()
 }
 
 fun Any?.printIsNull(objName: String) = objName + (if (this == null) " is null" else " is not null")
 
 fun String.decrementInt(): String {
-  val output = this.toCharArray()
-  for (i in length - 1 downTo 0) {
-    if (output[i] in '1'..'9') {
-      output[i]--
-      break
-    } else if (output[i] == '0') {
-      output[i] = '9'
+    val output = this.toCharArray()
+    for (i in length - 1 downTo 0) {
+        if (output[i] in '1'..'9') {
+            output[i]--
+            break
+        } else if (output[i] == '0') {
+            output[i] = '9'
+        }
     }
-  }
-  return output.concatToString()
+    return output.concatToString()
 }
 
 fun DataOutputStream.writeShortString(string: String) {
-  if (string.isEmpty()) {
-    writeByte(0)
-    return
-  }
-  val buff = string.encodeToByteArray()
-  if (buff.size > 255)
-    throw IllegalArgumentException("Short string too long: 255 < string.toByteArray().size = ${buff.size}")
-  writeByte(buff.size)
-  write(buff)
+    if (string.isEmpty()) {
+        writeByte(0)
+        return
+    }
+    val buff = string.encodeToByteArray()
+    if (buff.size > 255)
+        throw IllegalArgumentException("Short string too long: 255 < string.toByteArray().size = ${buff.size}")
+    writeByte(buff.size)
+    write(buff)
 }
 
 fun DataInputStream.readShortString(): String {
-  val size = readUnsignedByte()
-  if (size == 0)
-    return ""
-  val buff = ByteArray(size)
-  read(buff)
-  return buff.decodeToString()
+    val size = readUnsignedByte()
+    if (size == 0)
+        return ""
+    val buff = ByteArray(size)
+    read(buff)
+    return buff.decodeToString()
 }
 
 /**
@@ -219,9 +224,9 @@ fun DataInputStream.readShortString(): String {
  * throws [IndexOutOfBoundsException] otherwise.
  */
 operator fun <T> Pair<T, T>.get(index: Int) = when (index) {
-  0 -> first
-  1 -> second
-  else -> throw IndexOutOfBoundsException("Index out of range: $index")
+    0 -> first
+    1 -> second
+    else -> throw IndexOutOfBoundsException("Index out of range: $index")
 }
 
 operator fun <T> Pair<T, *>?.component1() = this?.first
@@ -247,24 +252,38 @@ inline val <reified T : Enum<T>> T.next get() = enumEntries<T>().let { it[(ordin
  */
 // This function is a tad bit too long to be inlined.
 fun <T, R : Comparable<R>> Iterable<T>.sortedByIfNotAlready(
-  selector: (T) -> R?
+    selector: (T) -> R?
 ): Iterable<T> {
-  val iterator = iterator()
-  if (!iterator.hasNext())
-    return this
+    val iterator = iterator()
+    if (!iterator.hasNext())
+        return this
 
-  var previous = iterator.next()
-  var sorted = true
-  for (current in iterator) {
-    // if previous > current
-    if (compareValues(selector(previous), selector(current)) > 0) {
-      sorted = false
-      break
+    var previous = iterator.next()
+    var sorted = true
+    for (current in iterator) {
+        // if previous > current
+        if (compareValues(selector(previous), selector(current)) > 0) {
+            sorted = false
+            break
+        }
+        previous = current
     }
-    previous = current
-  }
-  if (sorted)
-    return this
+    if (sorted)
+        return this
 
-  return sortedBy(selector)
+    return sortedBy(selector)
 }
+
+inline fun <reified T : Serializable> Bundle.getSerializableCompat(key: String?): T? =
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+        getSerializable(key, T::class.java)
+    else
+        @Suppress("DEPRECATION")
+        getSerializable(key) as T?
+
+inline fun <reified T : Serializable> Intent.getSerializableExtraCompat(key: String?): T? =
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+        getSerializableExtra(key, T::class.java)
+    else
+        @Suppress("DEPRECATION")
+        getSerializableExtra(key) as T?
