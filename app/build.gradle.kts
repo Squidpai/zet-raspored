@@ -65,6 +65,7 @@ dependencies {
     //implementation("com.google.android.play:app-update-ktx:2.1.0")
     implementation("androidx.lifecycle:lifecycle-process:2.9.2")
     implementation("com.prof18.rssparser:rssparser:6.0.12")
+    implementation("org.jsoup:jsoup:1.21.1")
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
