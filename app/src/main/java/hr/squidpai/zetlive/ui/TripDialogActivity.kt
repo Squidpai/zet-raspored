@@ -50,4 +50,6 @@ class TripDialogActivity : BaseAppActivity("TripDialogActivity") {
          )
       }
    }
+
+   override fun onTripDialogClosed() = finish()
 }
