@@ -3,6 +3,7 @@ package hr.squidpai.zetlive.news
 import android.util.Log
 import com.prof18.rssparser.RssParser
 import com.prof18.rssparser.exception.RssParsingException
+import com.prof18.rssparser.model.RssItem
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -66,7 +67,7 @@ class NewsLoader(
                 val newFeed = readCachedFeed()?.parseRssFeed()
                 if (newFeed != null) {
                     mState.value = State.SUCCESS
-                    mFeed.value = newFeed
+                    mFeed.value = newFeed.mapToNewsItems()
                     return@launch
                 } else
                     failedToLoadCached = true
@@ -110,7 +111,7 @@ class NewsLoader(
                 val newFeed = newFeedText.parseRssFeed()
                 if (newFeed != null) {
                     mState.value = State.SUCCESS
-                    mFeed.value = newFeed
+                    mFeed.value = newFeed.mapToNewsItems()
                     return@launch
                 } else
                     failedToLoadCached = true
@@ -120,7 +121,7 @@ class NewsLoader(
                 val newFeed = readCachedFeed()?.parseRssFeed()
                 if (newFeed != null) {
                     mState.value = State.SUCCESS
-                    mFeed.value = newFeed
+                    mFeed.value = newFeed.mapToNewsItems()
                     return@launch
                 }
             }
@@ -157,5 +158,15 @@ class NewsLoader(
             Log.e(TAG, "Failed to parse feed", e)
             null
         }
+
+    companion object {
+        fun RssItem.mapToNewsItem() = NewsItem(
+            title = title,
+            rawDescription = description,
+            publicationDate = pubDate?.rssDate,
+        )
+
+        fun List<RssItem>.mapToNewsItems() = map { it.mapToNewsItem() }
+    }
 
 }
