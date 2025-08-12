@@ -1,13 +1,12 @@
 package hr.squidpai.zetlive.news
 
 import com.prof18.rssparser.RssParser
-import com.prof18.rssparser.model.RssItem
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import java.io.File
 import kotlin.time.Duration.Companion.hours
 
-typealias NewsFeed = List<RssItem>
+typealias NewsFeed = List<NewsItem>
 
 object NewsManager {
 
