@@ -32,6 +32,7 @@
             android:theme="@style/Theme.Transparent" />
         <activity android:name=".ui.RouteScheduleActivity" />
         <activity android:name=".ui.StopScheduleActivity" />
+        <activity android:name=".ui.NewsActivity" />
         <activity android:name=".ui.SettingsActivity" />
 
         <service
