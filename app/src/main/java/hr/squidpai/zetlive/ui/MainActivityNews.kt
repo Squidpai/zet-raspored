@@ -1,5 +1,6 @@
 package hr.squidpai.zetlive.ui
 
+import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -10,16 +11,18 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.prof18.rssparser.model.RssItem
+import hr.squidpai.zetlive.news.NewsItem
 import hr.squidpai.zetlive.news.NewsLoader
-import hr.squidpai.zetlive.ui.composables.disabled
+import hr.squidpai.zetlive.news.toFormattedString
 
 @Composable
 fun MainActivityNews(source: NewsLoader) {
@@ -52,21 +55,45 @@ private fun LoadingNews() = Column(
 }
 
 @Composable
-private fun NewsEntry(item: RssItem) = Surface(
+private fun NewsEntry(item: NewsItem) = Surface(
     onClick = { /* TODO */ },
-    modifier = Modifier.fillMaxWidth()
-        .padding(8.dp),
+    modifier = Modifier
+        .fillMaxWidth()
+        .padding(6.dp),
+    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+    shape = MaterialTheme.shapes.large,
 ) {
-    Column {
-        item.title?.let { Text(it, style = MaterialTheme.typography.titleLarge) }
-        item.description?.let {
+    Column(Modifier.padding(horizontal = 4.dp)) {
+        item.publicationDate?.let {
+            Text(
+                text = it.toFormattedString(),
+                color = MaterialTheme.colorScheme.primary,
+                style = MaterialTheme.typography.labelLarge,
+            )
+        }
+        item.title?.let {
             Text(
                 text = it,
-                color = MaterialTheme.colorScheme.disabled,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(vertical = 6.dp),
+                style = MaterialTheme.typography.titleSmall,
             )
+        }
+        Text(
+            text = item.briefDescription,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            style = MaterialTheme.typography.bodySmall,
+        )
+
+        val context = LocalContext.current
+
+        TextButton(onClick = {
+            context.startActivity(
+                Intent(context, NewsActivity::class.java)
+                    .putExtra(EXTRA_NEWS_ITEM, item)
+            )
+        }, Modifier.padding(12.dp)) {
+            Text("Opširnije")
         }
     }
 }
