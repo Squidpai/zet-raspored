@@ -53,6 +53,7 @@ import hr.squidpai.zetlive.ui.composables.disabled
 import kotlin.math.absoluteValue
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.time.Duration.Companion.seconds
 
 data class TripDialogData(
    val trip: Trip,
@@ -177,20 +178,28 @@ private fun DialogContent(
                            }
                            append(" otkazano")
                         } else if (!isAbsoluteTime) {
-                           append(if (t < 0) "prije " else "za ")
-                           // TODO uvijek ispisi sve
-                           val minValue = t.absoluteValue / 60
-                           if (minValue < 120) {
-                              append(minValue.toString())
-                              append(" min")
-                           } else if (minValue < 24 * 60) {
-                              append((minValue / 60).toString())
-                              append(" hr")
-                           } else if (minValue < 24 * 60 * 2)
-                              append("1 dan")
-                           else {
-                              append((minValue / 60 / 24).toString())
-                              append(" dana")
+                           append(if (t < 0) "prije" else "za")
+                           val timeUntilDeparture = t.absoluteValue.seconds
+                           timeUntilDeparture.toComponents { days, hours, minutes, _, _ ->
+                              if (days != 0L) {
+                                 append(' ')
+                                  if (days == 1L)
+                                      append("1 dan")
+                                  else {
+                                      append(days.toString())
+                                      append(" dana")
+                                  }
+                              }
+                              if (hours != 0) {
+                                 append(' ')
+                                 append(hours.toString())
+                                 append(" hr")
+                              }
+                              if (minutes > 0 || days == 0L && hours == 0) {
+                                 append(' ')
+                                 append(minutes.toString())
+                                 append(" min")
+                              }
                            }
                         } else {
                            if (realtimeDeparture.minusMinutes(departure) != 0) {
