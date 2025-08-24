@@ -30,6 +30,7 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableStateSetOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.snapshots.SnapshotStateList
@@ -43,6 +44,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import hr.squidpai.zetapi.Route
+import hr.squidpai.zetapi.RouteId
 import hr.squidpai.zetapi.Routes
 import hr.squidpai.zetapi.filter
 import hr.squidpai.zetlive.Data
@@ -53,45 +55,53 @@ import hr.squidpai.zetlive.gtfs.preferredName
 import hr.squidpai.zetlive.ui.composables.DirectionRow
 import hr.squidpai.zetlive.ui.composables.IconButton
 import hr.squidpai.zetlive.ui.composables.LiveTravelSlider
+import hr.squidpai.zetlive.withRemovedKeys
 
 @Composable
 fun MainActivityRoutes(routes: Routes) = Column(Modifier.fillMaxSize()) {
     val inputState = rememberSaveable { mutableStateOf("") }
 
     val pinnedRoutes = Data.pinnedRoutes.toSet()
-    val list = remember(routes) {
+    val resortedRoutes = remember(routes, pinnedRoutes) {
+        val resortedRoutes = mutableListOf<Route>()
+
+        for (pinnedRouteId in pinnedRoutes)
+            routes[pinnedRouteId]?.let { resortedRoutes += it }
+
+        resortedRoutes += routes.withRemovedKeys(pinnedRoutes).values
+
+        resortedRoutes
+    }
+
+    val list = remember(resortedRoutes) {
         mutableStateListOf<Route>().apply {
-            addAll(routes.values.filter(inputState.value.trim()))
+            addAll(resortedRoutes.filter(inputState.value.trim()))
         }
     }
 
     val lazyListState = rememberLazyListState()
 
     RouteFilterSearchBar(
-        inputState, routes, list, lazyListState,
+        inputState, resortedRoutes, list, lazyListState,
         modifier = Modifier
             .fillMaxWidth()
             .padding(8.dp)
     )
 
-    LazyColumn(state = lazyListState) {
-        if (inputState.value.isBlank())
-            for (pinnedRouteId in pinnedRoutes) {
-                val route = routes[pinnedRouteId] ?: continue
-                item(key = pinnedRouteId.hashCode()) {
-                    RouteContent(
-                        route, pinned = true,
-                        modifier = Modifier
-                            .fillParentMaxWidth()
-                            .animateItem(),
-                    )
-                }
-            }
+    val expandedRoutes = rememberSaveable { mutableStateSetOf<RouteId>() }
 
+    LazyColumn(state = lazyListState) {
         items(list.size, key = { list[it].id }) {
             val route = list[it]
             RouteContent(
                 route, pinned = route.id in pinnedRoutes,
+                expanded = route.id in expandedRoutes,
+                setExpanded = { isNowExpanded: Boolean ->
+                    if (isNowExpanded)
+                        expandedRoutes += route.id
+                    else
+                        expandedRoutes -= route.id
+                },
                 modifier = Modifier
                     .fillParentMaxWidth()
                     .animateItem(),
@@ -104,7 +114,7 @@ fun MainActivityRoutes(routes: Routes) = Column(Modifier.fillMaxSize()) {
 @Composable
 private fun RouteFilterSearchBar(
     inputState: MutableState<String>,
-    routes: Routes,
+    originalRouteList: List<Route>,
     list: SnapshotStateList<Route>,
     lazyListState: LazyListState,
     modifier: Modifier = Modifier,
@@ -123,7 +133,7 @@ private fun RouteFilterSearchBar(
 
             val newList =
                 if (input in newInput) list.filter(newInputTrimmed)
-                else routes.values.filter(newInputTrimmed)
+                else originalRouteList.filter(newInputTrimmed)
 
             list.clear()
             list.addAll(newList)
@@ -152,76 +162,77 @@ private fun RouteFilterSearchBar(
 }
 
 @Composable
-private fun RouteContent(route: Route, pinned: Boolean, modifier: Modifier) {
-    val (expanded, setExpanded) =
-        rememberSaveable(key = "re${route.id}") { mutableStateOf(false) }
-
+private fun RouteContent(
+    route: Route,
+    pinned: Boolean,
+    expanded: Boolean,
+    setExpanded: (Boolean) -> Unit,
+    modifier: Modifier,
+) = Surface(
+    modifier = modifier
+        .padding(4.dp)
+        .animateContentSize(),
+    tonalElevation = if (expanded) 2.dp else 0.dp,
+) {
     val context = LocalContext.current
 
-    Surface(
-        modifier = modifier
-            .padding(4.dp)
-            .animateContentSize(),
-        tonalElevation = if (expanded) 2.dp else 0.dp,
-    ) {
-        Column {
+    Column {
+        Row(
+            modifier = Modifier
+                .clickable { setExpanded(!expanded) }
+                .minimumInteractiveComponentSize(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            val shortNameStyle = MaterialTheme.typography.titleMedium
+            Text(
+                route.shortName,
+                modifier = Modifier.width(with(LocalDensity.current) { (shortNameStyle.fontSize * 3.5f).toDp() }),
+                color = MaterialTheme.colorScheme.primary,
+                textAlign = TextAlign.Center,
+                style = shortNameStyle,
+            )
+            Text(route.preferredName, Modifier.weight(1f))
+
+            if (expanded || pinned)
+                IconButton(
+                    if (pinned) Symbols.PushPinFilled else Symbols.PushPin,
+                    if (pinned) "Otkvači s vrha popisa" else "Zakvači na vrh popisa",
+                    onClick = {
+                        Data.updateData {
+                            if (route.id !in pinnedRoutes) pinnedRoutes += route.id
+                            else pinnedRoutes -= route.id
+                        }
+                    }
+                )
+        }
+
+        if (expanded) {
+            val directionState =
+                rememberSaveable { mutableIntStateOf(Data.getDirectionForRoute(route.id)) }
+
             Row(
                 modifier = Modifier
-                    .clickable { setExpanded(!expanded) }
-                    .minimumInteractiveComponentSize(),
-                verticalAlignment = Alignment.CenterVertically,
+                    .fillMaxWidth()
+                    .padding(8.dp),
+                horizontalArrangement = Arrangement.SpaceAround,
             ) {
-                val shortNameStyle = MaterialTheme.typography.titleMedium
-                Text(
-                    route.shortName,
-                    modifier = Modifier.width(with(LocalDensity.current) { (shortNameStyle.fontSize * 3.5f).toDp() }),
-                    color = MaterialTheme.colorScheme.primary,
-                    textAlign = TextAlign.Center,
-                    style = shortNameStyle,
-                )
-                Text(route.preferredName, Modifier.weight(1f))
-
-                if (expanded || pinned)
-                    IconButton(
-                        if (pinned) Symbols.PushPinFilled else Symbols.PushPin,
-                        if (pinned) "Otkvači s vrha popisa" else "Zakvači na vrh popisa",
-                        onClick = {
-                            Data.updateData {
-                                if (route.id !in pinnedRoutes) pinnedRoutes += route.id
-                                else pinnedRoutes -= route.id
-                            }
-                        }
+                OutlinedButton(onClick = {
+                    context.startActivity(
+                        Intent(context, RouteScheduleActivity::class.java)
+                            .putExtra(EXTRA_ROUTE_ID, route.id)
+                            .putExtra(EXTRA_DIRECTION, directionState.intValue)
                     )
-            }
-
-            if (expanded) {
-                val directionState =
-                    rememberSaveable { mutableIntStateOf(Data.getDirectionForRoute(route.id)) }
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(8.dp),
-                    horizontalArrangement = Arrangement.SpaceAround,
-                ) {
-                    OutlinedButton(onClick = {
-                        context.startActivity(
-                            Intent(context, RouteScheduleActivity::class.java)
-                                .putExtra(EXTRA_ROUTE_ID, route.id)
-                                .putExtra(EXTRA_DIRECTION, directionState.intValue)
-                        )
-                    }) {
-                        Text("Raspored")
-                    }
-                    /*TextButton(onClick = {
-                      // TODO show map
-                    }) {
-                      Text("Prikaži na karti")
-                    }*/
+                }) {
+                    Text("Raspored")
                 }
-
-                RouteLiveTravels(route, directionState)
+                /*TextButton(onClick = {
+                  // TODO show map
+                }) {
+                  Text("Prikaži na karti")
+                }*/
             }
+
+            RouteLiveTravels(route, directionState)
         }
     }
 }
