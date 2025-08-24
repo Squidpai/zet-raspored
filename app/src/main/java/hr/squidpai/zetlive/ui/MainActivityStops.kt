@@ -32,6 +32,7 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableStateSetOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.snapshots.SnapshotStateList
@@ -63,6 +64,7 @@ import hr.squidpai.zetlive.gtfs.preferredHeadsign
 import hr.squidpai.zetlive.gtfs.preferredName
 import hr.squidpai.zetlive.ui.composables.IconButton
 import hr.squidpai.zetlive.ui.composables.disabled
+import hr.squidpai.zetlive.withRemovedKeys
 
 @Composable
 fun MainActivityStops(groupedStops: Map<StopNumber, Stops.Grouped>) =
@@ -70,39 +72,47 @@ fun MainActivityStops(groupedStops: Map<StopNumber, Stops.Grouped>) =
         val inputState = rememberSaveable { mutableStateOf("") }
 
         val pinnedStops = Data.pinnedStops.toSet()
-        val list = remember(key1 = groupedStops, key2 = pinnedStops) {
+        val resortedStops = remember(groupedStops, pinnedStops) {
+            val resortedStops = mutableListOf<Stops.Grouped>()
+
+            for (pinnedStopId in pinnedStops)
+                groupedStops[pinnedStopId]?.let { resortedStops += it }
+
+            resortedStops += groupedStops.withRemovedKeys(pinnedStops).values
+
+            resortedStops
+        }
+
+        val list = remember(resortedStops) {
             mutableStateListOf<Stops.Grouped>().apply {
-                addAll(groupedStops.values.filter(inputState.value.trim()))
+                addAll(resortedStops.filter(inputState.value.trim()))
             }
         }
 
         val lazyListState = rememberLazyListState()
 
         StopFilterSearchBar(
-            inputState, groupedStops, list, lazyListState,
+            inputState, resortedStops, list, lazyListState,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(8.dp),
         )
 
-        LazyColumn(state = lazyListState) {
-            if (inputState.value.isBlank())
-                for (pinnedStopId in pinnedStops) {
-                    val stop = groupedStops[pinnedStopId] ?: continue
-                    item(key = -pinnedStopId) {
-                        StopContent(
-                            stop, pinned = true,
-                            modifier = Modifier
-                                .fillParentMaxWidth()
-                                .animateItem(),
-                        )
-                    }
-                }
+        val expandedStops = rememberSaveable { mutableStateSetOf<StopNumber>() }
 
+        LazyColumn(state = lazyListState) {
             items(list.size, key = { list[it].parentStop.id.rawValue }) {
                 val stop = list[it]
+                val stopNumber = stop.parentStop.id.stopNumber
                 StopContent(
-                    stop, pinned = stop.parentStop.id.stopNumber in pinnedStops,
+                    stop, pinned = stopNumber in pinnedStops,
+                    expanded = stopNumber in expandedStops,
+                    setExpanded = { isNowExpanded ->
+                        if (isNowExpanded)
+                            expandedStops += stopNumber
+                        else
+                            expandedStops -= stopNumber
+                    },
                     modifier = Modifier
                         .fillParentMaxWidth()
                         .animateItem(),
@@ -115,7 +125,7 @@ fun MainActivityStops(groupedStops: Map<StopNumber, Stops.Grouped>) =
 @Composable
 private fun StopFilterSearchBar(
     inputState: MutableState<String>,
-    groupedStops: Map<StopNumber, Stops.Grouped>,
+    originalStopList: List<Stops.Grouped>,
     list: SnapshotStateList<Stops.Grouped>,
     lazyListState: LazyListState,
     modifier: Modifier = Modifier,
@@ -136,7 +146,7 @@ private fun StopFilterSearchBar(
 
             val newList =
                 if (input in newInput) list.filter(newInputTrimmed)
-                else groupedStops.values.filter(newInputTrimmed)
+                else originalStopList.filter(newInputTrimmed)
 
             list.clear()
             list.addAll(newList)
@@ -197,204 +207,197 @@ fun Stops.Grouped.labeledStop() = map { LabelPair(it, it.label) }.sorted()
 private fun StopContent(
     groupedStop: Stops.Grouped,
     pinned: Boolean,
+    expanded: Boolean,
+    setExpanded: (Boolean) -> Unit,
     modifier: Modifier,
+) = Surface(
+    modifier = modifier
+        .padding(4.dp)
+        .animateContentSize(),
+    tonalElevation = if (expanded) 2.dp else 0.dp,
 ) {
-    val (expanded, setExpanded) =
-        rememberSaveable(key = "st${groupedStop.parentStop.id.rawValue}") {
-            mutableStateOf(
-                false
-            )
+    Column {
+        Row(
+            modifier = Modifier
+                .clickable { setExpanded(!expanded) }
+                .minimumInteractiveComponentSize(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(
+                Modifier
+                    .weight(1f)
+                    .padding(4.dp)
+            ) {
+                Text(
+                    groupedStop.parentStop.preferredName,
+                    style = MaterialTheme.typography.bodyLarge,
+                    maxLines = if (expanded) Int.MAX_VALUE else 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+
+                val iconInfo = when (groupedStop.routeType) {
+                    Route.Type.Tram -> Symbols.Tram20 to "Tramvaji"
+                    Route.Type.Bus -> Symbols.Bus20 to "Autobusi"
+                    else -> null
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    val color = MaterialTheme.colorScheme.disabled
+
+                    iconInfo?.let {
+                        Icon(
+                            iconInfo.first,
+                            iconInfo.second,
+                            Modifier.size(16.dp),
+                            tint = color
+                        )
+                    }
+                    Text(
+                        groupedStop.parentStop.allRoutesListed,
+                        color = color,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            }
+
+            if (expanded || pinned)
+                IconButton(
+                    if (pinned) Symbols.PushPinFilled else Symbols.PushPin,
+                    if (pinned) "Otkvači s vrha popisa" else "Zakvači na vrh popisa",
+                    onClick = {
+                        Data.updateData {
+                            val id = groupedStop.parentStop.id.stopNumber
+                            if (id !in pinnedStops) pinnedStops += id
+                            else pinnedStops -= id
+                        }
+                    }
+                )
         }
 
-    Surface(
-        modifier = modifier
-            .padding(4.dp)
-            .animateContentSize(),
-        tonalElevation = if (expanded) 2.dp else 0.dp,
-    ) {
-        Column {
+        if (expanded) {
+            val labeledStops = groupedStop.labeledStop()
+
+            val (selectedStopIndex, setSelectedStopIndex) = rememberSaveable {
+                val preferredCode =
+                    Data.defaultStopCodes.getOrDefault(
+                        groupedStop.parentStop.id.stopNumber,
+                        0
+                    )
+                mutableIntStateOf(
+                    if (preferredCode == 0) 0
+                    else {
+                        val index = labeledStops.indexOfFirst { it.stop.code == preferredCode }
+                        if (index == -1) 0
+                        else index
+                    }
+                )
+            }
+            val selectedStop = labeledStops[selectedStopIndex].stop
+
+            LazyRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+            ) {
+                items(labeledStops.size) {
+                    val (stop, label) = labeledStops[it]
+                    FilterChip(
+                        selected = selectedStopIndex == it,
+                        onClick = {
+                            if (selectedStopIndex != it) {
+                                setSelectedStopIndex(it)
+                                Data.updateData {
+                                    defaultStopCodes[groupedStop.parentStop.id.stopNumber] =
+                                        stop.code
+                                }
+                            }
+                        },
+                        label = { Text(label ?: "Smjer") },
+                        modifier = Modifier.padding(horizontal = 4.dp),
+                        trailingIcon = if (label == null) ({
+                            stop.iconInfo?.let { iconInfo ->
+                                Icon(iconInfo.first, iconInfo.second)
+                            }
+                        }) else null
+                    )
+                }
+                /*if (labeledStops.size > 4) item {
+                    Box {
+                        var opened by remember { mutableStateOf(false) }
+
+                        FilterChip(
+                            selected = false,
+                            onClick = { opened = !opened },
+                            label = { Text(Typography.ellipsis.toString()) },
+                            modifier = Modifier.padding(horizontal = 4.dp),
+                            trailingIcon = { Icon(Icons.Filled.ArrowDropDown, null) }
+                        )
+
+                        DropdownMenu(
+                            expanded = opened,
+                            onDismissRequest = { opened = false },
+                        ) {
+                            for (i in 3..<labeledStops.size) {
+                                val (stop, label) = labeledStops[i]
+                                DropdownMenuItem(
+                                    text = { Text(label ?: "Smjer") },
+                                    onClick = {
+                                        Toast.makeText(
+                                            context,
+                                            stop.id.toString(),
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                        opened = false
+                                        if (selectedStopIndex != i) {
+                                            setSelectedStopIndex(i)
+                                            //Data.updateData {
+                                            Data.defaultStopCodes[groupedStop.parentStop.id.stopNumber] =
+                                                stop.code
+                                            //}
+                                        }
+                                    },
+                                    trailingIcon = if (label == null) ({
+                                        stop.iconInfo?.let { iconInfo ->
+                                            Icon(iconInfo.first, iconInfo.second)
+                                        }
+                                    }) else null,
+                                )
+                            }
+                        }
+                    }
+                }*/
+            }
+
             Row(
                 modifier = Modifier
-                    .clickable { setExpanded(!expanded) }
-                    .minimumInteractiveComponentSize(),
-                verticalAlignment = Alignment.CenterVertically,
+                    .fillMaxWidth()
+                    .padding(8.dp),
+                horizontalArrangement = Arrangement.SpaceAround,
             ) {
-                Column(
-                    Modifier
-                        .weight(1f)
-                        .padding(4.dp)
-                ) {
-                    Text(
-                        groupedStop.parentStop.preferredName,
-                        style = MaterialTheme.typography.bodyLarge,
-                        maxLines = if (expanded) Int.MAX_VALUE else 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                val context = LocalContext.current
 
-                    val iconInfo = when (groupedStop.routeType) {
-                        Route.Type.Tram -> Symbols.Tram20 to "Tramvaji"
-                        Route.Type.Bus -> Symbols.Bus20 to "Autobusi"
-                        else -> null
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        val color = MaterialTheme.colorScheme.disabled
-
-                        iconInfo?.let {
-                            Icon(
-                                iconInfo.first,
-                                iconInfo.second,
-                                Modifier.size(16.dp),
-                                tint = color
+                OutlinedButton(onClick = {
+                    context.startActivity(
+                        Intent(
+                            context,
+                            StopScheduleActivity::class.java
+                        ).apply {
+                            putExtra(
+                                EXTRA_STOP,
+                                selectedStop.id.rawValue
                             )
-                        }
-                        Text(
-                            groupedStop.parentStop.allRoutesListed,
-                            color = color,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
+                        })
+                }) {
+                    Text("Raspored")
                 }
-
-                if (expanded || pinned)
-                    IconButton(
-                        if (pinned) Symbols.PushPinFilled else Symbols.PushPin,
-                        if (pinned) "Otkvači s vrha popisa" else "Zakvači na vrh popisa",
-                        onClick = {
-                            Data.updateData {
-                                val id = groupedStop.parentStop.id.stopNumber
-                                if (id !in pinnedStops) pinnedStops += id
-                                else pinnedStops -= id
-                            }
-                        }
-                    )
+                /*TextButton(onClick = {
+                  // TODO show map
+                }) {
+                  Text("Prikaži na karti")
+                }*/
             }
 
-            if (expanded) {
-                val labeledStops = groupedStop.labeledStop()
-
-                val (selectedStopIndex, setSelectedStopIndex) = rememberSaveable {
-                    val preferredCode =
-                        Data.defaultStopCodes.getOrDefault(
-                            groupedStop.parentStop.id.stopNumber,
-                            0
-                        )
-                    mutableIntStateOf(
-                        if (preferredCode == 0) 0
-                        else {
-                            val index = labeledStops.indexOfFirst { it.stop.code == preferredCode }
-                            if (index == -1) 0
-                            else index
-                        }
-                    )
-                }
-                val selectedStop = labeledStops[selectedStopIndex].stop
-
-                LazyRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                ) {
-                    items(labeledStops.size) {
-                        val (stop, label) = labeledStops[it]
-                        FilterChip(
-                            selected = selectedStopIndex == it,
-                            onClick = {
-                                if (selectedStopIndex != it) {
-                                    setSelectedStopIndex(it)
-                                    Data.updateData {
-                                        defaultStopCodes[groupedStop.parentStop.id.stopNumber] =
-                                            stop.code
-                                    }
-                                }
-                            },
-                            label = { Text(label ?: "Smjer") },
-                            modifier = Modifier.padding(horizontal = 4.dp),
-                            trailingIcon = if (label == null) ({
-                                stop.iconInfo?.let { iconInfo ->
-                                    Icon(iconInfo.first, iconInfo.second)
-                                }
-                            }) else null
-                        )
-                    }
-                    /*if (labeledStops.size > 4) item {
-                        Box {
-                            var opened by remember { mutableStateOf(false) }
-
-                            FilterChip(
-                                selected = false,
-                                onClick = { opened = !opened },
-                                label = { Text(Typography.ellipsis.toString()) },
-                                modifier = Modifier.padding(horizontal = 4.dp),
-                                trailingIcon = { Icon(Icons.Filled.ArrowDropDown, null) }
-                            )
-
-                            DropdownMenu(
-                                expanded = opened,
-                                onDismissRequest = { opened = false },
-                            ) {
-                                for (i in 3..<labeledStops.size) {
-                                    val (stop, label) = labeledStops[i]
-                                    DropdownMenuItem(
-                                        text = { Text(label ?: "Smjer") },
-                                        onClick = {
-                                            Toast.makeText(
-                                                context,
-                                                stop.id.toString(),
-                                                Toast.LENGTH_SHORT
-                                            ).show()
-                                            opened = false
-                                            if (selectedStopIndex != i) {
-                                                setSelectedStopIndex(i)
-                                                //Data.updateData {
-                                                Data.defaultStopCodes[groupedStop.parentStop.id.stopNumber] =
-                                                    stop.code
-                                                //}
-                                            }
-                                        },
-                                        trailingIcon = if (label == null) ({
-                                            stop.iconInfo?.let { iconInfo ->
-                                                Icon(iconInfo.first, iconInfo.second)
-                                            }
-                                        }) else null,
-                                    )
-                                }
-                            }
-                        }
-                    }*/
-                }
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(8.dp),
-                    horizontalArrangement = Arrangement.SpaceAround,
-                ) {
-                    val context = LocalContext.current
-
-                    OutlinedButton(onClick = {
-                        context.startActivity(
-                            Intent(
-                                context,
-                                StopScheduleActivity::class.java
-                            ).apply {
-                                putExtra(
-                                    EXTRA_STOP,
-                                    selectedStop.id.rawValue
-                                )
-                            })
-                    }) {
-                        Text("Raspored")
-                    }
-                    /*TextButton(onClick = {
-                      // TODO show map
-                    }) {
-                      Text("Prikaži na karti")
-                    }*/
-                }
-
-                StopLiveTravels(selectedStop)
-            }
+            StopLiveTravels(selectedStop)
         }
     }
 }
