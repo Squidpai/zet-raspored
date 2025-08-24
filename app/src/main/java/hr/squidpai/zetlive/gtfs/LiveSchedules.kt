@@ -25,6 +25,7 @@ import hr.squidpai.zetlive.MILLIS_IN_DAY
 import hr.squidpai.zetlive.MILLIS_IN_SECONDS
 import hr.squidpai.zetlive.localCurrentTimeMillis
 import kotlinx.coroutines.delay
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.milliseconds
@@ -105,7 +106,7 @@ data class RouteScheduleEntry(
     val sliderValue: Float,
     val trip: Trip,
     val departureTime: Int,
-    val delayAmount: Int,
+    val delayAmount: Duration,
     val selectedDate: Long,
     val isCancelled: Boolean,
 )
@@ -581,7 +582,7 @@ private val RouteLiveScheduleBuilder =
             ),
             trip,
             departureTime = 0,
-            delayAmount = 0,
+            delayAmount = 0.seconds,
             selectedDate,
             isCancelled,
         ) else RouteScheduleEntry(
@@ -595,7 +596,7 @@ private val RouteLiveScheduleBuilder =
                 else if (difference <= 15) -difference - 1
                 else departure
             },
-            delayAmount = realtimeDepartures[0] - trip.departures[0],
+            delayAmount = (realtimeDepartures[0] - trip.departures[0]).seconds,
             selectedDate,
             isCancelled,
         )
