@@ -465,13 +465,13 @@ private fun Stop.getTripsOfDay(
          routeAtStop.stopsAtDirectionZero && routeAtStop.stopsAtDirectionOne ->
             routeTripsOfDay
 
-         routeAtStop.stopsAtDirectionZero ->
-            routeTripsOfDay.filterByDirection(DirectionId.Zero)
+         routeAtStop.stopsAtDirectionOne ->
+            routeTripsOfDay.filterByDirection(DirectionId.One)
 
          // if a route is in `routes`, then it stops at this stop;
-         // since it doesn't stop at direction zero,
-         // it must stop at direction one
-         else -> routeTripsOfDay.filterByDirection(DirectionId.One)
+         // since it doesn't stop at direction one,
+         // it must stop at direction zero
+         else -> routeTripsOfDay.filterByDirection(DirectionId.Zero)
       }.filter { this in it.stops }
    }
    return tripsOfDay
