@@ -44,7 +44,7 @@ import kotlin.math.max
  *
  * @param value the value of the track (how far the route has reached in its trip)
  * @param stopCount the number of stops (points)
- * @param weights the relative sizes of track pieces if not `null`
+ * @param weights the relative sizes of track pieces, or `null` for equal sizes
  * @param modifier the modifier to be applied to the layout
  * @param trackWidth the width of the track
  * @param pointRadius the radius of each point (except for the one right after [value])
@@ -57,29 +57,29 @@ import kotlin.math.max
  */
 @Composable
 fun RouteSlider(
-   value: Float,
-   stopCount: Int,
-   modifier: Modifier = Modifier,
-   weights: IntArray? = null,
-   trackWidth: Dp = 3.dp,
-   pointRadius: Dp = 2.dp,
-   nextPointRadius: Dp = 4.dp,
-   passedTrackColor: Color = MaterialTheme.colorScheme.primary,
-   notPassedTrackColor: Color = MaterialTheme.colorScheme.surfaceVariant,
-   passedStopColor: Color = MaterialTheme.colorScheme.contentColorFor(passedTrackColor),
-   notPassedStopColor: Color = MaterialTheme.colorScheme.contentColorFor(notPassedTrackColor),
-   nextStopColor: Color = MaterialTheme.colorScheme.onSurface,
+    value: Float,
+    stopCount: Int,
+    modifier: Modifier = Modifier,
+    weights: IntArray? = null,
+    trackWidth: Dp = 3.dp,
+    pointRadius: Dp = 2.dp,
+    nextPointRadius: Dp = 4.dp,
+    passedTrackColor: Color = MaterialTheme.colorScheme.primary,
+    notPassedTrackColor: Color = MaterialTheme.colorScheme.surfaceVariant,
+    passedStopColor: Color = MaterialTheme.colorScheme.contentColorFor(passedTrackColor),
+    notPassedStopColor: Color = MaterialTheme.colorScheme.contentColorFor(notPassedTrackColor),
+    nextStopColor: Color = MaterialTheme.colorScheme.onSurface,
 ) = Canvas(
-   modifier.defaultMinSize(
-      minWidth = nextPointRadius * stopCount,
-      minHeight = nextPointRadius,
-   )
+    modifier.defaultMinSize(
+        minWidth = nextPointRadius * stopCount,
+        minHeight = nextPointRadius,
+    )
 ) {
-   drawRouteSlider(
-      value, stopCount, passedTrackColor, notPassedTrackColor, passedStopColor,
-      notPassedStopColor, nextStopColor, weights, trackWidth, pointRadius,
-      nextPointRadius,
-   )
+    drawRouteSlider(
+        value, stopCount, passedTrackColor, notPassedTrackColor, passedStopColor,
+        notPassedStopColor, nextStopColor, weights, trackWidth, pointRadius,
+        nextPointRadius,
+    )
 }
 
 /**
@@ -91,22 +91,30 @@ fun RouteSlider(
  */
 @Composable
 fun RouteSlider(
-   value: Float,
-   departures: IntList,
-   modifier: Modifier = Modifier,
-   trackWidth: Dp = 3.dp,
-   pointRadius: Dp = 2.dp,
-   nextPointRadius: Dp = 4.dp,
-   passedTrackColor: Color = MaterialTheme.colorScheme.primary,
-   notPassedTrackColor: Color = MaterialTheme.colorScheme.surfaceVariant,
-   passedStopColor: Color = MaterialTheme.colorScheme.contentColorFor(passedTrackColor),
-   notPassedStopColor: Color = MaterialTheme.colorScheme.contentColorFor(notPassedTrackColor),
-   nextStopColor: Color = MaterialTheme.colorScheme.onSurface,
+    value: Float,
+    departures: IntList,
+    modifier: Modifier = Modifier,
+    trackWidth: Dp = 3.dp,
+    pointRadius: Dp = 2.dp,
+    nextPointRadius: Dp = 4.dp,
+    passedTrackColor: Color = MaterialTheme.colorScheme.primary,
+    notPassedTrackColor: Color = MaterialTheme.colorScheme.surfaceVariant,
+    passedStopColor: Color = MaterialTheme.colorScheme.contentColorFor(passedTrackColor),
+    notPassedStopColor: Color = MaterialTheme.colorScheme.contentColorFor(notPassedTrackColor),
+    nextStopColor: Color = MaterialTheme.colorScheme.onSurface,
 ) = RouteSlider(
-   value, stopCount = departures.size, modifier,
-   weights = IntArray(departures.size - 1) { departures[it + 1] - departures[it] },
-   trackWidth, pointRadius, nextPointRadius, passedTrackColor, notPassedTrackColor, passedStopColor,
-   notPassedStopColor, nextStopColor,
+    value,
+    stopCount = departures.size,
+    modifier,
+    weights = IntArray(departures.size - 1) { departures[it + 1] - departures[it] },
+    trackWidth,
+    pointRadius,
+    nextPointRadius,
+    passedTrackColor,
+    notPassedTrackColor,
+    passedStopColor,
+    notPassedStopColor,
+    nextStopColor,
 )
 
 /**
@@ -142,132 +150,132 @@ fun RouteSlider(
  * @param passedStopColor the color of points before [value]
  * @param notPassedStopColor the color of points after [value] (except for the one right after)
  * @param nextStopColor the color of the points right after [value]
- * @param weights the relative sizes of track pieces if not `null`
+ * @param weights the relative sizes of track pieces, or `null` for equal sizes
  * @param trackWidth the width of the track
  * @param pointRadius the radius of each point (except for the one right after [value])
  * @param nextPointRadius the radius of the point right after [value]
  */
 fun DrawScope.drawRouteSlider(
-   value: Float,
-   stopCount: Int,
-   passedTrackColor: Color,
-   notPassedTrackColor: Color,
-   passedStopColor: Color,
-   notPassedStopColor: Color,
-   nextStopColor: Color,
-   weights: IntArray? = null,
-   trackWidth: Dp = 3.dp,
-   pointRadius: Dp = 2.dp,
-   nextPointRadius: Dp = 4.dp,
+    value: Float,
+    stopCount: Int,
+    passedTrackColor: Color,
+    notPassedTrackColor: Color,
+    passedStopColor: Color,
+    notPassedStopColor: Color,
+    nextStopColor: Color,
+    weights: IntArray? = null,
+    trackWidth: Dp = 3.dp,
+    pointRadius: Dp = 2.dp,
+    nextPointRadius: Dp = 4.dp,
 ) {
-   if (stopCount <= 0)
-      return
+    if (stopCount <= 0)
+        return
 
-   val pointRadiusPx = pointRadius.toPx()
-   val nextPointRadiusPx = nextPointRadius.toPx()
+    val pointRadiusPx = pointRadius.toPx()
+    val nextPointRadiusPx = nextPointRadius.toPx()
 
-   if (stopCount == 1) {
-      drawCircle(
-         color = if (value >= 0f) passedStopColor else nextStopColor,
-         radius = if (value >= 0f) pointRadiusPx else nextPointRadiusPx,
-      )
-      return
-   }
+    if (stopCount == 1) {
+        drawCircle(
+            color = if (value >= 0f) passedStopColor else nextStopColor,
+            radius = if (value >= 0f) pointRadiusPx else nextPointRadiusPx,
+        )
+        return
+    }
 
-   val (width, height) = size
-   val centerHeight = height / 2f
+    val (width, height) = size
+    val centerHeight = height / 2f
 
-   val trackWidthPx = trackWidth.toPx()
-   val totalTrackLength = width - nextPointRadiusPx * 2
+    val trackWidthPx = trackWidth.toPx()
+    val totalTrackLength = width - nextPointRadiusPx * 2
 
-   var passedTrackLength: Float
-   val weightRatios: FloatArray?
+    var passedTrackLength: Float
+    val weightRatios: FloatArray?
 
-   if (weights != null) {
-      require(weights.size == stopCount - 1) {
-         "weights.size != stopCount - 1, weights.size = ${weights.size}, stopCount = $stopCount"
-      }
+    if (weights != null) {
+        require(weights.size == stopCount - 1) {
+            "weights.size != stopCount - 1, weights.size = ${weights.size}, stopCount = $stopCount"
+        }
 
-      val weightSum = weights.sum().toFloat()
-      weightRatios = FloatArray(stopCount - 1) { weights[it] / weightSum }
-      passedTrackLength = 0f
-      for ((i, ratio) in weightRatios.withIndex()) {
-         passedTrackLength += if (i + 1 <= value) ratio
-         else if (i < value) value % 1 * ratio
-         else break
-      }
-      passedTrackLength *= totalTrackLength
-   } else {
-      passedTrackLength = totalTrackLength * value / (stopCount - 1)
-      weightRatios = null
-   }
+        val weightSum = weights.sum().toFloat()
+        weightRatios = FloatArray(stopCount - 1) { weights[it] / weightSum }
+        passedTrackLength = 0f
+        for ((i, ratio) in weightRatios.withIndex()) {
+            passedTrackLength += if (i + 1 <= value) ratio
+            else if (i < value) value % 1 * ratio
+            else break
+        }
+        passedTrackLength *= totalTrackLength
+    } else {
+        passedTrackLength = totalTrackLength * value / (stopCount - 1)
+        weightRatios = null
+    }
 
-   drawLine(
-      color = notPassedTrackColor,
-      start = Offset(nextPointRadiusPx + passedTrackLength, centerHeight),
-      end = Offset(nextPointRadiusPx + totalTrackLength, centerHeight),
-      strokeWidth = trackWidthPx,
-      cap = StrokeCap.Round,
-   )
-   if (value >= -1f)
-      drawLine(
-         color = passedTrackColor,
-         start = Offset(nextPointRadiusPx, centerHeight),
-         end = Offset(nextPointRadiusPx + passedTrackLength, centerHeight),
-         strokeWidth = trackWidthPx,
-         cap = StrokeCap.Round,
-      )
+    drawLine(
+        color = notPassedTrackColor,
+        start = Offset(nextPointRadiusPx + passedTrackLength, centerHeight),
+        end = Offset(nextPointRadiusPx + totalTrackLength, centerHeight),
+        strokeWidth = trackWidthPx,
+        cap = StrokeCap.Round,
+    )
+    if (value >= -1f)
+        drawLine(
+            color = passedTrackColor,
+            start = Offset(nextPointRadiusPx, centerHeight),
+            end = Offset(nextPointRadiusPx + passedTrackLength, centerHeight),
+            strokeWidth = trackWidthPx,
+            cap = StrokeCap.Round,
+        )
 
-   val valueInt = floor(value).toInt()
-   var currentPointPosition = nextPointRadiusPx
-   val pointSpacing = totalTrackLength / (stopCount - 1)
+    val valueInt = floor(value).toInt()
+    var currentPointPosition = nextPointRadiusPx
+    val pointSpacing = totalTrackLength / (stopCount - 1)
 
-   for (i in 0..valueInt) {
-      drawCircle(
-         color = passedStopColor,
-         radius = pointRadiusPx,
-         center = Offset(currentPointPosition, centerHeight),
-         alpha = 0.28f,
-      )
-      currentPointPosition += totalTrackLength * (weightRatios?.getOrNull(i) ?: pointSpacing)
-   }
-   if (value >= -1)
-      drawCircle(
-         color = nextStopColor,
-         radius = nextPointRadiusPx,
-         center = Offset(currentPointPosition, centerHeight),
-      )
-   if (valueInt + 1 >= stopCount - 1)
-      return
-   if (value >= -1)
-      currentPointPosition += totalTrackLength * (weightRatios?.getOrNull(max(valueInt + 1, 0))
-         ?: pointSpacing)
-   for (i in max(valueInt + 2, 0)..<stopCount) {
-      drawCircle(
-         color = notPassedStopColor,
-         radius = pointRadiusPx,
-         center = Offset(currentPointPosition, centerHeight),
-         alpha = 0.38f,
-      )
-      if (i == stopCount - 1) continue
-      currentPointPosition += totalTrackLength * (weightRatios?.get(i) ?: pointSpacing)
-   }
+    for (i in 0..valueInt) {
+        drawCircle(
+            color = passedStopColor,
+            radius = pointRadiusPx,
+            center = Offset(currentPointPosition, centerHeight),
+            alpha = 0.28f,
+        )
+        currentPointPosition += totalTrackLength * (weightRatios?.getOrNull(i) ?: pointSpacing)
+    }
+    if (value >= -1)
+        drawCircle(
+            color = nextStopColor,
+            radius = nextPointRadiusPx,
+            center = Offset(currentPointPosition, centerHeight),
+        )
+    if (valueInt + 1 >= stopCount - 1)
+        return
+    if (value >= -1)
+        currentPointPosition += totalTrackLength * (weightRatios?.getOrNull(max(valueInt + 1, 0))
+            ?: pointSpacing)
+    for (i in max(valueInt + 2, 0)..<stopCount) {
+        drawCircle(
+            color = notPassedStopColor,
+            radius = pointRadiusPx,
+            center = Offset(currentPointPosition, centerHeight),
+            alpha = 0.38f,
+        )
+        if (i == stopCount - 1) continue
+        currentPointPosition += totalTrackLength * (weightRatios?.get(i) ?: pointSpacing)
+    }
 }
 
 fun DrawScope.drawRouteSlider(
-   value: Float,
-   departures: IntList,
-   passedTrackColor: Color,
-   notPassedTrackColor: Color,
-   passedStopColor: Color,
-   notPassedStopColor: Color,
-   nextStopColor: Color,
-   trackWidth: Dp = 3.dp,
-   pointRadius: Dp = 2.dp,
-   nextPointRadius: Dp = 4.dp,
+    value: Float,
+    departures: IntList,
+    passedTrackColor: Color,
+    notPassedTrackColor: Color,
+    passedStopColor: Color,
+    notPassedStopColor: Color,
+    nextStopColor: Color,
+    trackWidth: Dp = 3.dp,
+    pointRadius: Dp = 2.dp,
+    nextPointRadius: Dp = 4.dp,
 ) = drawRouteSlider(
-   value, stopCount = departures.size, passedTrackColor, notPassedTrackColor,
-   passedStopColor, notPassedStopColor, nextStopColor,
-   weights = IntArray(departures.size - 1) { departures[it + 1] - departures[it] },
-   trackWidth, pointRadius, nextPointRadius,
+    value, stopCount = departures.size, passedTrackColor, notPassedTrackColor,
+    passedStopColor, notPassedStopColor, nextStopColor,
+    weights = IntArray(departures.size - 1) { departures[it + 1] - departures[it] },
+    trackWidth, pointRadius, nextPointRadius,
 )

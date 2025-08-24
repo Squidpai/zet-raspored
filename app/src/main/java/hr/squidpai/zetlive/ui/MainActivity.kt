@@ -46,471 +46,471 @@ import kotlinx.coroutines.launch
  */
 class MainActivity : BaseAppActivity("MainActivity") {
 
-   //private lateinit var appUpdateManager: AppUpdateManager
+    //private lateinit var appUpdateManager: AppUpdateManager
 
-   /*override fun onCreate(savedInstanceState: Bundle?) {
-      super.onCreate(savedInstanceState)
+    /*override fun onCreate(savedInstanceState: Bundle?) {
+       super.onCreate(savedInstanceState)
 
-      appUpdateManager = AppUpdateManagerFactory.create(this)
+       appUpdateManager = AppUpdateManagerFactory.create(this)
 
-      appUpdateManager.appUpdateInfo
-         .addOnSuccessListener { appUpdateInfo ->
-            updateInfo = UpdateInfo.from(appUpdateInfo)
-         }
-   }*/
+       appUpdateManager.appUpdateInfo
+          .addOnSuccessListener { appUpdateInfo ->
+             updateInfo = UpdateInfo.from(appUpdateInfo)
+          }
+    }*/
 
-   @OptIn(ExperimentalMaterial3Api::class)
-   @Composable
-   override fun Content() {
-      val schedule = ScheduleManager.instance.collectAsState().value
+    @OptIn(ExperimentalMaterial3Api::class)
+    @Composable
+    override fun Content() {
+        val schedule = ScheduleManager.instance.collectAsState().value
 
-      Scaffold(
-         topBar = { MyTopAppBar() },
-         snackbarHost = {
-            if (schedule != null)
-               LoadingSnackbar()
-         },
-         contentWindowInsets = WindowInsets.safeDrawing,
-      ) { padding ->
-         val outerModifier = Modifier.padding(padding)
-         if (schedule == null) {
-            MainActivityLoading(
-               errorType = ScheduleManager.lastDownloadError.collectAsState().value,
-               modifier = outerModifier,
-            )
-            return@Scaffold
-         }
-         Column(modifier = outerModifier) {
-            val scope = rememberCoroutineScope()
-
-            val pagerState = rememberPagerState { 2 }
-
-            val selectedPage = pagerState.currentPage
-
-            val keyboardController =
-               LocalSoftwareKeyboardController.current
-            val focusManager = LocalFocusManager.current
-
-            fun setSelectedPage(page: Int) {
-               keyboardController?.hide()
-               focusManager.clearFocus()
-               scope.launch { pagerState.animateScrollToPage(page) }
-            }
-
-            PrimaryTabRow(selectedTabIndex = selectedPage) {
-               Tab(
-                  selected = selectedPage == 0,
-                  onClick = { setSelectedPage(0) },
-                  text = {
-                     Text(
-                        "Linije",
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                     )
-                  },
-               )
-               Tab(
-                  selected = selectedPage == 1,
-                  onClick = { setSelectedPage(1) },
-                  text = {
-                     Text(
-                        "Postaje",
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                     )
-                  },
-               )
-            }
-
-            HorizontalPager(
-               state = pagerState,
-               pageNestedScrollConnection = object :
-                  NestedScrollConnection {
-                  // Make the child consume all the available scroll amount, so it
-                  // doesn't overscroll into the other pager state
-                  override fun onPostScroll(
-                     consumed: Offset,
-                     available: Offset,
-                     source: NestedScrollSource
-                  ) = available
-               }
-            ) {
-               when (it) {
-                  0 -> MainActivityRoutes(schedule.routes)
-                  1 -> MainActivityStops(schedule.stops.groupedStops)
-               }
-            }
-
-            //PriorityLoadingDialog()
-         }
-      }
-   }
-
-   /*override fun onResume() {
-      super.onResume()
-      appUpdateManager.registerListener(installStateUpdatedListener)
-
-      appUpdateManager.appUpdateInfo.addOnSuccessListener { appUpdateInfo ->
-         updateProgress =
-            when (appUpdateInfo.installStatus) {
-               InstallStatus.DOWNLOADING ->
-                  (appUpdateInfo.bytesDownloaded()
-                     .toFloat() / appUpdateInfo.totalBytesToDownload())
-                     .coerceIn(0f, 1f) // just in case
-               InstallStatus.DOWNLOADED -> 2f
-               else -> -1f
-            }
-
-         appUpdateInfo.bytesDownloaded()
-
-         if (appUpdateInfo.updateAvailability() ==
-            UpdateAvailability.DEVELOPER_TRIGGERED_UPDATE_IN_PROGRESS
-         ) {
-            // If an in-app update is already running, resume the update.
-            appUpdateManager.startUpdateFlow(
-               appUpdateInfo,
-               this,
-               AppUpdateOptions.newBuilder(AppUpdateType.IMMEDIATE).build(),
-            )
-         }
-      }
-   }*/
-
-   /** Displays a Material 3 [TopAppBar]. */
-   @OptIn(ExperimentalMaterial3Api::class)
-   @Composable
-   private fun MyTopAppBar() = TopAppBar(
-      title = {
-         Text(
-            "Raspored",
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-         )
-      },
-      actions = {
-         //UpdateIconButton()
-
-         val state = ScheduleManager.realtimeDataState.collectAsState().value
-
-         if (state.displayRealtimeDataNotLive) HintIconButton(
-            icon = Symbols.NoInternet,
-            contentDescription = null,
-            tooltipTitle = "Nema interneta.",
-            tooltipText = "Dogodila se greška prilikom preuzimanja rasporeda uživo.\n" +
-                  "Raspored prikazan možda neće biti točan.",
-            iconTint = MaterialTheme.colorScheme.error,
-            action = {
-               val attempting = state == ScheduleManager.RealtimeDataState.DOWNLOADING
-               TextButton(
-                  onClick = {
-                     ScheduleManager.realtimeDataState.value =
-                        ScheduleManager.RealtimeDataState.DOWNLOADING
-                     ScheduleManager.realtimeDispatcher.updateImmediately()
-                  },
-                  enabled = !attempting,
-                  colors = ButtonDefaults.textButtonColorsOnInverseRichTooltip(),
-               ) {
-                  Text(if (attempting) "Preuzimanje${Typography.ellipsis}" else "Pokušaj ponovno")
-               }
+        Scaffold(
+            topBar = { MyTopAppBar() },
+            snackbarHost = {
+                if (schedule != null)
+                    LoadingSnackbar()
             },
-            showClickIndication = true,
-         )
-         IconButton(
-            Symbols.Settings,
-            contentDescription = "Postavke",
-            onClick = {
-               startActivity(
-                  Intent(
-                     this@MainActivity,
-                     SettingsActivity::class.java
-                  )
-               )
-            },
-         )
-      },
-      windowInsets = WindowInsets.safeDrawing
-         .only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top),
-   )
-
-   @Composable
-   private fun LoadingSnackbar() {
-      val loadingState = ScheduleManager.downloadState.collectAsState().value
-      val loadingOperation = loadingState?.operation
-      if (loadingOperation == ScheduleManager.DownloadOperation.DOWNLOADING ||
-         loadingOperation == ScheduleManager.DownloadOperation.LOADING_GTFS
-      ) {
-         Snackbar {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-               if (loadingState.progress.isNaN())
-                  CircularProgressIndicator(
-                     color = MaterialTheme.colorScheme.inversePrimary,
-                     trackColor = MaterialTheme.colorScheme.inverseSurface,
-                  )
-               else
-                  CircularProgressIndicator(
-                     progress = { loadingState.progress },
-                     color = MaterialTheme.colorScheme.inversePrimary,
-                     trackColor = MaterialTheme.colorScheme.inverseSurface,
-                  )
-
-               Text(
-                  if (loadingOperation == ScheduleManager.DownloadOperation.DOWNLOADING)
-                     "Preuzimanje novog rasporeda${Typography.ellipsis}"
-                  else "Ažuriranje rasporeda${Typography.ellipsis}",
-                  Modifier.padding(start = 8.dp),
-               )
+            contentWindowInsets = WindowInsets.safeDrawing,
+        ) { padding ->
+            val outerModifier = Modifier.padding(padding)
+            if (schedule == null) {
+                MainActivityLoading(
+                    errorType = ScheduleManager.lastDownloadError.collectAsState().value,
+                    modifier = outerModifier,
+                )
+                return@Scaffold
             }
-         }
-         return
-      }
-   }
+            Column(modifier = outerModifier) {
+                val scope = rememberCoroutineScope()
 
-   /*@Composable
-   private fun UpdateSnackbar() {
-      when (updateProgress) {
-         in 0f..1f -> Snackbar {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-               CircularProgressIndicator(
-                  progress = { updateProgress },
-                  color = MaterialTheme.colorScheme.inversePrimary,
-                  trackColor = MaterialTheme.colorScheme.inverseSurface,
-               )
-               Text(
-                  "Preuzimanje ažuriranja${Typography.ellipsis}",
-                  Modifier.padding(start = 8.dp),
-               )
-            }
-         }
+                val pagerState = rememberPagerState { 2 }
 
-         2f -> Snackbar(
-            action = {
-               TextButton(onClick = { appUpdateManager.completeUpdate() }) {
-                  Text(
-                     "Instaliraj",
-                     color = MaterialTheme.colorScheme.inversePrimary
-                  )
-               }
-            }
-         ) {
-            Text("Ažuriranje preuzeto.")
-         }
-      }
-   }
+                val selectedPage = pagerState.currentPage
 
-   @Composable
-   private fun PriorityLoadingDialog() {
-      val loadingState = ScheduleManager.loadingState
-      if (loadingState == ScheduleManager.LoadingState.PRIORITY_LOADING)
-         AlertDialog(
-            onDismissRequest = { },
-            text = {
-               Row(verticalAlignment = Alignment.CenterVertically) {
-                  CircularProgressIndicator()
-                  Text(
-                     "Pripremanje rasporeda${Typography.ellipsis}",
-                     Modifier.padding(start = 16.dp),
-                  )
-               }
-            },
-            confirmButton = { }
-         )
-   }
+                val keyboardController =
+                    LocalSoftwareKeyboardController.current
+                val focusManager = LocalFocusManager.current
 
-   private var updateInfo by mutableStateOf<UpdateInfo?>(null)
+                fun setSelectedPage(page: Int) {
+                    keyboardController?.hide()
+                    focusManager.clearFocus()
+                    scope.launch { pagerState.animateScrollToPage(page) }
+                }
 
-   private var updateProgress by mutableFloatStateOf(-1f)
-
-   private val installStateUpdatedListener =
-      InstallStateUpdatedListener { state ->
-         updateProgress =
-            when (state.installStatus) {
-               InstallStatus.DOWNLOADING ->
-                  (state.bytesDownloaded()
-                     .toFloat() / state.totalBytesToDownload())
-                     .coerceIn(0f, 1f) // just in case
-               InstallStatus.DOWNLOADED -> 2f
-               else -> -1f
-            }
-      }
-
-   @OptIn(ExperimentalMaterial3Api::class)
-   @Composable
-   private fun UpdateIconButton() {
-      val currentUpdateInfo = updateInfo
-      if (currentUpdateInfo?.versionStaleness?.shouldShowIcon == true) {
-         val state = rememberTooltipState(isPersistent = true)
-
-         TooltipBox(
-            positionProvider = TooltipDefaults.rememberRichTooltipPositionProvider(),
-            tooltip = {
-               RichTooltip(
-                  title = { Text("Postoji ažuriranje") },
-                  action = {
-                     if (currentUpdateInfo.appUpdateInfo.isFlexibleUpdateAllowed ||
-                        currentUpdateInfo.appUpdateInfo.isImmediateUpdateAllowed
-                     ) TextButton(
-                        onClick = {
-                           val appUpdateType =
-                              if (currentUpdateInfo.appUpdateInfo.isFlexibleUpdateAllowed &&
-                                 (!currentUpdateInfo.isUrgent ||
-                                       !currentUpdateInfo.appUpdateInfo.isImmediateUpdateAllowed)
-                              ) AppUpdateType.FLEXIBLE
-                              else AppUpdateType.IMMEDIATE
-
-                           appUpdateManager.startUpdateFlow(
-                              currentUpdateInfo.appUpdateInfo,
-                              this@MainActivity,
-                              AppUpdateOptions.defaultOptions(appUpdateType),
-                           ).addOnSuccessListener { resultCode ->
-                              if (resultCode == ActivityResult.RESULT_IN_APP_UPDATE_FAILED)
-                                 Toast.makeText(
-                                    this@MainActivity,
-                                    "Dogodila se pogreška pokušavajući ažurirati aplikaciju.",
-                                    Toast.LENGTH_LONG,
-                                 ).show()
-                              state.dismiss()
-                           }
+                PrimaryTabRow(selectedTabIndex = selectedPage) {
+                    Tab(
+                        selected = selectedPage == 0,
+                        onClick = { setSelectedPage(0) },
+                        text = {
+                            Text(
+                                "Linije",
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
                         },
-                        colors = ButtonDefaults.textButtonColorsOnInverseRichTooltip(),
-                     ) {
-                        Text("Ažuriraj")
-                     } else when (updateProgress) {
-                        2f -> TextButton(onClick = { appUpdateManager.completeUpdate() }) {
-                           Text(
-                              "Instaliraj",
-                              color = MaterialTheme.colorScheme.inversePrimary
-                           )
-                        }
+                    )
+                    Tab(
+                        selected = selectedPage == 1,
+                        onClick = { setSelectedPage(1) },
+                        text = {
+                            Text(
+                                "Postaje",
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        },
+                    )
+                }
 
-                        in 0f..1f -> Column {
-                           Text("Preuzimanje ažuriranja${Typography.ellipsis}")
-                           LinearProgressIndicator(
-                              progress = { updateProgress },
-                              color = MaterialTheme.colorScheme.inversePrimary,
-                              trackColor = MaterialTheme.colorScheme.inverseSurface,
-                           )
-                        }
+                HorizontalPager(
+                    state = pagerState,
+                    pageNestedScrollConnection = object :
+                        NestedScrollConnection {
+                        // Make the child consume all the available scroll amount, so it
+                        // doesn't overscroll into the other pager state
+                        override fun onPostScroll(
+                            consumed: Offset,
+                            available: Offset,
+                            source: NestedScrollSource
+                        ) = available
+                    }
+                ) {
+                    when (it) {
+                        0 -> MainActivityRoutes(schedule.routes)
+                        1 -> MainActivityStops(schedule.stops.groupedStops)
+                    }
+                }
 
-                        else -> {}
-                     }
-                  },
-                  colors = TooltipDefaults.inverseRichTooltipColors(),
-               ) {
-                  Text(currentUpdateInfo.message)
-               }
-            },
-            state,
-            focusable = false,
-            enableUserInput = false,
-         ) {
-            val scope = rememberCoroutineScope()
-            IconButton(
-               icon = Symbols.Upgrade,
-               contentDescription = "Postoji ažuriranje",
-               onClick = {
-                  appUpdateManager.appUpdateInfo.addOnSuccessListener { appUpdateInfo ->
-                     val newUpdateInfo = UpdateInfo.from(appUpdateInfo)
-                     updateInfo = newUpdateInfo
-                     if (newUpdateInfo?.versionStaleness?.shouldShowIcon != true)
-                        return@addOnSuccessListener
+                //PriorityLoadingDialog()
+            }
+        }
+    }
 
-                     scope.launch { state.show() }
-                  }
-               },
-               colors = currentUpdateInfo.versionStaleness.colors,
+    /*override fun onResume() {
+       super.onResume()
+       appUpdateManager.registerListener(installStateUpdatedListener)
+
+       appUpdateManager.appUpdateInfo.addOnSuccessListener { appUpdateInfo ->
+          updateProgress =
+             when (appUpdateInfo.installStatus) {
+                InstallStatus.DOWNLOADING ->
+                   (appUpdateInfo.bytesDownloaded()
+                      .toFloat() / appUpdateInfo.totalBytesToDownload())
+                      .coerceIn(0f, 1f) // just in case
+                InstallStatus.DOWNLOADED -> 2f
+                else -> -1f
+             }
+
+          appUpdateInfo.bytesDownloaded()
+
+          if (appUpdateInfo.updateAvailability() ==
+             UpdateAvailability.DEVELOPER_TRIGGERED_UPDATE_IN_PROGRESS
+          ) {
+             // If an in-app update is already running, resume the update.
+             appUpdateManager.startUpdateFlow(
+                appUpdateInfo,
+                this,
+                AppUpdateOptions.newBuilder(AppUpdateType.IMMEDIATE).build(),
+             )
+          }
+       }
+    }*/
+
+    /** Displays a Material 3 [TopAppBar]. */
+    @OptIn(ExperimentalMaterial3Api::class)
+    @Composable
+    private fun MyTopAppBar() = TopAppBar(
+        title = {
+            Text(
+                "Raspored",
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
-         }
-      }
-   }
+        },
+        actions = {
+            //UpdateIconButton()
 
-   private enum class VersionStaleness {
-      /** No need to display anything to the user yet. */
-      DRY,
+            val state = ScheduleManager.realtimeDataState.collectAsState().value
 
-      /** Show a simple icon. */
-      STALE,
+            if (state.displayRealtimeDataNotLive) HintIconButton(
+                icon = Symbols.NoInternet,
+                contentDescription = null,
+                tooltipTitle = "Nema interneta.",
+                tooltipText = "Dogodila se greška prilikom preuzimanja rasporeda uživo.\n" +
+                        "Raspored prikazan možda neće biti točan.",
+                iconTint = MaterialTheme.colorScheme.error,
+                action = {
+                    val attempting = state == ScheduleManager.RealtimeDataState.DOWNLOADING
+                    TextButton(
+                        onClick = {
+                            ScheduleManager.realtimeDataState.value =
+                                ScheduleManager.RealtimeDataState.DOWNLOADING
+                            ScheduleManager.realtimeDispatcher.updateImmediately()
+                        },
+                        enabled = !attempting,
+                        colors = ButtonDefaults.textButtonColorsOnInverseRichTooltip(),
+                    ) {
+                        Text(if (attempting) "Preuzimanje${Typography.ellipsis}" else "Pokušaj ponovno")
+                    }
+                },
+                showClickIndication = true,
+            )
+            IconButton(
+                Symbols.Settings,
+                contentDescription = "Postavke",
+                onClick = {
+                    startActivity(
+                        Intent(
+                            this@MainActivity,
+                            SettingsActivity::class.java
+                        )
+                    )
+                },
+            )
+        },
+        windowInsets = WindowInsets.safeDrawing
+            .only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top),
+    )
 
-      /** Show a tinted icon. */
-      SPOILED,
+    @Composable
+    private fun LoadingSnackbar() {
+        val loadingState = ScheduleManager.downloadState.collectAsState().value
+        val loadingOperation = loadingState?.operation
+        if (loadingOperation == ScheduleManager.DownloadOperation.DOWNLOADING ||
+            loadingOperation == ScheduleManager.DownloadOperation.LOADING_GTFS
+        ) {
+            Snackbar {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (loadingState.progress.isNaN())
+                        CircularProgressIndicator(
+                            color = MaterialTheme.colorScheme.inversePrimary,
+                            trackColor = MaterialTheme.colorScheme.inverseSurface,
+                        )
+                    else
+                        CircularProgressIndicator(
+                            progress = { loadingState.progress },
+                            color = MaterialTheme.colorScheme.inversePrimary,
+                            trackColor = MaterialTheme.colorScheme.inverseSurface,
+                        )
 
-      /** Show an urgent icon. */
-      ROTTEN;
+                    Text(
+                        if (loadingOperation == ScheduleManager.DownloadOperation.DOWNLOADING)
+                            "Preuzimanje novog rasporeda${Typography.ellipsis}"
+                        else "Ažuriranje rasporeda${Typography.ellipsis}",
+                        Modifier.padding(start = 8.dp),
+                    )
+                }
+            }
+            return
+        }
+    }
 
-      val shouldShowIcon get() = this != DRY
+    /*@Composable
+    private fun UpdateSnackbar() {
+       when (updateProgress) {
+          in 0f..1f -> Snackbar {
+             Row(verticalAlignment = Alignment.CenterVertically) {
+                CircularProgressIndicator(
+                   progress = { updateProgress },
+                   color = MaterialTheme.colorScheme.inversePrimary,
+                   trackColor = MaterialTheme.colorScheme.inverseSurface,
+                )
+                Text(
+                   "Preuzimanje ažuriranja${Typography.ellipsis}",
+                   Modifier.padding(start = 8.dp),
+                )
+             }
+          }
 
-      val colors
-         @Composable get(): IconButtonColors = when (this) {
-            ROTTEN -> IconButtonDefaults.errorIconButtonColors()
-            SPOILED -> IconButtonDefaults.filledIconButtonColors()
-            else -> IconButtonDefaults.iconButtonColors()
-         }
-   }
+          2f -> Snackbar(
+             action = {
+                TextButton(onClick = { appUpdateManager.completeUpdate() }) {
+                   Text(
+                      "Instaliraj",
+                      color = MaterialTheme.colorScheme.inversePrimary
+                   )
+                }
+             }
+          ) {
+             Text("Ažuriranje preuzeto.")
+          }
+       }
+    }
 
-   private data class UpdateInfo(
-      val versionStaleness: VersionStaleness,
-      val message: String,
-      val appUpdateInfo: AppUpdateInfo,
-      val isUrgent: Boolean = false,
-   ) {
-      companion object {
-         fun from(appUpdateInfo: AppUpdateInfo) =
-            if (appUpdateInfo.updateAvailability() == UpdateAvailability.UPDATE_AVAILABLE ||
-               appUpdateInfo.updateAvailability() == UpdateAvailability.DEVELOPER_TRIGGERED_UPDATE_IN_PROGRESS
-            ) {
-               val versionStalenessDays =
-                  appUpdateInfo.clientVersionStalenessDays ?: -1
+    @Composable
+    private fun PriorityLoadingDialog() {
+       val loadingState = ScheduleManager.loadingState
+       if (loadingState == ScheduleManager.LoadingState.PRIORITY_LOADING)
+          AlertDialog(
+             onDismissRequest = { },
+             text = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                   CircularProgressIndicator()
+                   Text(
+                      "Pripremanje rasporeda${Typography.ellipsis}",
+                      Modifier.padding(start = 16.dp),
+                   )
+                }
+             },
+             confirmButton = { }
+          )
+    }
 
-               /*
-               Legend for version staleness:
-                      update priority
-               days  	0 1 2 3 4 5     symbols
-               ..<7	          . o !    DRY
-               7..<30	    . o o !    STALE   .
-               30..<100	  . o o ! !    SPOILED o
-               100..	. o o ! ! !    ROTTEN  !
-                */
+    private var updateInfo by mutableStateOf<UpdateInfo?>(null)
 
-               val versionStaleness = when (appUpdateInfo.updatePriority) {
-                  0 ->
-                     if (versionStalenessDays < 100) DRY
-                     else STALE
+    private var updateProgress by mutableFloatStateOf(-1f)
 
-                  1 ->
-                     if (versionStalenessDays < 30) DRY
-                     else if (versionStalenessDays < 100) STALE
-                     else SPOILED
+    private val installStateUpdatedListener =
+       InstallStateUpdatedListener { state ->
+          updateProgress =
+             when (state.installStatus) {
+                InstallStatus.DOWNLOADING ->
+                   (state.bytesDownloaded()
+                      .toFloat() / state.totalBytesToDownload())
+                      .coerceIn(0f, 1f) // just in case
+                InstallStatus.DOWNLOADED -> 2f
+                else -> -1f
+             }
+       }
 
-                  2 ->
-                     if (versionStalenessDays < 7) DRY
-                     else if (versionStalenessDays < 30) STALE
-                     else SPOILED
+    @OptIn(ExperimentalMaterial3Api::class)
+    @Composable
+    private fun UpdateIconButton() {
+       val currentUpdateInfo = updateInfo
+       if (currentUpdateInfo?.versionStaleness?.shouldShowIcon == true) {
+          val state = rememberTooltipState(isPersistent = true)
 
-                  3 ->
-                     if (versionStalenessDays < 7) STALE
-                     else if (versionStalenessDays < 100) SPOILED
-                     else ROTTEN
+          TooltipBox(
+             positionProvider = TooltipDefaults.rememberRichTooltipPositionProvider(),
+             tooltip = {
+                RichTooltip(
+                   title = { Text("Postoji ažuriranje") },
+                   action = {
+                      if (currentUpdateInfo.appUpdateInfo.isFlexibleUpdateAllowed ||
+                         currentUpdateInfo.appUpdateInfo.isImmediateUpdateAllowed
+                      ) TextButton(
+                         onClick = {
+                            val appUpdateType =
+                               if (currentUpdateInfo.appUpdateInfo.isFlexibleUpdateAllowed &&
+                                  (!currentUpdateInfo.isUrgent ||
+                                        !currentUpdateInfo.appUpdateInfo.isImmediateUpdateAllowed)
+                               ) AppUpdateType.FLEXIBLE
+                               else AppUpdateType.IMMEDIATE
 
-                  4 ->
-                     if (versionStalenessDays < 30) SPOILED
-                     else ROTTEN
+                            appUpdateManager.startUpdateFlow(
+                               currentUpdateInfo.appUpdateInfo,
+                               this@MainActivity,
+                               AppUpdateOptions.defaultOptions(appUpdateType),
+                            ).addOnSuccessListener { resultCode ->
+                               if (resultCode == ActivityResult.RESULT_IN_APP_UPDATE_FAILED)
+                                  Toast.makeText(
+                                     this@MainActivity,
+                                     "Dogodila se pogreška pokušavajući ažurirati aplikaciju.",
+                                     Toast.LENGTH_LONG,
+                                  ).show()
+                               state.dismiss()
+                            }
+                         },
+                         colors = ButtonDefaults.textButtonColorsOnInverseRichTooltip(),
+                      ) {
+                         Text("Ažuriraj")
+                      } else when (updateProgress) {
+                         2f -> TextButton(onClick = { appUpdateManager.completeUpdate() }) {
+                            Text(
+                               "Instaliraj",
+                               color = MaterialTheme.colorScheme.inversePrimary
+                            )
+                         }
 
-                  5 -> ROTTEN
-                  else -> STALE
-               }
+                         in 0f..1f -> Column {
+                            Text("Preuzimanje ažuriranja${Typography.ellipsis}")
+                            LinearProgressIndicator(
+                               progress = { updateProgress },
+                               color = MaterialTheme.colorScheme.inversePrimary,
+                               trackColor = MaterialTheme.colorScheme.inverseSurface,
+                            )
+                         }
 
-               val message = when (appUpdateInfo.updatePriority) {
-                  3, 4 -> "Nova značajka popravlja mali problem s trenutnom verzijom, " +
-                        "preporuka je da ažurirate aplikaciju u jednom trenutku."
+                         else -> {}
+                      }
+                   },
+                   colors = TooltipDefaults.inverseRichTooltipColors(),
+                ) {
+                   Text(currentUpdateInfo.message)
+                }
+             },
+             state,
+             focusable = false,
+             enableUserInput = false,
+          ) {
+             val scope = rememberCoroutineScope()
+             IconButton(
+                icon = Symbols.Upgrade,
+                contentDescription = "Postoji ažuriranje",
+                onClick = {
+                   appUpdateManager.appUpdateInfo.addOnSuccessListener { appUpdateInfo ->
+                      val newUpdateInfo = UpdateInfo.from(appUpdateInfo)
+                      updateInfo = newUpdateInfo
+                      if (newUpdateInfo?.versionStaleness?.shouldShowIcon != true)
+                         return@addOnSuccessListener
 
-                  5 -> "Preporuka je da odmah ažurirate aplikaciju jer novo ažuriranje " +
-                        "popravlja kritičnu pogrešku koja postoji u trenutnoj verziji."
+                      scope.launch { state.show() }
+                   }
+                },
+                colors = currentUpdateInfo.versionStaleness.colors,
+             )
+          }
+       }
+    }
 
-                  else -> "Ažurirajte aplikaciju kako biste uvijek imali najnovije značajke."
-               }
+    private enum class VersionStaleness {
+       /** No need to display anything to the user yet. */
+       DRY,
 
-               UpdateInfo(versionStaleness, message, appUpdateInfo)
-            } else null
+       /** Show a simple icon. */
+       STALE,
 
-      }
-   }*/
+       /** Show a tinted icon. */
+       SPOILED,
+
+       /** Show an urgent icon. */
+       ROTTEN;
+
+       val shouldShowIcon get() = this != DRY
+
+       val colors
+          @Composable get(): IconButtonColors = when (this) {
+             ROTTEN -> IconButtonDefaults.errorIconButtonColors()
+             SPOILED -> IconButtonDefaults.filledIconButtonColors()
+             else -> IconButtonDefaults.iconButtonColors()
+          }
+    }
+
+    private data class UpdateInfo(
+       val versionStaleness: VersionStaleness,
+       val message: String,
+       val appUpdateInfo: AppUpdateInfo,
+       val isUrgent: Boolean = false,
+    ) {
+       companion object {
+          fun from(appUpdateInfo: AppUpdateInfo) =
+             if (appUpdateInfo.updateAvailability() == UpdateAvailability.UPDATE_AVAILABLE ||
+                appUpdateInfo.updateAvailability() == UpdateAvailability.DEVELOPER_TRIGGERED_UPDATE_IN_PROGRESS
+             ) {
+                val versionStalenessDays =
+                   appUpdateInfo.clientVersionStalenessDays ?: -1
+
+                /*
+                Legend for version staleness:
+                       update priority
+                days  	0 1 2 3 4 5     symbols
+                ..<7	          . o !    DRY
+                7..<30	    . o o !    STALE   .
+                30..<100	  . o o ! !    SPOILED o
+                100..	. o o ! ! !    ROTTEN  !
+                 */
+
+                val versionStaleness = when (appUpdateInfo.updatePriority) {
+                   0 ->
+                      if (versionStalenessDays < 100) DRY
+                      else STALE
+
+                   1 ->
+                      if (versionStalenessDays < 30) DRY
+                      else if (versionStalenessDays < 100) STALE
+                      else SPOILED
+
+                   2 ->
+                      if (versionStalenessDays < 7) DRY
+                      else if (versionStalenessDays < 30) STALE
+                      else SPOILED
+
+                   3 ->
+                      if (versionStalenessDays < 7) STALE
+                      else if (versionStalenessDays < 100) SPOILED
+                      else ROTTEN
+
+                   4 ->
+                      if (versionStalenessDays < 30) SPOILED
+                      else ROTTEN
+
+                   5 -> ROTTEN
+                   else -> STALE
+                }
+
+                val message = when (appUpdateInfo.updatePriority) {
+                   3, 4 -> "Nova značajka popravlja mali problem s trenutnom verzijom, " +
+                         "preporuka je da ažurirate aplikaciju u jednom trenutku."
+
+                   5 -> "Preporuka je da odmah ažurirate aplikaciju jer novo ažuriranje " +
+                         "popravlja kritičnu pogrešku koja postoji u trenutnoj verziji."
+
+                   else -> "Ažurirajte aplikaciju kako biste uvijek imali najnovije značajke."
+                }
+
+                UpdateInfo(versionStaleness, message, appUpdateInfo)
+             } else null
+
+       }
+    }*/
 }
