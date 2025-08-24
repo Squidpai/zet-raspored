@@ -96,27 +96,32 @@ fun TripDialog(
                     icon, "Promjeni prikaz vremena",
                     onClick = { isAbsoluteTime = !isAbsoluteTime },
                 )
-                Box {
-                    var expanded by remember { mutableStateOf(false) }
 
-                    IconButton(
-                        Symbols.MoreVert, "Dodatne opcije",
-                        onClick = { expanded = true },
-                    )
-                    DropdownMenu(
-                        expanded = expanded,
-                        onDismissRequest = { expanded = false }) {
-                        DropdownMenuItem(
-                            text = { Text("Prati u obavijestima") },
-                            onClick = onTrackInNotificationsRequest,
-                        )
-                    }
-                }
+                DropdownMenu(onTrackInNotificationsRequest)
             }
         },
         text = { DialogTextContent(data, onStopClicked, isAbsoluteTime) }
     )
 }
+
+@Composable
+private fun DropdownMenu(onTrackInNotificationsRequest: () -> Unit) =
+    Box {
+        var expanded by remember { mutableStateOf(false) }
+
+        IconButton(
+            Symbols.MoreVert, "Dodatne opcije",
+            onClick = { expanded = true },
+        )
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }) {
+            DropdownMenuItem(
+                text = { Text("Prati u obavijestima") },
+                onClick = onTrackInNotificationsRequest,
+            )
+        }
+    }
 
 @Composable
 private fun DialogTextContent(
