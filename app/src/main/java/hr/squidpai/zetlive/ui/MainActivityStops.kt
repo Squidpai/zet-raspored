@@ -290,7 +290,6 @@ private fun StopContent(
                     )
                 }
                 val selectedStop = labeledStops[selectedStopIndex].stop
-                val context = LocalContext.current
 
                 LazyRow(
                     modifier = Modifier.fillMaxWidth(),
