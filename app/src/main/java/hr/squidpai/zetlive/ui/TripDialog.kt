@@ -114,13 +114,13 @@ fun TripDialog(
          }
       },
       text = {
-         DialogContent(data, onStopClicked, isAbsoluteTime)
+         DialogTextContent(data, onStopClicked, isAbsoluteTime)
       }
    )
 }
 
 @Composable
-private fun DialogContent(
+private fun DialogTextContent(
    data: TripDialogData,
    onStopClicked: (Stop) -> Unit,
    isAbsoluteTime: Boolean,
