@@ -478,7 +478,9 @@ fun LiveStopRow(
     Text(
         when {
             entry.isCancelled -> "otkazano"
-            entry.useRelative -> "${(entry.relativeTime.coerceAtLeast(0)) / 60} min"
+            entry.useRelative ->
+                if (!departed) "${entry.relativeTime / 60} min"
+                else "prije ${-entry.relativeTime / 60} min"
             else -> entry.absoluteTime.toStringHHMM()
         },
         modifier = Modifier.padding(end = 4.dp),
