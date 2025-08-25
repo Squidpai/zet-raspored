@@ -22,6 +22,33 @@ object Symbols {
         viewportHeight = viewportSize,
         autoMirror = autoMirror,
     ).apply { materialPath(pathBuilder = pathBuilder) }.build()
+    val ArrowBack = symbol("ArrowBack", autoMirror = true) {
+        moveTo(313f, 520f)
+        lineTo(537f, 744f)
+        lineTo(480f, 800f)
+        lineTo(160f, 480f)
+        lineTo(480f, 160f)
+        lineTo(537f, 216f)
+        lineTo(313f, 440f)
+        lineTo(800f, 440f)
+        lineTo(800f, 520f)
+        lineTo(313f, 520f)
+        close()
+    }
+
+    val ArrowForward = symbol("ArrowForward", autoMirror = true) {
+        moveTo(647f, 520f)
+        lineTo(160f, 520f)
+        lineTo(160f, 440f)
+        lineTo(647f, 440f)
+        lineTo(423f, 216f)
+        lineTo(480f, 160f)
+        lineTo(800f, 480f)
+        lineTo(480f, 800f)
+        lineTo(423f, 744f)
+        lineTo(647f, 520f)
+        close()
+    }
 
     val SwapHorizontal = symbol("SwapHorizontal") {
         moveTo(280f, 800f)
