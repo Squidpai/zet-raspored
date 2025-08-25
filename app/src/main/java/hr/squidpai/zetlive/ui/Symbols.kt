@@ -1,8 +1,11 @@
 package hr.squidpai.zetlive.ui
 
-import androidx.compose.material.icons.materialPath
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.PathBuilder
+import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
@@ -21,7 +24,16 @@ object Symbols {
         viewportWidth = viewportSize,
         viewportHeight = viewportSize,
         autoMirror = autoMirror,
-    ).apply { materialPath(pathBuilder = pathBuilder) }.build()
+    ).apply {
+        path(
+            fill = SolidColor(Color.Black),
+            strokeLineWidth = 1f,
+            strokeLineJoin = StrokeJoin.Bevel,
+            strokeLineMiter = 1f,
+            pathBuilder = pathBuilder
+        )
+    }.build()
+
     val ArrowBack = symbol("ArrowBack", autoMirror = true) {
         moveTo(313f, 520f)
         lineTo(537f, 744f)
