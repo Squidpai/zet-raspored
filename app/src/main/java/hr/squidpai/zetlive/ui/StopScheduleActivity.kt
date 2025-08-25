@@ -22,8 +22,6 @@ import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -104,7 +102,7 @@ class StopScheduleActivity : BaseAppActivity("StopScheduleActivity") {
         title = { Text(stopName) },
         navigationIcon = {
             IconButton(
-                Icons.AutoMirrored.Outlined.ArrowBack,
+                Symbols.ArrowBack,
                 contentDescription = "Natrag",
                 onClick = { finish() },
             )

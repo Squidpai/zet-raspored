@@ -172,7 +172,7 @@ class RouteScheduleActivity : BaseAppActivity("RouteScheduleActivity") {
         },
         navigationIcon = {
             IconButton(
-                Icons.AutoMirrored.Outlined.ArrowBack,
+                Symbols.ArrowBack,
                 contentDescription = "Natrag",
                 onClick = { finish() }
             )
