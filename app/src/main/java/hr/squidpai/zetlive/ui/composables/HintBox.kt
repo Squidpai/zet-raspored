@@ -3,6 +3,7 @@ package hr.squidpai.zetlive.ui.composables
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.RichTooltip
 import androidx.compose.material3.Text
+import androidx.compose.material3.TooltipAnchorPosition
 import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.TooltipState
@@ -35,7 +36,7 @@ fun HintBox(
     ),
     content: @Composable () -> Unit
 ) = TooltipBox(
-    positionProvider = TooltipDefaults.rememberRichTooltipPositionProvider(),
+    positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
     tooltip = {
         RichTooltip(colors = TooltipDefaults.inverseRichTooltipColors()) {
             Text(hint.hintText)
@@ -43,7 +44,9 @@ fun HintBox(
     },
     state,
     modifier,
+    onDismissRequest = null, // TODO add implementation to allow dismissal only after a second of being displayed
     focusable = false,
     enableUserInput = false,
+    hasAction = false,
     content
 )
