@@ -13,8 +13,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -36,6 +34,7 @@ import hr.squidpai.zetlive.gtfs.preferredHeadsign
 import hr.squidpai.zetlive.gtfs.preferredName
 import hr.squidpai.zetlive.orLoading
 import hr.squidpai.zetlive.timeToString
+import hr.squidpai.zetlive.ui.Symbols
 import hr.squidpai.zetlive.ui.showTripDialog
 import kotlin.time.Duration.Companion.minutes
 
@@ -149,7 +148,7 @@ fun LiveTravelSlider(
         }
         if (highlightedStopIndex < stopNames.size) item {
             if (!isAtFirstStop && highlightNextStop) Icon(
-                Icons.AutoMirrored.Filled.ArrowForward,
+                Symbols.ArrowForward,
                 modifier = Modifier.padding(horizontal = 8.dp),
                 contentDescription = null,
                 tint = if (disabled) MaterialTheme.colorScheme.disabled else tint,
@@ -166,7 +165,7 @@ fun LiveTravelSlider(
             )
 
             if (!isAtFirstStop && !highlightNextStop) Icon(
-                Icons.AutoMirrored.Filled.ArrowForward,
+                Symbols.ArrowForward,
                 modifier = Modifier.padding(horizontal = 8.dp),
                 contentDescription = null,
                 tint = if (disabled) MaterialTheme.colorScheme.disabled else tint,
