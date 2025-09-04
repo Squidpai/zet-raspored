@@ -9,8 +9,12 @@ import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.TooltipState
 import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import hr.squidpai.zetlive.Data
+import hr.squidpai.zetlive.localCurrentTimeMillis
+
+private const val MILLIS_BEFORE_ALLOWED_TO_DISMISS = 2500
 
 /**
  * A default implementation for a [TooltipBox] displaying a [hint].
@@ -34,19 +38,28 @@ fun HintBox(
         initialIsVisible = hint.shouldBeVisible(),
         isPersistent = true,
     ),
+    positioning: TooltipAnchorPosition = TooltipAnchorPosition.Above,
     content: @Composable () -> Unit
-) = TooltipBox(
-    positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
-    tooltip = {
-        RichTooltip(colors = TooltipDefaults.inverseRichTooltipColors()) {
-            Text(hint.hintText)
-        }
-    },
-    state,
-    modifier,
-    onDismissRequest = null, // TODO add implementation to allow dismissal only after a second of being displayed
-    focusable = false,
-    enableUserInput = false,
-    hasAction = false,
-    content
-)
+) {
+    val displayTime = rememberSaveable { localCurrentTimeMillis() }
+
+    TooltipBox(
+        positionProvider = TooltipDefaults.rememberTooltipPositionProvider(positioning),
+        tooltip = {
+            RichTooltip(colors = TooltipDefaults.inverseRichTooltipColors()) {
+                Text(hint.hintText)
+            }
+        },
+        state,
+        modifier,
+        onDismissRequest = {
+            if (localCurrentTimeMillis() - displayTime > MILLIS_BEFORE_ALLOWED_TO_DISMISS
+                && state.isVisible
+            ) state.dismiss()
+        },
+        focusable = false,
+        enableUserInput = false,
+        hasAction = false,
+        content
+    )
+}
