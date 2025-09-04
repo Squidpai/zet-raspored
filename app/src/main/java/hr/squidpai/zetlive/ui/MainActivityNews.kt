@@ -7,7 +7,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -42,7 +43,7 @@ fun MainActivityNews(source: NewsLoader) {
     }
 }
 
-//@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun LoadingNews() = Column(
     modifier = Modifier.fillMaxSize(),
@@ -50,13 +51,11 @@ private fun LoadingNews() = Column(
     horizontalAlignment = Alignment.CenterHorizontally,
 ) {
     Text("Učitavanje${Typography.ellipsis}")
-    CircularProgressIndicator(Modifier.padding(8.dp))
-    // TODO update to include LoadingIndicator(Modifier.padding(8.dp))
+    LoadingIndicator(Modifier.padding(8.dp))
 }
 
 @Composable
 private fun NewsEntry(item: NewsItem) = Surface(
-    onClick = { /* TODO */ },
     modifier = Modifier
         .fillMaxWidth()
         .padding(6.dp),
