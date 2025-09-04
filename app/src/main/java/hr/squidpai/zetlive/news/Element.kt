@@ -13,6 +13,11 @@ sealed interface Element : Serializable {
         }
     }
 
-    data class Image(val sourceUrl: String, val altText: String?, val size: IntSize) : Element
+    data class Image(
+        val sourceUrl: String,
+        val altText: String?,
+        val size: IntSize,
+        val clickableUrl: String?,
+    ) : Element
 
 }
