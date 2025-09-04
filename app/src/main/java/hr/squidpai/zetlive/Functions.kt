@@ -136,6 +136,17 @@ fun IntSet.toIntArray(): IntArray {
     return array
 }
 
+fun <K, V> Map<K, V>.withRemovedKeys(keysToRemove: Collection<K>): Map<K, V> {
+    if (keysToRemove.isEmpty())
+        return this
+
+    val result = this.toMutableMap()
+
+    result -= keysToRemove
+
+    return result
+}
+
 /**
  * Represents a pair of [Int] and a generic object.
  *

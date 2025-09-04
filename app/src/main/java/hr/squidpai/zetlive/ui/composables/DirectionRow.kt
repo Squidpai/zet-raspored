@@ -6,6 +6,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TooltipAnchorPosition
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -30,74 +31,76 @@ import hr.squidpai.zetlive.ui.Symbols
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ColumnScope.DirectionRow(
-   routeId: RouteId,
-   commonHeadsign: Pair<String, String>,
-   direction: Int,
-   setDirection: (Int) -> Unit,
-   isRoundRoute: Boolean,
-   modifier: Modifier = Modifier,
+    routeId: RouteId,
+    commonHeadsign: Pair<String, String>,
+    direction: Int,
+    setDirection: (Int) -> Unit,
+    isRoundRoute: Boolean,
+    modifier: Modifier = Modifier,
 ) = Row(
-   modifier.align(Alignment.CenterHorizontally),
-   verticalAlignment = Alignment.CenterVertically,
+    modifier.align(Alignment.CenterHorizontally),
+    verticalAlignment = Alignment.CenterVertically,
 ) {
-   val firstSign = commonHeadsign.first
+    val firstSign = commonHeadsign.first
 
-   if (isRoundRoute) {
-      HintIconButton(
-         Symbols._360,
-         contentDescription = null,
-         tooltipTitle = "Ovo je kružna linija.",
-         tooltipText = "Kružne linije nemaju dva smjera, već naprave krug po svojoj trasi " +
-               "te se vrate natrag na početno stajalište.",
-      )
+    if (isRoundRoute) {
+        HintIconButton(
+            Symbols._360,
+            contentDescription = null,
+            tooltipTitle = "Ovo je kružna linija.",
+            tooltipText = "Kružne linije nemaju dva smjera, već naprave krug po svojoj trasi " +
+                    "te se vrate natrag na početno stajalište.",
+        )
 
-      Text(firstSign, maxLines = 1, overflow = TextOverflow.Ellipsis)
-   } else {
-      // putting an else block instead of a return in the if block
-      // because an exception is thrown from Compose otherwise
+        Text(firstSign, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    } else {
+        // putting an else block instead of a return in the if block
+        // because an exception is thrown from Compose otherwise
 
-      val secondSign = commonHeadsign.second
+        val secondSign = commonHeadsign.second
 
-      val leftSign: String
-      val rightSign: String
+        val leftSign: String
+        val rightSign: String
 
-      if (direction == 1) {
-         leftSign = firstSign
-         rightSign = secondSign
-      } else {
-         leftSign = secondSign
-         rightSign = firstSign
-      }
+        if (direction == 1) {
+            leftSign = firstSign
+            rightSign = secondSign
+        } else {
+            leftSign = secondSign
+            rightSign = firstSign
+        }
 
-      Text(
-         leftSign,
-         modifier = Modifier.weight(1f),
-         textAlign = TextAlign.End,
-         maxLines = 1,
-         overflow = TextOverflow.Ellipsis,
-      )
-      HintBox(Data.hints.swapDirection) {
-         IconButton(
-            icon = Symbols.SwapHorizontal,
-            contentDescription = "Zamijeni smjer",
-            onClick = {
-               setDirection(1 - direction)
-               Data.updateData {
-                  Data.hints.swapDirection.satisfyWithoutUpdate()
-                  if (direction == 0)
-                     directionSwapped += routeId
-                  else
-                     directionSwapped -= routeId
-               }
-            },
-            colors = IconButtonDefaults.iconButtonColors(contentColor = MaterialTheme.colorScheme.primary),
-         )
-      }
-      Text(
-         rightSign,
-         modifier = Modifier.weight(1f),
-         maxLines = 1,
-         overflow = TextOverflow.Ellipsis,
-      )
-   }
+        Text(
+            leftSign,
+            modifier = Modifier.weight(1f),
+            textAlign = TextAlign.End,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        HintBox(Data.hints.swapDirection, positioning = TooltipAnchorPosition.Below) {
+            IconButton(
+                icon = Symbols.SwapHorizontal,
+                contentDescription = "Zamijeni smjer",
+                onClick = {
+                    setDirection(1 - direction)
+                    Data.updateData {
+                        Data.hints.swapDirection.satisfyWithoutUpdate()
+                        if (direction == 0)
+                            directionSwapped += routeId
+                        else
+                            directionSwapped -= routeId
+                    }
+                },
+                colors = IconButtonDefaults.iconButtonColors(
+                    contentColor = MaterialTheme.colorScheme.primary
+                ),
+            )
+        }
+        Text(
+            rightSign,
+            modifier = Modifier.weight(1f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
 }

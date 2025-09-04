@@ -14,22 +14,22 @@ import androidx.compose.ui.graphics.lerp
 @ExperimentalMaterial3Api
 @Composable
 fun TooltipDefaults.inverseRichTooltipColors() = RichTooltipColors(
-   containerColor = MaterialTheme.colorScheme.inverseSurface,
-   contentColor = MaterialTheme.colorScheme.inverseOnSurface,
-   titleContentColor = MaterialTheme.colorScheme.inverseOnSurface,
-   actionContentColor = MaterialTheme.colorScheme.inversePrimary,
+    containerColor = MaterialTheme.colorScheme.inverseSurface,
+    contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+    titleContentColor = MaterialTheme.colorScheme.inverseOnSurface,
+    actionContentColor = MaterialTheme.colorScheme.inversePrimary,
 )
 
 @Composable
 fun ButtonDefaults.textButtonColorsOnInverseRichTooltip() = textButtonColors(
-   contentColor = MaterialTheme.colorScheme.inversePrimary,
-   disabledContentColor = MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = .38f),
+    contentColor = MaterialTheme.colorScheme.inversePrimary,
+    disabledContentColor = MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = .38f),
 )
 
 @Composable
 fun IconButtonDefaults.errorIconButtonColors() = filledIconButtonColors(
-   containerColor = MaterialTheme.colorScheme.errorContainer,
-   contentColor = MaterialTheme.colorScheme.onErrorContainer,
+    containerColor = MaterialTheme.colorScheme.errorContainer,
+    contentColor = MaterialTheme.colorScheme.onErrorContainer,
 )
 
 val ColorScheme.disabled get() = lerp(onSurface, surface, fraction = .36f)

@@ -15,8 +15,3 @@ fun getArrivalLineRatio(departures: TimeOfDayList, nextStop: Int, timeOfDay: Tim
 	val arrival = departures[nextStop] - timeOfDay.valueInSeconds
 	return (1 - arrival.toFloat() / stopDiff).coerceIn(0f, 1f)
 }
-
-fun findNextStopIndex(departures: TimeOfDayList, timeOfDay: TimeOfDay): Int {
-	val index = departures.indexOfFirst { TimeOfDay(it) >= timeOfDay }
-	return if (index != -1) index else departures.size
-}

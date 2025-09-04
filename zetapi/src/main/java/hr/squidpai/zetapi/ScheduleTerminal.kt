@@ -45,6 +45,7 @@ private fun main() {
 private var schedule: Schedule? = null
 
 private object NoScheduleException : Throwable() {
+    @Suppress("unused") // this is required for serialization or something idk
     private fun readResolve(): Any = NoScheduleException
 }
 
@@ -247,4 +248,17 @@ private val findQueries: Map<String, () -> Unit> = mapOf(
             println(routes.joinToString())
         }
     },
+    "different-size-stops-departures" to {
+        var foundAny = false
+
+        for (route in requireSchedule().routes.values)
+            for (trip in route.trips.values)
+                if (trip.stops.size != trip.departures.size) {
+                    println(trip)
+                    foundAny = true
+                }
+
+        if (!foundAny)
+            println("None found")
+    }
 )

@@ -14,13 +14,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -76,7 +75,6 @@ import hr.squidpai.zetlive.gtfs.preferredHeadsign
 import hr.squidpai.zetlive.gtfs.preferredName
 import hr.squidpai.zetlive.localCurrentTimeMillis
 import hr.squidpai.zetlive.timeToString
-import hr.squidpai.zetlive.ui.composables.CircularLoadingBox
 import hr.squidpai.zetlive.ui.composables.DirectionRow
 import hr.squidpai.zetlive.ui.composables.IconButton
 import hr.squidpai.zetlive.ui.composables.disabled
@@ -148,7 +146,13 @@ class RouteScheduleActivity : BaseAppActivity("RouteScheduleActivity") {
                     calendarDates = schedule.calendarDates,
                     modifier = Modifier.padding(padding),
                 )
-            else CircularLoadingBox(Modifier.padding(padding))
+            else
+                CircularProgressIndicator(
+                    Modifier
+                        .padding(padding)
+                        .fillMaxSize()
+                        .wrapContentSize()
+                )
         }
 
     }
@@ -165,7 +169,7 @@ class RouteScheduleActivity : BaseAppActivity("RouteScheduleActivity") {
         },
         navigationIcon = {
             IconButton(
-                Icons.AutoMirrored.Outlined.ArrowBack,
+                Symbols.ArrowBack,
                 contentDescription = "Natrag",
                 onClick = { finish() }
             )
@@ -311,8 +315,8 @@ class RouteScheduleActivity : BaseAppActivity("RouteScheduleActivity") {
                     Text(
                         getLabel((selectedDate + 1 - todaysDate).toInt()),
                         Modifier
-                           .fillMaxWidth()
-                           .background(MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp)),
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp)),
                         textAlign = TextAlign.Center,
                         style = MaterialTheme.typography.titleMedium,
                     )
@@ -368,8 +372,8 @@ class RouteScheduleActivity : BaseAppActivity("RouteScheduleActivity") {
 
                 Row(
                     Modifier
-                       .padding(horizontal = 8.dp)
-                       .layoutId(TripRowMeasurePolicy.TIME_LAYOUT_ID),
+                        .padding(horizontal = 8.dp)
+                        .layoutId(TripRowMeasurePolicy.TIME_LAYOUT_ID),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
@@ -380,7 +384,7 @@ class RouteScheduleActivity : BaseAppActivity("RouteScheduleActivity") {
                         textAlign = TextAlign.End,
                     )
                     Icon(
-                        Icons.AutoMirrored.Filled.ArrowForward,
+                        Symbols.ArrowForward,
                         contentDescription = null,
                         modifier = Modifier.padding(horizontal = 8.dp),
                         tint = tint,

@@ -18,35 +18,37 @@ import hr.squidpai.zetlive.gtfs.ScheduleManager
 
 @Composable
 fun MainActivityLoading(
-   errorType: ErrorType?,
-   modifier: Modifier = Modifier,
+    errorType: ErrorType?,
+    modifier: Modifier = Modifier,
 ) = Column(
-   modifier = modifier.fillMaxSize().padding(horizontal = 16.dp),
-   verticalArrangement = Arrangement.Center,
-   horizontalAlignment = Alignment.CenterHorizontally,
+    modifier = modifier
+       .fillMaxSize()
+       .padding(horizontal = 16.dp),
+    verticalArrangement = Arrangement.Center,
+    horizontalAlignment = Alignment.CenterHorizontally,
 ) {
-   if (errorType == null || errorType == ErrorType.ALREADY_DOWNLOADING) {
-      val state = ScheduleManager.downloadState.collectAsState().value
-      state?.operation.message?.let { Text(it) }
+    if (errorType == null || errorType == ErrorType.ALREADY_DOWNLOADING) {
+        val state = ScheduleManager.downloadState.collectAsState().value
+        state?.operation.message?.let { Text(it) }
 
-      val progress = state?.progress ?: Float.NaN
-      if (progress.isNaN())
-         CircularProgressIndicator(Modifier.padding(8.dp))
-      else
-         CircularProgressIndicator({ progress }, Modifier.padding(8.dp))
-   } else {
-      Text(errorType.errorMessage.orEmpty())
+        val progress = state?.progress ?: Float.NaN
+        if (progress.isNaN())
+            CircularProgressIndicator(Modifier.padding(8.dp))
+        else
+            CircularProgressIndicator({ progress }, Modifier.padding(8.dp))
+    } else {
+        Text(errorType.errorMessage.orEmpty())
 
-      val context = LocalContext.current
-      Button(onClick = { ScheduleManager.init(context.filesDir) }) {
-         Text("Pokušaj ponovno")
-      }
-   }
+        val context = LocalContext.current
+        Button(onClick = { ScheduleManager.init(context.filesDir) }) {
+            Text("Pokušaj ponovno")
+        }
+    }
 }
 
 private val ScheduleManager.DownloadOperation?.message
-   get() = when (this) {
-      null, ScheduleManager.DownloadOperation.LOADING_CACHED -> null
-      ScheduleManager.DownloadOperation.DOWNLOADING -> "Preuzimanje rasporeda${Typography.ellipsis}"
-      ScheduleManager.DownloadOperation.LOADING_GTFS -> "Pripremanje rasporeda${Typography.ellipsis}"
-   }
+    get() = when (this) {
+        null, ScheduleManager.DownloadOperation.LOADING_CACHED -> null
+        ScheduleManager.DownloadOperation.DOWNLOADING -> "Preuzimanje rasporeda${Typography.ellipsis}"
+        ScheduleManager.DownloadOperation.LOADING_GTFS -> "Pripremanje rasporeda${Typography.ellipsis}"
+    }

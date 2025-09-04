@@ -8,6 +8,7 @@ import androidx.compose.material3.IconButtonColors
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Text
+import androidx.compose.material3.TooltipAnchorPosition
 import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.rememberTooltipState
@@ -43,19 +44,19 @@ import androidx.compose.material3.IconButton as Material3IconButton
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun IconButton(
-   icon: ImageVector,
-   contentDescription: String,
-   onClick: () -> Unit,
-   modifier: Modifier = Modifier,
-   enabled: Boolean = true,
-   colors: IconButtonColors = IconButtonDefaults.iconButtonColors(),
-   interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
+    icon: ImageVector,
+    contentDescription: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    colors: IconButtonColors = IconButtonDefaults.iconButtonColors(),
+    interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
 ) = TooltipBox(
-   positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
-   tooltip = { PlainTooltip { Text(contentDescription) } },
-   state = rememberTooltipState(),
+    positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
+    tooltip = { PlainTooltip { Text(contentDescription) } },
+    state = rememberTooltipState(),
 ) {
-   Material3IconButton(onClick, modifier, enabled, colors, interactionSource) {
-      Icon(icon, contentDescription)
-   }
+    Material3IconButton(onClick, modifier, enabled, colors, interactionSource) {
+        Icon(icon, contentDescription)
+    }
 }
