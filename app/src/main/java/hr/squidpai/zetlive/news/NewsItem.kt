@@ -1,26 +1,17 @@
 package hr.squidpai.zetlive.news
 
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.font.FontStyle
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextDecoration
-import androidx.compose.ui.unit.IntSize
 import org.jsoup.Jsoup
-import org.jsoup.nodes.Comment
-import org.jsoup.nodes.Node
-import org.jsoup.nodes.TextNode
 import java.io.Serializable
 import java.time.LocalDateTime
-import org.jsoup.nodes.Element as ElementNode
 
 class NewsItem(
     val title: String?,
     private val rawDescription: String?,
     val publicationDate: LocalDateTime?,
 ) : Serializable {
-    // this is here because AnnotatedString is not serializable
-    @Transient // TODO remove this
+    // this is here because AnnotatedString, FontStyle, etc. are not serializable
+    // this doesn't really matter as it takes around 2-10 ms to load a news article
+    @Transient
     private var _parsedDescription: List<Element>? = null
 
     private val parsedDescription get() = _parsedDescription
@@ -31,6 +22,7 @@ class NewsItem(
     val elements get() = parsedDescription
 
     companion object {
+        @Suppress("unused")
         private const val TAG = "NewsItem"
 
         private fun List<Element>.firstTextOrBlank(): Element.Text {
