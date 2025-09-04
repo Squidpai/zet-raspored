@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.defaultMinSize
@@ -22,7 +23,9 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
+import hr.squidpai.zetlive.alsoIf
 import hr.squidpai.zetlive.getSerializableExtraCompat
 import hr.squidpai.zetlive.news.Element
 import hr.squidpai.zetlive.news.NewsItem
@@ -71,7 +74,8 @@ class NewsActivity : ComponentActivity() {
 
     @Composable
     private fun MyContent(innerPadding: PaddingValues) = LazyColumn(
-        modifier = Modifier.fillMaxSize()
+        modifier = Modifier
+            .fillMaxSize()
             .consumeWindowInsets(innerPadding),
         contentPadding = innerPadding,
     ) {
@@ -95,16 +99,31 @@ class NewsActivity : ComponentActivity() {
 
             when (element) {
                 is Element.Text -> Text(element.text)
-                is Element.Image -> AsyncImage(
-                    sourceUrl = element.sourceUrl,
-                    contentDescription = element.altText,
-                    modifier = Modifier
-                        .defaultMinSize(
-                            minHeight = with(LocalDensity.current) {
-                                element.size.height.toDp()
-                            }
-                        ).fillMaxWidth(),
-                )
+                is Element.Image -> {
+                    // Note: the code below expects that if uriHandler != null,
+                    //       then element.clickableUrl != null as well
+                    val uriHandler = if (element.clickableUrl != null)
+                        LocalUriHandler.current else null
+                    AsyncImage(
+                        sourceUrl = element.sourceUrl,
+                        contentDescription = element.altText,
+                        modifier = Modifier
+                            .defaultMinSize(
+                                minHeight = with(LocalDensity.current) {
+                                    element.size.height.toDp()
+                                }
+                            ).fillMaxWidth()
+                            .alsoIf(uriHandler != null) {
+                                clickable {
+                                    try {
+                                        uriHandler!!.openUri(element.clickableUrl!!)
+                                    } catch (_: IllegalArgumentException) {
+                                        // ignore if the url is invalid
+                                    }
+                                }
+                            },
+                    )
+                }
             }
         }
     }
