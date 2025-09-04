@@ -88,11 +88,9 @@ fun AsyncImage(
         modifier = modifier,
         contentAlignment = Alignment.Center,
     ) {
-        if (state == ImageState.Downloading) {
-            // TODO replace with expressive LoadingIndicator
-            CircularProgressIndicator()
-        } else { // state = ImageState.Failure
-            // TODO display no image icon
-        }
+        if (state == ImageState.Downloading)
+            LoadingIndicator()
+        else // state = ImageState.Failure
+            Icon(Symbols.HideImage, contentDescription)
     }
 }
