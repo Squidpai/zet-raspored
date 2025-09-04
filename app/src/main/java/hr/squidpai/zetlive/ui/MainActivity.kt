@@ -53,9 +53,9 @@ import kotlinx.coroutines.launch
  */
 class MainActivity : BaseAppActivity("MainActivity") {
 
-    enum class Screen(val icon: ImageVector, val label: String) {
-        News(Symbols.MyLocation, "Aktualnosti"), // TODO add icons for these
-        Schedule(Symbols.Schedule, "Raspored"),
+    enum class Screen(val icon: ImageVector, val selectedIcon: ImageVector, val label: String) {
+        News(Symbols.News, Symbols.NewsFilledHighEmphasis, "Aktualnosti"),
+        Schedule(Symbols.DepartureBoard, Symbols.DepartureBoardFilledHighEmphasis, "Raspored"),
     }
 
     //private lateinit var appUpdateManager: AppUpdateManager
@@ -305,7 +305,12 @@ class MainActivity : BaseAppActivity("MainActivity") {
             NavigationBarItem(
                 selected = currentScreen == screen,
                 onClick = { Data.updateData { currentMainActivityScreen = screen } },
-                icon = { Icon(screen.icon, contentDescription = null) },
+                icon = {
+                    Icon(
+                        if (currentScreen == screen) screen.selectedIcon else screen.icon,
+                        contentDescription = null,
+                    )
+                },
                 label = { Text(screen.label) }
             )
     }
