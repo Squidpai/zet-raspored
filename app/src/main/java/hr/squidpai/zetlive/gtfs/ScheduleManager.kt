@@ -297,12 +297,10 @@ object ScheduleManager {
         val newCachedFeedInfo = CachedScheduleIO.getFeedInfoOrNull(newScheduleFile)
         var newDownloadedVersion = GtfsScheduleLoader.getFeedInfoOrNull(newDownloadFile)?.version
 
-        // Do not update to this state because the schedule will be loaded by this point,
-        // and the UpdateSnackbar will briefly pop up on every run of the app.
-        //_downloadState.value = DownloadState.DOWNLOADING
         val result = GtfsScheduleLoader.download(
             newDownloadFile, newCachedFeedInfo?.version, newDownloadedVersion,
             cachedVersion, downloadedVersion,
+            onDownloadProgress = onDownloadProgress,
         )
         _lastDownloadError.value = result.errorType
         result.exception?.let { e ->
