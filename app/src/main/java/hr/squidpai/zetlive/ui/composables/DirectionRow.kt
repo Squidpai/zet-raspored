@@ -6,7 +6,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TooltipAnchorPosition
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -77,7 +76,7 @@ fun ColumnScope.DirectionRow(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
-        HintBox(Data.hints.swapDirection, positioning = TooltipAnchorPosition.Below) {
+        HintBox(Data.hints.swapDirection) {
             IconButton(
                 icon = Symbols.SwapHorizontal,
                 contentDescription = "Zamijeni smjer",
