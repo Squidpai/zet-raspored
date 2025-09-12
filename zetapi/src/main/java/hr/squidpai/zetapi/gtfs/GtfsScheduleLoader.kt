@@ -1,5 +1,6 @@
 package hr.squidpai.zetapi.gtfs
 
+import hr.squidpai.zetapi.CalendarDates
 import hr.squidpai.zetapi.FeedInfo
 import hr.squidpai.zetapi.Love
 import hr.squidpai.zetapi.Schedule
@@ -194,6 +195,12 @@ public object GtfsScheduleLoader {
 
     public fun getFeedInfoOrNull(file: File): FeedInfo? = try {
         getFeedInfo(file)
+    } catch (_: Exception) {
+        null
+    }
+
+    public fun getCalendarDatesOrNull(file: File): CalendarDates? = try {
+        ZipFile(file).use { loadCalendarDates(it) }
     } catch (_: Exception) {
         null
     }

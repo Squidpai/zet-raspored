@@ -152,4 +152,14 @@ public object CachedScheduleIO {
         null
     }
 
+    public fun getCalendarDatesOrNull(file: File): CalendarDates? = try {
+        ZipFile(file).use { zip ->
+            Json.decodeFromStream<CalendarDates>(
+                zip.getInputStream(zip.getEntry(CALENDAR_DATES_FILE))
+            )
+        }
+    } catch (_: Exception) {
+        null
+    }
+
 }
