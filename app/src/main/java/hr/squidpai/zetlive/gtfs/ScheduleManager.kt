@@ -111,6 +111,8 @@ object ScheduleManager {
 
         val scheduleFile = File(filesDir, SCHEDULE_NAME)
 
+        removeOldOrInvalidSchedules(filesDir)
+
         try {
             _downloadState.value = DownloadState(DownloadOperation.LOADING_CACHED)
             _instance.value = CachedScheduleIO.load(scheduleFile, realtimeDispatcher)
@@ -151,6 +153,31 @@ object ScheduleManager {
             if (newScheduleFile.isFile)
                 newScheduleFile.renameTo(File(filesDir, NEW_DOWNLOADED_SCHEDULE))
         }
+    }
+
+    private fun removeOldOrInvalidSchedules(filesDir: File) {
+        val today = localEpochDate()
+        val scheduleFile = File(filesDir, SCHEDULE_NAME)
+        val newScheduleFile = File(filesDir, NEW_SCHEDULE_NAME)
+        val downloadFile = File(filesDir, DOWNLOADED_SCHEDULE)
+        val newDownloadFile = File(filesDir, NEW_DOWNLOADED_SCHEDULE)
+
+        removeOldOrInvalid(scheduleFile, isCached = true, today)
+        removeOldOrInvalid(newScheduleFile, isCached = true, today)
+        removeOldOrInvalid(downloadFile, isCached = false, today)
+        removeOldOrInvalid(newDownloadFile, isCached = false, today)
+    }
+
+    private fun removeOldOrInvalid(scheduleFile: File, isCached: Boolean, todayEpoch: Long) {
+        val calendarDates =
+            if (isCached) CachedScheduleIO.getCalendarDatesOrNull(scheduleFile)
+            else GtfsScheduleLoader.getCalendarDatesOrNull(scheduleFile)
+
+        val isInvalidOrOld = calendarDates == null ||
+                calendarDates.lastDate.toEpochDay() < todayEpoch
+
+        if (isInvalidOrOld)
+            scheduleFile.delete()
     }
 
     fun update(filesDir: File): Job {
@@ -338,6 +365,8 @@ object ScheduleManager {
 
         _downloadState.value = null
     }
+
+    fun getNewDownloadedFile(filesDir: File) = File(filesDir, NEW_DOWNLOADED_SCHEDULE)
 
     fun getNewScheduleFile(filesDir: File) = File(filesDir, NEW_SCHEDULE_NAME)
 
