@@ -42,6 +42,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.unit.dp
 import hr.squidpai.zetapi.cached.CachedScheduleIO
+import hr.squidpai.zetapi.gtfs.GtfsScheduleLoader
 import hr.squidpai.zetlive.Data
 import hr.squidpai.zetlive.gtfs.ScheduleManager
 import hr.squidpai.zetlive.orLoading
@@ -232,13 +233,11 @@ class SettingsActivity : ComponentActivity() {
                         val latestVersion = ScheduleManager.lastCheckedLatestVersion
                         val startDate = feedInfo?.startDate
                         val lastDate = schedule.calendarDates.lastDate
-                        val newScheduleFeedInfo = try {
-                            CachedScheduleIO.getFeedInfo(
-                                ScheduleManager.getNewScheduleFile(filesDir)
-                            )
-                        } catch (e: Exception) {
-                            null
-                        }
+                        val newScheduleFeedInfo = CachedScheduleIO.getFeedInfoOrNull(
+                            ScheduleManager.getNewScheduleFile(filesDir)
+                        ) ?: GtfsScheduleLoader.getFeedInfoOrNull(
+                            ScheduleManager.getNewDownloadedFile(filesDir)
+                        )
                         Text(
                             buildString {
                                 append("Verzija: ").append(feedInfo?.version.orLoading())
