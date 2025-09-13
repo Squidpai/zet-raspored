@@ -62,6 +62,7 @@ import hr.squidpai.zetlive.gtfs.iconInfo
 import hr.squidpai.zetlive.gtfs.label
 import hr.squidpai.zetlive.gtfs.preferredHeadsign
 import hr.squidpai.zetlive.gtfs.preferredName
+import hr.squidpai.zetlive.mutableStateSetSaver
 import hr.squidpai.zetlive.ui.composables.IconButton
 import hr.squidpai.zetlive.ui.composables.disabled
 import hr.squidpai.zetlive.withRemovedKeys
@@ -98,7 +99,9 @@ fun MainActivityStops(groupedStops: Map<StopNumber, Stops.Grouped>) =
                 .padding(8.dp),
         )
 
-        val expandedStops = rememberSaveable { mutableStateSetOf<StopNumber>() }
+        val expandedStops = rememberSaveable(saver = mutableStateSetSaver()) {
+            mutableStateSetOf<StopNumber>()
+        }
 
         LazyColumn(state = lazyListState) {
             items(list.size, key = { list[it].parentStop.id.rawValue }) {
