@@ -136,6 +136,7 @@ fun LiveTravelSlider(
         userScrollEnabled = interactable,
     ) {
         // if the slider is not interactable, the user will never see this item
+		// TODO make each stop label its own item
         if (highlightedStopIndex > 0 && interactable) item {
             Text(
                 stopNames.subList(0, highlightedStopIndex).joinToString(
