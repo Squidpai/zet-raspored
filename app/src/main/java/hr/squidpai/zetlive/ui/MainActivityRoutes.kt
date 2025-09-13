@@ -52,6 +52,7 @@ import hr.squidpai.zetlive.gtfs.ActualRouteLiveSchedule
 import hr.squidpai.zetlive.gtfs.RouteNoLiveSchedule
 import hr.squidpai.zetlive.gtfs.getLiveSchedule
 import hr.squidpai.zetlive.gtfs.preferredName
+import hr.squidpai.zetlive.mutableStateSetSaver
 import hr.squidpai.zetlive.ui.composables.DirectionRow
 import hr.squidpai.zetlive.ui.composables.IconButton
 import hr.squidpai.zetlive.ui.composables.LiveTravelSlider
@@ -88,7 +89,9 @@ fun MainActivityRoutes(routes: Routes) = Column(Modifier.fillMaxSize()) {
             .padding(8.dp)
     )
 
-    val expandedRoutes = rememberSaveable { mutableStateSetOf<RouteId>() }
+    val expandedRoutes = rememberSaveable(saver = mutableStateSetSaver()) {
+        mutableStateSetOf<RouteId>()
+    }
 
     LazyColumn(state = lazyListState) {
         items(list.size, key = { list[it].id }) {
