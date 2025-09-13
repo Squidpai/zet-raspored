@@ -6,6 +6,9 @@ import androidx.collection.IntObjectMap
 import androidx.collection.IntSet
 import androidx.collection.MutableIntIntMap
 import androidx.collection.MutableIntObjectMap
+import androidx.compose.runtime.mutableStateSetOf
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.snapshots.SnapshotStateSet
 import androidx.compose.ui.Modifier
 import java.io.DataInputStream
 import java.io.DataOutputStream
@@ -280,3 +283,8 @@ fun <T, R : Comparable<R>> Iterable<T>.sortedByIfNotAlready(
 
     return sortedBy(selector)
 }
+
+fun <T> mutableStateSetSaver() = listSaver<SnapshotStateSet<T>, T>(
+    save = { it.toSet().toList() },
+    restore = { mutableStateSetOf<T>().apply { addAll(it) } }
+)
