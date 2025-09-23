@@ -13,8 +13,65 @@ import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.nullable
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.serializer
+import java.io.File
+import java.io.IOException
+import java.net.HttpURLConnection
+import java.net.URI
+import java.util.zip.ZipFile
 
 public object Love {
+
+    private const val ZIP_FILE_NAME = "love.zip"
+
+    private const val LINK = "https://squidpai.github.io/zet-raspored/love/$ZIP_FILE_NAME"
+
+    private lateinit var zipFile: File
+
+    /** @return if the resource was successfully initialized */
+    public fun initResources(targetDir: File): Boolean {
+        zipFile = File(targetDir, "love.zip")
+
+        val url = URI(LINK).toURL()
+
+        val connection = try {
+            url.openConnection() as HttpURLConnection
+        } catch (e: IOException) {
+            e.printStackTrace()
+            return false
+        }
+
+        try {
+            connection.ifModifiedSince = zipFile.lastModified()
+
+            connection.connect()
+
+            if (connection.responseCode != HttpURLConnection.HTTP_OK) {
+                connection.disconnect()
+                return false
+            }
+
+            zipFile.outputStream().use { output ->
+                connection.inputStream.use { input ->
+                    val buff = ByteArray(8192)
+                    while (true) {
+                        val bytesRead = input.read(buff)
+                        if (bytesRead == -1)
+                            break
+                        output.write(buff, 0, bytesRead)
+                    }
+                }
+            }
+
+            zipFile.setLastModified(connection.lastModified)
+
+            return true
+        } catch (e: IOException) {
+            e.printStackTrace()
+            return false
+        } finally {
+            connection.disconnect()
+        }
+    }
 
     @Suppress("unused")
     private const val TAG = "Love"
