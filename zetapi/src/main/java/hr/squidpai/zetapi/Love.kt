@@ -29,7 +29,7 @@ public object Love {
 
     /** @return if the resource was successfully initialized */
     public fun initResources(targetDir: File): Boolean {
-        zipFile = File(targetDir, "love.zip")
+        zipFile = File(targetDir, ZIP_FILE_NAME)
 
         val url = URI(LINK).toURL()
 
@@ -47,7 +47,7 @@ public object Love {
 
             if (connection.responseCode != HttpURLConnection.HTTP_OK) {
                 connection.disconnect()
-                return false
+                return connection.responseCode == HttpURLConnection.HTTP_NOT_MODIFIED
             }
 
             zipFile.outputStream().use { output ->
@@ -76,20 +76,23 @@ public object Love {
     @Suppress("unused")
     private const val TAG = "Love"
 
-    private inline fun <reified T> decodeYamlResource(name: String) =
-        Yaml.default.decodeFromStream<T>(
-            Love::class.java.getResourceAsStream("/love/$name.yml")!!
+    private fun <T> decodeYamlResource(
+        deserializer: DeserializationStrategy<T>,
+        name: String,
+    ) = try {
+        ZipFile(zipFile).use {
+            Yaml.default.decodeFromStream(deserializer, it.getInputStream(it.getEntry("$name.yml")))
+        }
+    } catch (_: Exception) {
+        Yaml.default.decodeFromStream(
+            deserializer, Love::class.java.getResourceAsStream("/love/$name.yml")!!
         )
+    }
 
     private fun <T> lazyYamlResource(
         deserializer: DeserializationStrategy<T>,
         name: String,
-    ) = lazy {
-        Yaml.default.decodeFromStream(
-            deserializer,
-            Love::class.java.getResourceAsStream("/love/$name.yml")!!
-        )
-    }
+    ) = lazy { decodeYamlResource(deserializer, name) }
 
     private inline fun <reified T> lazyYamlResource(name: String) =
         lazyYamlResource(Yaml.default.serializersModule.serializer<T>(), name)
@@ -392,7 +395,7 @@ public object Love {
     )
 
     internal fun makeMeABetterStopMapper() {
-        val (stopsToSplit, stopsToMove) = decodeYamlResource<StopMapperData>("better_stop_mapper")
+        val (stopsToSplit, stopsToMove) = decodeYamlResource(StopMapperData.serializer(), "better_stop_mapper")
         for ((stopIdToTransform, routeStopMapper) in stopsToSplit)
             putBetterStopMapping(
                 stopIdToTransform,
