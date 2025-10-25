@@ -73,9 +73,9 @@ internal class CachedRoute(
     private fun CSVReader.readStops(): List<Stop> {
         val next = readNext()
         return List(next.size) {
+            // TODO update stops when Love updates
             stops[Love.redirectMeToTheBetterStopId(
-                id,
-                next[it].toStopId()
+                id, next[it].toStopId()
             )]!!
         }
     }

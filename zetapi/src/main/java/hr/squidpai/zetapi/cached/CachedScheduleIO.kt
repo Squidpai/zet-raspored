@@ -119,6 +119,10 @@ public object CachedScheduleIO {
             val stopList = mutableListOf<Stop>()
             for (data in CSVReader(input.reader()))
                 stopList += CachedStop(data, routes)
+
+            Love.makeMeABetterStopMapper()
+
+            // TODO update stops when Love updates
             val stops = Stops(Love.giveMeBetterStops(stopList))
 
             for (route in routes.values)
