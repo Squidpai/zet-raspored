@@ -37,21 +37,27 @@ public abstract class Route internal constructor(
     public val commonHeadsigns: Map<ServiceId, Pair<String, String>>,
 ) {
 
-    private var _fullName: String? = null
+    private var _fullName: Pair<Int, String>? = null
 
     public val fullName: String
-        get() = _fullName
-            ?: (Love.giveMeTheFullRouteNameForRoute(id, longName) ?: longName)
-                .also { _fullName = it }
+        get() {
+            val implKey = Love.implKey()
+            return _fullName?.takeIf { it.first == implKey }?.second
+                ?: (Love.giveMeTheFullRouteNameForRoute(id, longName) ?: longName)
+                    .also { _fullName = implKey to it }
+        }
 
-    private var _fullCommonHeadsigns: Map<ServiceId, Pair<String, String>>? = null
+    private var _fullCommonHeadsigns: Pair<Int, Map<ServiceId, Pair<String, String>>>? = null
 
     public val fullCommonHeadsigns: Map<ServiceId, Pair<String, String>>
-        get() = _fullCommonHeadsigns
-            ?: commonHeadsigns.mapValues {
-                (Love.giveMeTheFullNameForHeadsign(it.value.first) ?: it.value.first) to
-                        (Love.giveMeTheFullNameForHeadsign(it.value.second) ?: it.value.second)
-            }.also { _fullCommonHeadsigns = it }
+        get() {
+            val implKey = Love.implKey()
+            return _fullCommonHeadsigns?.takeIf { it.first == implKey }?.second
+                ?: commonHeadsigns.mapValues {
+                    (Love.giveMeTheFullNameForHeadsign(it.value.first) ?: it.value.first) to
+                            (Love.giveMeTheFullNameForHeadsign(it.value.second) ?: it.value.second)
+                }.also { _fullCommonHeadsigns = implKey to it }
+        }
 
     /**
      * Map of all trips on this route.

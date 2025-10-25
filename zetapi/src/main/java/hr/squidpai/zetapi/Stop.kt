@@ -46,12 +46,15 @@ public class Stop internal constructor(
     public val routes: Map<Route, RouteAtStop>,
 ) {
 
-    private var _fullName: String? = null
+    private var _fullName: Pair<Int, String>? = null
 
     public val fullName: String
-        get() = _fullName
-            ?: (Love.giveMeTheExtraKeywordForStop(id.stopNumber) ?: name)
-                .also { _fullName = it }
+        get() {
+            val implKey = Love.implKey()
+            return _fullName?.takeIf { it.first == implKey }?.second
+                ?: (Love.giveMeTheExtraKeywordForStop(id.stopNumber) ?: name)
+                    .also { _fullName = implKey to it }
+        }
 
     private var routesString: String? = null
 
