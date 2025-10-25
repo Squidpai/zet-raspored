@@ -155,7 +155,7 @@ public object GtfsScheduleLoader {
             // calculated from practical tests
             onLoadProgress(.01f)
 
-            val stops = Stops(Love.giveMeBetterStops(loadStops(zip)))
+            val stops = Stops(loadStops(zip))
             onLoadProgress(.07f)
 
             var shapes = loadShapes(zip)
