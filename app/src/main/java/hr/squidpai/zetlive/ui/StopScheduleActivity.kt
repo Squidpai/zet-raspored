@@ -52,7 +52,7 @@ import hr.squidpai.zetapi.asStopId
 import hr.squidpai.zetlive.gtfs.ActualStopLiveSchedule
 import hr.squidpai.zetlive.gtfs.ScheduleManager
 import hr.squidpai.zetlive.gtfs.StopNoLiveSchedule
-import hr.squidpai.zetlive.gtfs.getLiveSchedule
+import hr.squidpai.zetlive.gtfs.getUpdatingLiveSchedule
 import hr.squidpai.zetlive.gtfs.iconInfo
 import hr.squidpai.zetlive.gtfs.preferredName
 import hr.squidpai.zetlive.orLoading
@@ -209,7 +209,7 @@ class StopScheduleActivity : BaseAppActivity("StopScheduleActivity") {
             }
         }
 
-        val liveSchedule = selectedStop.getLiveSchedule(
+        val liveSchedule = selectedStop.getUpdatingLiveSchedule(
             keepDeparted = true,
             maxSize = 40,
             routesFiltered = routesFiltered.toList(),

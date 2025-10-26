@@ -57,7 +57,7 @@ import hr.squidpai.zetlive.extractInt
 import hr.squidpai.zetlive.gtfs.ActualStopLiveSchedule
 import hr.squidpai.zetlive.gtfs.StopNoLiveSchedule
 import hr.squidpai.zetlive.gtfs.StopScheduleEntry
-import hr.squidpai.zetlive.gtfs.getLiveSchedule
+import hr.squidpai.zetlive.gtfs.getUpdatingLiveSchedule
 import hr.squidpai.zetlive.gtfs.iconInfo
 import hr.squidpai.zetlive.gtfs.label
 import hr.squidpai.zetlive.gtfs.preferredHeadsign
@@ -381,14 +381,8 @@ private fun StopContent(
 
                 OutlinedButton(onClick = {
                     context.startActivity(
-                        Intent(
-                            context,
-                            StopScheduleActivity::class.java
-                        ).apply {
-                            putExtra(
-                                EXTRA_STOP,
-                                selectedStop.id.rawValue
-                            )
+                        Intent(context, StopScheduleActivity::class.java).apply {
+                            putExtra(EXTRA_STOP, selectedStop.id.rawValue)
                         })
                 }) {
                     Text("Raspored")
@@ -407,7 +401,7 @@ private fun StopContent(
 
 @Composable
 private fun ColumnScope.StopLiveTravels(stop: Stop) {
-    val liveSchedule = stop.getLiveSchedule(keepDeparted = false, maxSize = 8)
+    val liveSchedule = stop.getUpdatingLiveSchedule(keepDeparted = false, maxSize = 8)
 
     if (liveSchedule == null) {
         CircularProgressIndicator(
