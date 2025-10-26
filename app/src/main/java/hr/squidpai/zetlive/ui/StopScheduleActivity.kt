@@ -140,6 +140,13 @@ class StopScheduleActivity : BaseAppActivity("StopScheduleActivity") {
 
         LazyRow(
             modifier = Modifier.fillMaxWidth(),
+            state = rememberSaveable(saver = LazyListState.Saver) {
+                val firstVisibleItem = (selectedStopIndex - 2).coerceAtLeast(0)
+                LazyListState(
+                    firstVisibleItemIndex = firstVisibleItem,
+                    firstVisibleItemScrollOffset = if (firstVisibleItem > 0) 32 else 0,
+                )
+            },
             horizontalArrangement = Arrangement.SpaceEvenly,
         ) {
             items(groupedStop.size) {

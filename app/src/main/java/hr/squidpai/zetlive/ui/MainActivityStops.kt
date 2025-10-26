@@ -300,6 +300,13 @@ private fun StopContent(
 
             LazyRow(
                 modifier = Modifier.fillMaxWidth(),
+                state = rememberSaveable(saver = LazyListState.Saver) {
+                    val firstVisibleItem = (selectedStopIndex - 2).coerceAtLeast(0)
+                    LazyListState(
+                        firstVisibleItemIndex = firstVisibleItem,
+                        firstVisibleItemScrollOffset = if (firstVisibleItem > 0) 32 else 0,
+                    )
+                },
                 horizontalArrangement = Arrangement.SpaceEvenly,
             ) {
                 items(labeledStops.size) {
@@ -315,7 +322,7 @@ private fun StopContent(
                                 }
                             }
                         },
-                        label = { Text(label ?: "Smjer") },
+                        label = { Text(label ?: stop.iconInfo?.second ?: "Smjer") },
                         modifier = Modifier.padding(horizontal = 4.dp),
                         trailingIcon = if (label == null) ({
                             stop.iconInfo?.let { iconInfo ->
