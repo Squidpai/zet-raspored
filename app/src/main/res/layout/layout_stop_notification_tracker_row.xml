@@ -2,11 +2,12 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="horizontal">
+    android:orientation="horizontal"
+    android:paddingVertical="1dp">
 
     <TextView
         android:id="@+id/routeId"
-        android:layout_width="56sp"
+        android:layout_width="52sp"
         android:layout_height="wrap_content"
         android:gravity="center"
         android:textSize="16sp"
@@ -17,11 +18,13 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="1"
-        android:singleLine="true" />
+        android:singleLine="true"
+        android:textSize="16sp" />
 
     <TextView
         android:id="@+id/arrivalTime"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:paddingEnd="4dp" />
+        android:paddingEnd="4dp"
+        android:textSize="16sp" />
 </LinearLayout>
