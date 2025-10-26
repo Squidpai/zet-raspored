@@ -1,7 +1,13 @@
 package hr.squidpai.zetlive.ui
 
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -23,6 +29,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -35,15 +43,19 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import hr.squidpai.zetapi.RouteId
 import hr.squidpai.zetapi.Stop
 import hr.squidpai.zetapi.StopId
@@ -62,6 +74,20 @@ class StopScheduleActivity : BaseAppActivity("StopScheduleActivity") {
 
     private var stopId = StopId.Invalid
 
+    private val requestPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted)
+            startNotificationTracking()
+        else
+            Toast.makeText(
+                this,
+                "Ne može se postaviti obavijest${Typography.mdash}" +
+                        "odbijena je dozvola za postavljanje obavijesti.",
+                Toast.LENGTH_LONG
+            ).show()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -74,6 +100,27 @@ class StopScheduleActivity : BaseAppActivity("StopScheduleActivity") {
             finish()
             return
         }
+    }
+
+    private fun trackInNotifications() {
+        if (ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+        ) {
+            startNotificationTracking()
+            return
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+            requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+    }
+
+    private fun startNotificationTracking() {
+        startForegroundService(
+            Intent(this, NotificationTrackerService::class.java)
+                .putExtra(EXTRA_STOP, stopId.rawValue)
+        )
     }
 
     @Composable
@@ -106,6 +153,27 @@ class StopScheduleActivity : BaseAppActivity("StopScheduleActivity") {
                 contentDescription = "Natrag",
                 onClick = { finish() },
             )
+        },
+        actions = {
+            Box {
+                var expanded by remember { mutableStateOf(false) }
+
+                IconButton(
+                    Symbols.MoreVert, "Dodatne opcije",
+                    onClick = { expanded = true },
+                )
+                DropdownMenu(
+                    expanded = expanded,
+                    onDismissRequest = { expanded = false }) {
+                    DropdownMenuItem(
+                        text = { Text("Prati u obavijestima") },
+                        onClick = {
+                            trackInNotifications()
+                            expanded = false
+                        },
+                    )
+                }
+            }
         },
         colors = TopAppBarDefaults.topAppBarColors(
             containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(3.dp)
@@ -153,8 +221,11 @@ class StopScheduleActivity : BaseAppActivity("StopScheduleActivity") {
                 val (stop, label) = labeledStops[it]
                 FilterChip(
                     selected = selectedStopIndex == it,
-                    onClick = { setSelectedStopIndex(it) },
-                    label = { Text(label ?: "Smjer") },
+                    onClick = {
+                        setSelectedStopIndex(it)
+                        stopId = stop.id
+                    },
+                    label = { Text(label ?: stop.iconInfo?.second ?: "Smjer") },
                     modifier = Modifier.padding(horizontal = 4.dp),
                     trailingIcon = if (label == null) ({
                         stop.iconInfo?.let { iconInfo ->
