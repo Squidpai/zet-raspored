@@ -12,6 +12,7 @@ import hr.squidpai.zetapi.DirectionId
 import hr.squidpai.zetapi.Love
 import hr.squidpai.zetapi.Route
 import hr.squidpai.zetapi.RouteId
+import hr.squidpai.zetapi.Schedule
 import hr.squidpai.zetapi.ServiceId
 import hr.squidpai.zetapi.ServiceTypes
 import hr.squidpai.zetapi.Stop
@@ -42,10 +43,7 @@ data class LiveDisplayData(
 )
 
 @Composable
-fun getUpdatingLiveDisplayData(
-    trip: Trip,
-    selectedDate: Long
-): LiveDisplayData {
+fun getUpdatingLiveDisplayData(trip: Trip, selectedDate: Long): LiveDisplayData {
     var data by remember {
         mutableStateOf(getLiveDisplayData(trip, selectedDate))
     }
@@ -303,7 +301,7 @@ class StopNoLiveSchedule(val noLiveMessage: String) : StopLiveSchedule
  * and updates every few seconds.
  */
 @Composable
-fun Stop.getLiveSchedule(
+fun Stop.getUpdatingLiveSchedule(
     keepDeparted: Boolean,
     maxSize: Int,
     routesFiltered: List<RouteId>? = null,
@@ -312,28 +310,34 @@ fun Stop.getLiveSchedule(
     val schedule = ScheduleManager.instance.collectAsState().value
         ?: return null
 
-    val calendarDates = schedule.calendarDates
-
     var liveSchedule by remember {
         mutableStateOf<StopLiveSchedule?>(null)
     }
 
     LaunchedEffect(this, routesFiltered) {
         while (true) {
-            liveSchedule = getLiveSchedule(
-                keepDeparted,
-                maxSize,
-                routesFiltered,
-                calendarDates,
-                schedule.serviceTypes,
-                millis = if (millis == 0L) localCurrentTimeMillis() else millis
-            )
+            liveSchedule = getLiveSchedule(keepDeparted, maxSize, schedule, routesFiltered, millis)
             delay(20000)
         }
     }
 
     return liveSchedule
 }
+
+fun Stop.getLiveSchedule(
+    keepDeparted: Boolean,
+    maxSize: Int,
+    schedule: Schedule,
+    routesFiltered: List<RouteId>? = null,
+    millis: Long = 0L,
+) = getLiveSchedule(
+    keepDeparted,
+    maxSize,
+    routesFiltered,
+    schedule.calendarDates,
+    schedule.serviceTypes,
+    millis = if (millis == 0L) localCurrentTimeMillis() else millis,
+)
 
 /**
  * Calculates the live schedule of the given stop based on the given parameters.
@@ -395,7 +399,7 @@ private fun Stop.getLiveSchedule(
         else StopNoLiveSchedule(
             Love.giveMeTheSpecialLabelForNoTrips(
                 routes = if (filterEmpty) routes.keys
-                else routes.keys.filter { it.id in routesFiltered!! },
+                else routes.keys.filter { it.id in routesFiltered },
                 filterEmpty, serviceId,
                 selectedDate = dateEpoch,
                 serviceTypes,
@@ -438,7 +442,7 @@ private fun Stop.getLiveSchedule(
                 return StopNoLiveSchedule(
                     Love.giveMeTheSpecialLabelForNoTrips(
                         routes = if (filterEmpty) routes.keys
-                        else routes.keys.filter { it.id in routesFiltered!! },
+                        else routes.keys.filter { it.id in routesFiltered },
                         filterEmpty, serviceId,
                         selectedDate = dateEpoch,
                         serviceTypes,
