@@ -28,17 +28,26 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.getSystemService
 import hr.squidpai.zetapi.Love
+import hr.squidpai.zetapi.Schedule
+import hr.squidpai.zetapi.Stop
+import hr.squidpai.zetapi.StopId
 import hr.squidpai.zetapi.TimeOfDay
 import hr.squidpai.zetapi.Trip
 import hr.squidpai.zetlive.Data
+import hr.squidpai.zetlive.MILLIS_IN_DAY
 import hr.squidpai.zetlive.R
+import hr.squidpai.zetlive.gtfs.ActualStopLiveSchedule
 import hr.squidpai.zetlive.gtfs.ScheduleManager
+import hr.squidpai.zetlive.gtfs.StopNoLiveSchedule
+import hr.squidpai.zetlive.gtfs.StopScheduleEntry
 import hr.squidpai.zetlive.gtfs.getLiveDisplayData
+import hr.squidpai.zetlive.gtfs.getLiveSchedule
 import hr.squidpai.zetlive.gtfs.preferredHeadsign
 import hr.squidpai.zetlive.gtfs.preferredName
+import hr.squidpai.zetlive.localCurrentTimeMillis
 import hr.squidpai.zetlive.timeToString
+import hr.squidpai.zetlive.ui.composables.disabled
 import hr.squidpai.zetlive.ui.composables.drawRouteSlider
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -67,146 +76,239 @@ class NotificationTrackerService : Service() {
     }
 
     private lateinit var notificationBuilder: NotificationCompat.Builder
+    private lateinit var schedule: Schedule
     private var selectedDate = 0L
-    private lateinit var trip: Trip
+    private var trip: Trip? = null
+    private var stop: Stop? = null
 
     private lateinit var titleText: String
 
-    private val interrupt = CancellationException()
+    private fun getTripUpdateView(trip: Trip): RemoteViews {
+        val view = RemoteViews(packageName, R.layout.layout_trip_notification_tracker)
 
-    private fun launchJob() = CoroutineScope(Dispatchers.Default).launch {
-        while (true) try {
-            val view =
-                RemoteViews(packageName, R.layout.layout_notification_tracker)
+        val (realtimeDepartures, timeOfDay, nextStopIndex, nextStopValue) =
+            getLiveDisplayData(trip, selectedDate)
 
-            val (realtimeDepartures, timeOfDay, nextStopIndex, nextStopValue) =
-                getLiveDisplayData(trip, selectedDate)
+        val isCancelled = realtimeDepartures == null
 
-            val isCancelled = realtimeDepartures == null
+        val metrics = resources.displayMetrics
+        val width = metrics.widthPixels - TypedValue.applyDimension(
+            TypedValue.COMPLEX_UNIT_DIP,
+            96f,
+            metrics,
+        )
+        val height = TypedValue.applyDimension(
+            TypedValue.COMPLEX_UNIT_DIP,
+            8f,
+            metrics,
+        )
+        val imageBitmap = ImageBitmap(width.toInt(), height.toInt())
+        val canvas = Canvas(imageBitmap)
+        val drawScope = CanvasDrawScope()
+        drawScope.drawContext.canvas = canvas
+        drawScope.drawContext.density = Density(metrics.density)
+        drawScope.drawContext.size = Size(width, height)
+        drawScope.drawRouteSlider(
+            value = if (isCancelled) -2f else nextStopValue,
+            departures = trip.departures,
+            passedTrackColor = colorScheme.primary,
+            notPassedTrackColor = colorScheme.surfaceVariant,
+            passedStopColor = colorScheme.onPrimary,
+            notPassedStopColor = colorScheme.onSurfaceVariant,
+            nextStopColor = colorScheme.onSurface,
+        )
+        view.setImageViewBitmap(R.id.sliderImage, imageBitmap.asAndroidBitmap())
 
-            val metrics = resources.displayMetrics
-            val width = metrics.widthPixels - TypedValue.applyDimension(
-                TypedValue.COMPLEX_UNIT_DIP,
-                96f,
-                metrics,
-            )
-            val height = TypedValue.applyDimension(
-                TypedValue.COMPLEX_UNIT_DIP,
-                8f,
-                metrics,
-            )
-            val imageBitmap = ImageBitmap(width.toInt(), height.toInt())
-            val canvas = Canvas(imageBitmap)
-            val drawScope = CanvasDrawScope()
-            drawScope.drawContext.canvas = canvas
-            drawScope.drawContext.density = Density(metrics.density)
-            drawScope.drawContext.size = Size(width, height)
-            drawScope.drawRouteSlider(
-                value = if (isCancelled) -2f else nextStopValue,
-                departures = trip.departures,
-                passedTrackColor = colorScheme.primary,
-                notPassedTrackColor = colorScheme.surfaceVariant,
-                passedStopColor = colorScheme.onPrimary,
-                notPassedStopColor = colorScheme.onSurfaceVariant,
-                nextStopColor = colorScheme.onSurface,
-            )
-            view.setImageViewBitmap(R.id.sliderImage, imageBitmap.asAndroidBitmap())
+        val textColor = colorScheme.onSurface.toArgb()
+        view.setTextColor(R.id.titleText, textColor)
+        view.setTextColor(R.id.currentStopText, textColor)
+        view.setTextColor(R.id.nextStopText, textColor)
+        view.setTextColor(R.id.stopsAfterText, textColor)
+        view.setTextColor(R.id.firstStopText, textColor)
 
-            val textColor = colorScheme.onSurface.toArgb()
-            view.setTextColor(R.id.titleText, textColor)
-            view.setTextColor(R.id.currentStopText, textColor)
-            view.setTextColor(R.id.nextStopText, textColor)
-            view.setTextColor(R.id.stopsAfterText, textColor)
-            view.setTextColor(R.id.firstStopText, textColor)
+        val highlightNextStop: Boolean
 
-            val highlightNextStop: Boolean
+        when (nextStopIndex) {
+            0 -> {
+                highlightNextStop = false
+                view.setTextViewText(R.id.currentStopText, trip.stops[0].preferredName)
+                view.setViewVisibility(R.id.arrowImage, View.GONE)
+                view.setTextViewText(
+                    R.id.nextStopText,
+                    "  ${Typography.bullet} ${trip.stops[1].preferredName}"
+                )
+            }
 
-            when (nextStopIndex) {
-                0 -> {
-                    highlightNextStop = false
-                    view.setTextViewText(R.id.currentStopText, trip.stops[0].preferredName)
-                    view.setViewVisibility(R.id.arrowImage, View.GONE)
-                    view.setTextViewText(
-                        R.id.nextStopText,
-                        "  ${Typography.bullet} ${trip.stops[1].preferredName}"
-                    )
-                }
+            trip.stops.size -> {
+                highlightNextStop = false
+                view.setTextViewText(
+                    R.id.currentStopText,
+                    trip.stops.last().preferredName
+                )
+                view.setViewVisibility(R.id.arrowImage, View.GONE)
+                view.setTextViewText(R.id.nextStopText, "")
+            }
 
-                trip.stops.size -> {
-                    highlightNextStop = false
+            else -> {
+                highlightNextStop = Data.highlightNextStop
+                if (highlightNextStop)
+                    view.setViewVisibility(R.id.currentStopText, View.GONE)
+                else
                     view.setTextViewText(
                         R.id.currentStopText,
-                        trip.stops.last().preferredName
+                        trip.stops[nextStopIndex - 1].preferredName
                     )
-                    view.setViewVisibility(R.id.arrowImage, View.GONE)
-                    view.setTextViewText(R.id.nextStopText, "")
-                }
-
-                else -> {
-                    highlightNextStop = Data.highlightNextStop
-                    if (highlightNextStop)
-                        view.setViewVisibility(R.id.currentStopText, View.GONE)
-                    else
-                        view.setTextViewText(
-                            R.id.currentStopText,
-                            trip.stops[nextStopIndex - 1].preferredName
-                        )
-                    view.setTextViewText(
-                        R.id.nextStopText,
-                        trip.stops[nextStopIndex].preferredName
-                    )
-                    view.setInt(
-                        R.id.arrowImage,
-                        "setColorFilter",
-                        colorScheme.primary.toArgb(),
-                    )
-                }
-            }
-            view.setTextViewText(R.id.stopsAfterText, buildString {
-                for (i in (nextStopIndex + 1).coerceAtLeast(2)..<trip.stops.size) {
-                    append(' ').append(Typography.bullet).append(' ')
-                    append(trip.stops[i].preferredName)
-                }
-            })
-
-            if (isCancelled) {
-                view.setFloat(R.id.currentStopText, "setAlpha", .36f)
-                view.setFloat(R.id.nextStopText, "setAlpha", .36f)
-                view.setFloat(R.id.titleText, "setAlpha", .36f)
-            } else {
-                view.setFloat(
-                    if (highlightNextStop) R.id.currentStopText else R.id.nextStopText,
-                    "setAlpha", .36f,
+                view.setTextViewText(
+                    R.id.nextStopText,
+                    trip.stops[nextStopIndex].preferredName
                 )
                 view.setInt(
-                    if (highlightNextStop) R.id.nextStopText else R.id.currentStopText,
-                    "setPaintFlags",
-                    Paint.FAKE_BOLD_TEXT_FLAG or Paint.ANTI_ALIAS_FLAG,
+                    R.id.arrowImage,
+                    "setColorFilter",
+                    colorScheme.primary.toArgb(),
                 )
             }
-            view.setFloat(R.id.stopsAfterText, "setAlpha", .36f)
-
-            view.setTextViewText(R.id.titleText, titleText)
-
-            if (nextStopIndex == 0 || isCancelled) {
-                val departureTime = if (isCancelled) 0
-                // isCancelled = realtimeDepartures == null
-                else (realtimeDepartures!![0]).let { departure ->
-                    val difference = TimeOfDay(departure).minusMinutes(timeOfDay)
-
-                    if (difference <= 0) -1
-                    else if (difference <= 15) -difference - 1
-                    else departure
-                }
-
-                view.setViewVisibility(R.id.firstStopText, View.VISIBLE)
-                view.setTextViewText(
-                    R.id.firstStopText,
-                    if (isCancelled) "otkazano"
-                    else if (departureTime >= 0) "kreće u ${departureTime.timeToString()}"
-                    else "kreće za ${-departureTime - 1} min",
-                )
+        }
+        view.setTextViewText(R.id.stopsAfterText, buildString {
+            for (i in (nextStopIndex + 1).coerceAtLeast(2)..<trip.stops.size) {
+                append(' ').append(Typography.bullet).append(' ')
+                append(trip.stops[i].preferredName)
             }
+        })
+
+        if (isCancelled) {
+            view.setFloat(R.id.currentStopText, "setAlpha", .36f)
+            view.setFloat(R.id.nextStopText, "setAlpha", .36f)
+            view.setFloat(R.id.titleText, "setAlpha", .36f)
+        } else {
+            view.setFloat(
+                if (highlightNextStop) R.id.currentStopText else R.id.nextStopText,
+                "setAlpha", .36f,
+            )
+            view.setInt(
+                if (highlightNextStop) R.id.nextStopText else R.id.currentStopText,
+                "setPaintFlags",
+                Paint.FAKE_BOLD_TEXT_FLAG or Paint.ANTI_ALIAS_FLAG,
+            )
+        }
+        view.setFloat(R.id.stopsAfterText, "setAlpha", .36f)
+
+        view.setTextViewText(R.id.titleText, titleText)
+
+        if (nextStopIndex == 0 || isCancelled) {
+            val departureTime = if (isCancelled) 0
+            else (realtimeDepartures[0]).let { departure ->
+                val difference = TimeOfDay(departure).minusMinutes(timeOfDay)
+
+                if (difference <= 0) -1
+                else if (difference <= 15) -difference - 1
+                else departure
+            }
+
+            view.setViewVisibility(R.id.firstStopText, View.VISIBLE)
+            view.setTextViewText(
+                R.id.firstStopText,
+                if (isCancelled) "otkazano"
+                else if (departureTime >= 0) "kreće u ${departureTime.timeToString()}"
+                else "kreće za ${-departureTime - 1} min",
+            )
+        }
+
+        return view
+    }
+
+    private fun getStopUpdateView(stop: Stop): RemoteViews {
+        val view = RemoteViews(packageName, R.layout.layout_stop_notification_tracker)
+
+        val liveSchedule = stop.getLiveSchedule(
+            keepDeparted = false,
+            maxSize = 4,
+            schedule,
+            millis = if (selectedDate == 0L) 0L
+            else selectedDate * MILLIS_IN_DAY + localCurrentTimeMillis() % MILLIS_IN_DAY,
+        )
+
+        view.setTextViewText(R.id.titleText, titleText)
+
+        when (liveSchedule) {
+            is StopNoLiveSchedule -> {
+                view.setViewVisibility(R.id.noLiveMessage, View.VISIBLE)
+                view.setTextViewText(R.id.noLiveMessage, liveSchedule.noLiveMessage)
+            }
+
+            is ActualStopLiveSchedule ->
+                for (entry in liveSchedule)
+                    view.addView(R.id.parentLayout, getStopEntryView(stop, entry))
+        }
+
+        return view
+    }
+
+    private fun getStopEntryView(stop: Stop, entry: StopScheduleEntry): RemoteViews {
+        val view = RemoteViews(packageName, R.layout.layout_stop_notification_tracker_row)
+
+        val departed = entry.relativeTime < 0
+
+        val tintColor: Int
+        val regularColor: Int
+        if (departed || entry.isCancelled) {
+            tintColor = colorScheme.disabled.toArgb()
+            regularColor = tintColor
+        } else {
+            tintColor = colorScheme.primary.toArgb()
+            regularColor = colorScheme.onSurface.toArgb()
+        }
+
+        val isLastStop = entry.trip.stops.last() == stop
+
+        view.setTextViewText(R.id.routeId, entry.route.id)
+        view.setTextColor(R.id.routeId, tintColor)
+
+        view.setTextViewText(
+            R.id.tripHeadsign,
+            if (!isLastStop) entry.trip.preferredHeadsign
+            else "IZLAZ",
+        )
+        view.setTextColor(R.id.tripHeadsign, regularColor)
+        if (isLastStop)
+            view.setInt(
+                R.id.tripHeadsign,
+                "setPaintFlags",
+                Paint.FAKE_BOLD_TEXT_FLAG or Paint.ANTI_ALIAS_FLAG,
+            )
+
+        view.setTextViewText(
+            R.id.arrivalTime,
+            when {
+                entry.isCancelled -> "otkazano"
+                entry.useRelative ->
+                    if (!departed) "${entry.relativeTime / 60} min"
+                    else "prije ${-entry.relativeTime / 60} min"
+
+                else -> entry.absoluteTime.toStringHHMM()
+            },
+        )
+        view.setTextColor(R.id.arrivalTime, tintColor)
+        if (!departed)
+            view.setInt(
+                R.id.tripHeadsign,
+                "setPaintFlags",
+                Paint.FAKE_BOLD_TEXT_FLAG or Paint.ANTI_ALIAS_FLAG,
+            )
+
+        return view
+    }
+
+    private fun launchJob() = CoroutineScope(Dispatchers.Default).launch {
+        while (true) {
+            val view =
+                trip?.let { getTripUpdateView(it) }
+                    ?: stop?.let { getStopUpdateView(it) }
+                    ?: run {
+                        Log.w(TAG, "launchJob: I didn't get a trip nor a stop")
+                        stopSelf()
+                        return@launch
+                    }
 
             ServiceCompat.startForeground(
                 this@NotificationTrackerService, 666,
@@ -215,10 +317,6 @@ class NotificationTrackerService : Service() {
                     ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE else 0
             )
             delay(5000L)
-        } catch (e: CancellationException) {
-            println(e)
-            if (e !== interrupt)
-                break
         }
     }
 
@@ -243,8 +341,10 @@ class NotificationTrackerService : Service() {
         super.onConfigurationChanged(newConfig)
 
         updateColorScheme()
-        if (::job.isInitialized)
-            job.cancel(interrupt)
+        if (::job.isInitialized) {
+            job.cancel()
+            job = launchJob()
+        }
     }
 
     override fun onBind(intent: Intent?) = null
@@ -253,29 +353,52 @@ class NotificationTrackerService : Service() {
         intent!! // guaranteed to not be null because of the START_REDELIVER_INTENT return result
         val routeId = intent.getStringExtra(EXTRA_ROUTE_ID)
         val tripId = intent.getStringExtra(EXTRA_TRIP_ID)
+        val stopId = StopId(intent.getIntExtra(EXTRA_STOP, StopId.Invalid.rawValue))
         selectedDate = intent.getLongExtra(EXTRA_SELECTED_DATE, 0L)
 
-        if (routeId == null || tripId == null) {
-            if (routeId == null)
-                Log.w(TAG, "onStartCommand: no routeId given, stopping service")
-            if (tripId == null)
-                Log.w(TAG, "onStartCommand: no tripId given, stopping service")
+        if (routeId != null && tripId != null && stopId.isValid()) {
+            Log.w(TAG, "onStartCommand: given both a stopId and tripId, don't know what to do")
 
             stopSelf()
             return START_REDELIVER_INTENT
         }
 
-        val schedule = ScheduleManager.instance.value
+        if ((routeId == null || tripId == null) && stopId.isInvalid()) {
+            Log.w(TAG, "onStartCommand: given nothing to track")
+
+            stopSelf()
+            return START_REDELIVER_INTENT
+        }
+
+        schedule = ScheduleManager.instance.value
             ?: run {
                 Log.w(TAG, "onStartCommand: schedule not loaded")
+                stopSelf()
                 return START_REDELIVER_INTENT
             }
-        val trips = schedule.routes[routeId]?.trips
-        trip = trips?.get(tripId)
-            ?: run {
-                Log.w(TAG, "onStartCommand: trip not found")
-                return START_REDELIVER_INTENT
-            }
+
+        val trip: Trip?
+        val stop: Stop?
+        if (routeId != null && tripId != null) {
+            val trips = schedule.routes[routeId]?.trips
+            trip = trips?.get(tripId)
+                ?: run {
+                    Log.w(TAG, "onStartCommand: trip not found")
+                    stopSelf()
+                    return START_REDELIVER_INTENT
+                }
+            stop = null
+        } else {
+            trip = null
+            stop = schedule.stops[stopId]
+                ?: run {
+                    Log.w(TAG, "onStartCommand: stop not found")
+                    stopSelf()
+                    return START_REDELIVER_INTENT
+                }
+        }
+        this.trip = trip
+        this.stop = stop
 
         val deleteIntent = PendingIntent.getBroadcast(
             /* context = */ this,
@@ -296,35 +419,36 @@ class NotificationTrackerService : Service() {
             .setSilent(true)
             .setContentIntent(
                 PendingIntent.getActivity(
-                    /* context = */
-                    this,
-                    /* requestCode = */
-                    0,
+                    /* context = */this,
+                    /* requestCode = */0,
                     /* intent = */
                     Intent(this, TripDialogActivity::class.java)
                         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                         .putExtra(EXTRA_ROUTE_ID, routeId)
                         .putExtra(EXTRA_TRIP_ID, tripId)
                         .putExtra(EXTRA_SELECTED_DATE, selectedDate),
-                    /* flags = */
-                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+                    /* flags = */PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
                 )
             )
             .addAction(0, "Prestani pratiti", deleteIntent)
             .setDeleteIntent(deleteIntent)
             .setOngoing(false)
 
-        titleText = buildString {
-            append(routeId)
-            if (!trip.isFirstStopCommon)
-                append(' ').append(trip.stops.first().preferredName)
-            append(" smjer ")
-            append(trip.preferredHeadsign)
-            val specialLabel = Love.giveMeTheSpecialTripLabel(trip)
-                ?.let { it.first ?: it.second }
-            if (specialLabel != null)
-                append(", ").append(specialLabel)
-        }
+        titleText = if (trip != null)
+            buildString {
+                append(routeId)
+                if (!trip.isFirstStopCommon)
+                    append(' ').append(trip.stops.first().preferredName)
+                append(" smjer ")
+                append(trip.preferredHeadsign)
+                val specialLabel = Love.giveMeTheSpecialTripLabel(trip)
+                    ?.let { it.first ?: it.second }
+                if (specialLabel != null)
+                    append(", ").append(specialLabel)
+            }
+        else
+        // trip == null  <=>  stop != null
+            stop!!.preferredName
 
         updateColorScheme()
 
