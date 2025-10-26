@@ -42,6 +42,8 @@ import hr.squidpai.zetlive.gtfs.StopNoLiveSchedule
 import hr.squidpai.zetlive.gtfs.StopScheduleEntry
 import hr.squidpai.zetlive.gtfs.getLiveDisplayData
 import hr.squidpai.zetlive.gtfs.getLiveSchedule
+import hr.squidpai.zetlive.gtfs.iconInfo
+import hr.squidpai.zetlive.gtfs.label
 import hr.squidpai.zetlive.gtfs.preferredHeadsign
 import hr.squidpai.zetlive.gtfs.preferredName
 import hr.squidpai.zetlive.localCurrentTimeMillis
@@ -234,6 +236,7 @@ class NotificationTrackerService : Service() {
             is StopNoLiveSchedule -> {
                 view.setViewVisibility(R.id.noLiveMessage, View.VISIBLE)
                 view.setTextViewText(R.id.noLiveMessage, liveSchedule.noLiveMessage)
+                view.setTextColor(R.id.noLiveMessage, colorScheme.disabled.toArgb())
             }
 
             is ActualStopLiveSchedule ->
@@ -291,7 +294,7 @@ class NotificationTrackerService : Service() {
         view.setTextColor(R.id.arrivalTime, tintColor)
         if (!departed)
             view.setInt(
-                R.id.tripHeadsign,
+                R.id.arrivalTime,
                 "setPaintFlags",
                 Paint.FAKE_BOLD_TEXT_FLAG or Paint.ANTI_ALIAS_FLAG,
             )
@@ -446,9 +449,13 @@ class NotificationTrackerService : Service() {
                 if (specialLabel != null)
                     append(", ").append(specialLabel)
             }
-        else
-        // trip == null  <=>  stop != null
-            stop!!.preferredName
+        else buildString {
+            // trip == null  <=>  stop != null
+            append(stop!!.preferredName)
+            append("  |  ")
+            append(stop.label ?: "Smjer ${stop.iconInfo?.second.orEmpty()}")
+        }
+
 
         updateColorScheme()
 
